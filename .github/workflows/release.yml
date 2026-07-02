@@ -4,7 +4,12 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. v1.9). action-gh-release creates the tag at the chosen ref."
+        required: true
+        type: string
 
 jobs:
   build-and-release:
@@ -31,7 +36,7 @@ jobs:
         id: vars
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ github.event.inputs.version || github.ref_name }}"
           if (-not $tag.StartsWith("v")) { $tag = "v$tag" }
           "version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
