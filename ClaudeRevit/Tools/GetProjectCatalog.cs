@@ -41,54 +41,55 @@ public class GetProjectCatalog : IRevitTool
 
     public bool RequiresTransaction => false;
 
-    private static readonly ConcurrentDictionary<string, string> Cache = new();
+    // Keyed on the Document INSTANCE hash as well: Title+PathName alone collides for two
+    // successive unsaved documents ("Project1" + empty path) and would serve element ids
+    // from a closed document.
+    private static readonly ConcurrentDictionary<string, JsonElement> Cache = new();
+
+    // Called by ToolDispatcher after any successful mutating tool call — the catalog must
+    // not outlive type/family changes made by the assistant itself. (User edits and Ctrl+Z
+    // are still invisible; the refresh flag remains the manual escape hatch.)
+    public static void Invalidate() => Cache.Clear();
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var cacheKey = doc.Title + "|" + doc.PathName;
+        var cacheKey = doc.Title + "|" + doc.PathName + "|" + doc.GetHashCode();
         bool refresh = input.TryGetValue("refresh", out var r) && r.ValueKind == JsonValueKind.True;
 
-        if (!refresh && Cache.TryGetValue(cacheKey, out var cached))
-            return WrapCached(cached, cached: true);
+        if (refresh || !Cache.TryGetValue(cacheKey, out var catalog))
+        {
+            catalog = BuildCatalog(doc);
+            Cache[cacheKey] = catalog;
+            return JsonSerializer.Serialize(new { cached = false, note = (string?)null, catalog });
+        }
 
-        var catalog = BuildCatalog(doc);
-        Cache[cacheKey] = catalog;
-        return WrapCached(catalog, cached: false);
-    }
-
-    private static string WrapCached(string catalogJson, bool cached)
-    {
-        using var parsed = JsonDocument.Parse(catalogJson);
         return JsonSerializer.Serialize(new
         {
-            cached,
-            note = cached
-                ? "Served from the session cache — pass refresh=true if families/types changed since it was built."
-                : (string?)null,
-            catalog = parsed.RootElement.Clone()
+            cached = true,
+            note = "Served from the session cache — pass refresh=true if families/types changed " +
+                   "outside this assistant (its own tool calls invalidate the cache automatically).",
+            catalog
         });
     }
 
-    private static string BuildCatalog(Document doc)
+    // Lists are capped so a big production model can't blow up the response (and the
+    // conversation context) — the dedicated list_* tools return full data when needed.
+    private static List<string> Cap(List<string> items, int max) =>
+        items.Count <= max
+            ? items
+            : items.Take(max).Append($"… +{items.Count - max} more (use the dedicated list tool for the full set)").ToList();
+
+    private static JsonElement BuildCatalog(Document doc)
     {
         var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .OrderBy(l => l.Elevation)
             .Select(l => new { id = l.Id.Value, name = l.Name, elevation_ft = Math.Round(l.Elevation, 3) })
             .ToList();
 
-        var viewTemplates = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>()
-            .Where(v => v.IsTemplate)
-            .Select(v =>
-            {
-                string? discipline;
-                try { discipline = v.Discipline.ToString(); } catch { discipline = null; }
-                return new { id = v.Id.Value, name = v.Name, view_type = v.ViewType.ToString(), discipline };
-            })
-            .OrderBy(t => t.view_type).ThenBy(t => t.name)
-            .ToList();
+        var viewTemplates = ListViewTemplates.Survey(doc);
 
         // Loadable family types, grouped by category: category → ["Family: Type", …]
         var familyTypes = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
@@ -97,7 +98,7 @@ public class GetProjectCatalog : IRevitTool
             .OrderBy(g => g.Key)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(s => $"{s.FamilyName}: {s.Name}").OrderBy(n => n).ToList());
+                g => Cap(g.Select(s => $"{s.FamilyName}: {s.Name}").OrderBy(n => n).ToList(), 60));
 
         var wallTypes = new FilteredElementCollector(doc).OfClass(typeof(WallType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
@@ -106,8 +107,8 @@ public class GetProjectCatalog : IRevitTool
         var roofTypes = new FilteredElementCollector(doc).OfClass(typeof(RoofType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
 
-        var materials = new FilteredElementCollector(doc).OfClass(typeof(Material))
-            .Select(m => m.Name).OrderBy(n => n).ToList();
+        var materials = Cap(new FilteredElementCollector(doc).OfClass(typeof(Material))
+            .Select(m => m.Name).OrderBy(n => n).ToList(), 150);
 
         var barTypes = new FilteredElementCollector(doc).OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
             .Select(t => new { name = t.Name, diameter_mm = Math.Round(t.BarNominalDiameter * 304.8, 1) })
@@ -116,15 +117,13 @@ public class GetProjectCatalog : IRevitTool
             .Select(s => s.Name).OrderBy(n => n).ToList();
         var hooks = new FilteredElementCollector(doc).OfClass(typeof(RebarHookType))
             .Select(h => h.Name).OrderBy(n => n).ToList();
-        var coverTypes = new FilteredElementCollector(doc).OfClass(typeof(RebarCoverType)).Cast<RebarCoverType>()
-            .Select(t => new { id = t.Id.Value, name = t.Name, cover_mm = Math.Round(t.CoverDistance * 304.8, 1) })
-            .OrderBy(t => t.cover_mm).ToList();
+        var coverTypes = ListRebarCoverTypes.Survey(doc);
         var areaTypes = new FilteredElementCollector(doc).OfClass(typeof(AreaReinforcementType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
         var pathTypes = new FilteredElementCollector(doc).OfClass(typeof(PathReinforcementType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
 
-        return JsonSerializer.Serialize(new
+        return JsonSerializer.SerializeToElement(new
         {
             document = doc.Title,
             levels,

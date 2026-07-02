@@ -20,10 +20,20 @@ namespace ClaudeRevit.Tools;
 // EVERY failure path returns an error string — this tool must never crash Revit. If
 // Dynamo is not installed it says so and suggests enabling execute_csharp instead.
 //
-// Execution feedback: DynamoRevit.ExecuteCommand returns Succeeded as long as the graph
-// merely OPENED, so the snippet is wrapped in a harness that writes a run report (OUT,
-// traceback, document identity) to a temp file. No report file after the call means the
-// Python node never ran, and that is surfaced as an error instead of a fake success.
+// Execution flow (matches DynamoRevit.ExecuteCommand in current DynamoRevit sources):
+// with dynShowUI=False the command NEVER opens a graph on the call that (re)initializes
+// the UIless model — it boots the model and returns Succeeded. The graph is opened (and,
+// in automation mode, run synchronously) only on a SUBSEQUENT call, when the model is
+// already StartedUIless and no dynModelShutDown key is present. So the tool makes two
+// calls per run: (1) reset+boot bound to the current document, (2) open+execute.
+// dynShowUI=False also means the WebView2 splash screen is never shown, so a broken
+// splash (e.g. unwritable WebView2 data folder) does not affect this path.
+//
+// Execution feedback: ExecuteCommand's return value only reflects opening, so the snippet
+// is wrapped in a harness that writes a run report (OUT, traceback, document identity) to
+// a temp file. A missing report is surfaced as an honest error instead of a fake success —
+// and the tool never re-runs the snippet by itself, because a missing report cannot prove
+// the code did not execute (partial commits may have happened).
 public class RunDynamoPython : IRevitTool
 {
     public string Name => "run_dynamo_python";
@@ -55,7 +65,9 @@ public class RunDynamoPython : IRevitTool
             {
                 type = "string",
                 @enum = new[] { "CPython3", "IronPython2" },
-                description = "Python engine (default CPython3). If the chosen engine never executes the node, the other one is tried automatically."
+                description = "Python engine (default CPython3). The tool never retries by itself; " +
+                              "if a run reports that the node did not execute, decide yourself whether " +
+                              "to retry with the other engine."
             })
         },
         Required = ["code"]
@@ -79,49 +91,58 @@ public class RunDynamoPython : IRevitTool
                 return Fail("Dynamo for Revit was not found in this session. Install Dynamo for " +
                             "Revit, or ask the user to enable execute_csharp in settings as a fallback.");
 
+            var engine = "CPython3";
+            if (input.TryGetValue("engine", out var e) && e.ValueKind == JsonValueKind.String)
+            {
+                var wanted = e.GetString();
+                if (string.Equals(wanted, "IronPython2", StringComparison.OrdinalIgnoreCase))
+                    engine = "IronPython2";
+                else if (!string.Equals(wanted, "CPython3", StringComparison.OrdinalIgnoreCase))
+                    return Fail($"Unknown engine '{wanted}'. Valid values: CPython3, IronPython2.");
+            }
+
             // The headless journal path only executes when Dynamo is NOT showing its UI —
-            // with the Dynamo window open the run is routed through UI commands and the
-            // node never executes. Fail fast with a clear action instead of a silent no-op.
-            var modelState = GetModelState(dynamoRevit);
-            if (modelState == "StartedUIThread")
+            // with the Dynamo window open, ExecuteCommand routes the graph through the UI
+            // view-model and the node never executes headlessly. Fail fast with a clear
+            // action instead of a silent no-op.
+            var modelState = GetDynamoState(dynamoRevit);
+            if (modelState is "StartedUI" or "StartedUIThread")
                 return Fail("The Dynamo window is currently open in Revit, which blocks headless " +
                             "script execution. Ask the user to close the Dynamo window, then retry.");
 
-            var requested = input.TryGetValue("engine", out var e) && e.ValueKind == JsonValueKind.String
-                ? e.GetString() : null;
-            // Requested engine first; if the node never executes on it (e.g. that engine is
-            // not installed), retry once on the other engine before giving up.
-            var engines = requested == "IronPython2"
-                ? new[] { "IronPython2", "CPython3" }
-                : new[] { "CPython3", "IronPython2" };
+            var (report, parseError) = RunGraph(dynamoRevit, app, code!, engine);
 
-            var attempts = new List<string>();
-            foreach (var engine in engines)
-            {
-                var (report, dynamoResult) = RunOnce(dynamoRevit, app, code!, engine);
-                attempts.Add($"{engine}: {(report != null ? "executed" : $"did not execute (Dynamo returned '{dynamoResult}')")}");
-                if (report != null)
-                    return BuildResponse(report.Value, engine, app);
-            }
+            if (parseError != null)
+                return Fail("The Python node ran but its run report could not be parsed (" + parseError +
+                            "). The MODEL STATE IS UNKNOWN — the script may have committed changes. " +
+                            "Verify with query tools (query_elements / get_element_parameters) before " +
+                            "re-running anything.");
 
-            return Fail(
-                "The Python node never executed on either engine (it wrote no run report), so NO " +
-                "model changes were made. Attempts: " + string.Join("; ", attempts) + ". " +
-                "Likely causes: this Dynamo installation has no working Python engine, or the " +
-                "Dynamo/Revit version routes journal runs differently. Check Dynamo's own log " +
-                "(%AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs) for node errors.");
+            if (report == null)
+                return Fail(
+                    $"The Python node wrote no run report on engine {engine}, so it most likely never " +
+                    "executed — but this cannot be fully guaranteed, so VERIFY with query tools before " +
+                    "re-running a model-mutating script. Likely causes: this Dynamo installation lacks " +
+                    $"the {engine} engine (you may retry once with the other engine explicitly), or the " +
+                    "graph failed to open. Dynamo's own log is at %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs.");
+
+            return BuildResponse(report.Value, engine, app);
         }
         catch (Exception ex)
         {
             // Never rethrow — a crash here is exactly what we're avoiding.
             Log.Error("run_dynamo_python failed", ex);
-            return Fail("Dynamo execution failed: " + (ex.InnerException?.Message ?? ex.Message));
+            return Fail("Dynamo execution failed: " + (ex.InnerException?.Message ?? ex.Message) +
+                        ". If the script may have started, verify the model state with query tools " +
+                        "before re-running it.");
         }
     }
 
-    // One full headless journal run on the given engine. Returns the parsed run report
-    // (null if the node never executed) plus DynamoRevit's own result string.
-    private static (JsonElement? Report, string DynamoResult) RunOnce(
+    // One full headless run on the given engine, in the two calls current DynamoRevit
+    // requires (see the file header): reset+boot, then open+execute. Returns the parsed
+    // run report (null = no report file → the node almost certainly never ran) and a
+    // parse-error message when a report exists but is unreadable.
+    private static (JsonElement? Report, string? ParseError) RunGraph(
         System.Type dynamoRevit, UIApplication app, string code, string engine)
     {
         string? dynPath = null;
@@ -131,42 +152,42 @@ public class RunDynamoPython : IRevitTool
         {
             dynPath = WriteGraph(WrapInHarness(code, reportPath), engine);
 
-            // DynamoRevit.ExecuteCommand(DynamoRevitCommandData) drives a headless run via
-            // journal data. Built entirely by reflection so we don't depend on Dynamo at
-            // compile time; any shape mismatch is caught and reported, never thrown to Revit.
-            var journalData = new Dictionary<string, string>
+            // Call 1 — reset: if a UIless model is alive (possibly bound to a previously
+            // active document), dynModelShutDown makes ExecuteCommand shut it down and boot
+            // a fresh one bound to the CURRENT document. This call never opens a graph.
+            InvokeExecuteCommand(dynamoRevit, app, new Dictionary<string, string>
             {
-                ["dynPath"] = dynPath,
-                // Without dynPathExecute the UIless path merely OPENS the graph — and a .dyn
-                // that has never run in the UI always opens in Manual run mode, so it is shut
-                // down again without a single evaluation while ExecuteCommand still returns
-                // Succeeded. dynPathExecute makes DynamoRevit issue an explicit RunCancel
-                // command after opening, which in automation mode runs synchronously.
-                ["dynPathExecute"] = "True",
-                ["dynAutomation"] = "True",
                 ["dynShowUI"] = "False",
+                ["dynAutomation"] = "True",
                 ["dynModelShutDown"] = "True"
-            };
+            });
 
-            var cmdDataType = FindType("Dynamo.Applications.DynamoRevitCommandData")
-                              ?? throw new InvalidOperationException("DynamoRevitCommandData type not found.");
-            var cmdData = Activator.CreateInstance(cmdDataType)
-                          ?? throw new InvalidOperationException("Could not create DynamoRevitCommandData.");
-            SetMember(cmdData, "Application", app);
-            SetMember(cmdData, "JournalData", journalData);
-
-            var instance = Activator.CreateInstance(dynamoRevit)
-                           ?? throw new InvalidOperationException("Could not create DynamoRevit.");
-            var exec = dynamoRevit.GetMethod("ExecuteCommand", BindingFlags.Public | BindingFlags.Instance)
-                       ?? throw new InvalidOperationException("DynamoRevit.ExecuteCommand not found.");
-
-            var result = exec.Invoke(instance, new[] { cmdData });
-            var dynamoResult = result?.ToString() ?? "Succeeded";
+            // Call 2 — run: with the model StartedUIless and NO shutdown key, ExecuteCommand
+            // routes to TryOpenAndExecuteWorkspaceInCommandData, which opens the graph; in
+            // automation mode opening runs it synchronously on this thread ("the model will
+            // run anyway ... regardless of the DynPathExecuteKey"). dynPathExecute is kept
+            // for older DynamoRevit versions where the explicit Run() branch needs it.
+            InvokeExecuteCommand(dynamoRevit, app, new Dictionary<string, string>
+            {
+                ["dynShowUI"] = "False",
+                ["dynAutomation"] = "True",
+                ["dynPath"] = dynPath,
+                ["dynPathExecute"] = "True"
+            });
 
             if (!File.Exists(reportPath))
-                return (null, dynamoResult);
-            using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
-            return (doc.RootElement.Clone(), dynamoResult);
+                return (null, null);
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
+                return (doc.RootElement.Clone(), null);
+            }
+            catch (Exception ex)
+            {
+                // A present-but-unreadable report means the node DID run; never treat this
+                // as "did not execute".
+                return (null, ex.Message);
+            }
         }
         finally
         {
@@ -175,12 +196,40 @@ public class RunDynamoPython : IRevitTool
         }
     }
 
-    private static string? GetModelState(System.Type dynamoRevit)
+    // DynamoRevit.ExecuteCommand(DynamoRevitCommandData) driven via journal data. Built
+    // entirely by reflection so the build has no Dynamo dependency; any shape mismatch
+    // throws and is caught by Execute's outer handler.
+    private static void InvokeExecuteCommand(
+        System.Type dynamoRevit, UIApplication app, Dictionary<string, string> journalData)
+    {
+        var cmdDataType = FindType("Dynamo.Applications.DynamoRevitCommandData")
+                          ?? throw new InvalidOperationException("DynamoRevitCommandData type not found.");
+        var cmdData = Activator.CreateInstance(cmdDataType)
+                      ?? throw new InvalidOperationException("Could not create DynamoRevitCommandData.");
+        SetMember(cmdData, "Application", app);
+        SetMember(cmdData, "JournalData", journalData);
+
+        var instance = Activator.CreateInstance(dynamoRevit)
+                       ?? throw new InvalidOperationException("Could not create DynamoRevit.");
+        var exec = dynamoRevit.GetMethod("ExecuteCommand", BindingFlags.Public | BindingFlags.Instance)
+                   ?? throw new InvalidOperationException("DynamoRevit.ExecuteCommand not found.");
+        exec.Invoke(instance, new[] { cmdData });
+    }
+
+    // Current DynamoRevit keeps the state on the static RevitDynamoModel instance
+    // (State: NotStarted / StartedUIless / StartedUI); very old versions exposed a static
+    // ModelState property instead. Null when neither exists or nothing started yet.
+    private static string? GetDynamoState(System.Type dynamoRevit)
     {
         try
         {
-            var prop = dynamoRevit.GetProperty("ModelState", BindingFlags.Public | BindingFlags.Static);
-            return prop?.GetValue(null)?.ToString();
+            var modelProp = dynamoRevit.GetProperty("RevitDynamoModel", BindingFlags.Public | BindingFlags.Static);
+            var model = modelProp?.GetValue(null);
+            var state = model?.GetType().GetProperty("State")?.GetValue(model)?.ToString();
+            if (state != null) return state;
+
+            var legacy = dynamoRevit.GetProperty("ModelState", BindingFlags.Public | BindingFlags.Static);
+            return legacy?.GetValue(null)?.ToString();
         }
         catch
         {
@@ -195,6 +244,7 @@ public class RunDynamoPython : IRevitTool
     {
         var error = report.TryGetProperty("error", out var e) ? e.GetString() : null;
         var output = report.TryGetProperty("out", out var o) ? o.GetString() : null;
+        var pythonVersion = report.TryGetProperty("python", out var pv) ? pv.GetString() : null;
         if (output is { Length: > 20000 })
             output = output[..20000] + " …(truncated)";
 
@@ -224,8 +274,10 @@ public class RunDynamoPython : IRevitTool
             {
                 ok = false,
                 engine,
-                error = "The Python script raised an exception (any transaction it left open was " +
-                        "rolled back):\n" + error,
+                python = pythonVersion,
+                error = "The Python script raised an exception. IMPORTANT: transactions the script " +
+                        "COMMITTED before the exception persist in the model — verify what was " +
+                        "actually changed before re-running:\n" + error,
                 document = dynDocTitle,
                 warning
             });
@@ -236,6 +288,7 @@ public class RunDynamoPython : IRevitTool
         {
             ok = true,
             engine,
+            python = pythonVersion,
             result = "Script executed to completion.",
             output,
             document = dynDocTitle,
@@ -257,7 +310,7 @@ public class RunDynamoPython : IRevitTool
         var pathLiteral = JsonSerializer.Serialize(reportPath); // JSON string == valid Python literal
         return $$"""
 import base64 as __cr_b64, json as __cr_json, traceback as __cr_tb, io as __cr_io, sys as __cr_sys
-__cr_report = {'executed': True, 'python': __cr_sys.version.split()[0]}
+__cr_report = {'python': __cr_sys.version.split()[0]}
 try:
     exec(compile(__cr_b64.b64decode('{{codeB64}}').decode('utf-8'), '<claude_snippet>', 'exec'), globals())
     if 'OUT' in globals():
@@ -265,7 +318,7 @@ try:
             __cr_report['out'] = __cr_json.dumps(globals()['OUT'], default=repr)
         except Exception:
             __cr_report['out'] = repr(globals()['OUT'])
-except Exception:
+except BaseException:
     __cr_report['error'] = __cr_tb.format_exc()
 try:
     import clr
@@ -276,36 +329,48 @@ try:
 except Exception:
     pass
 try:
+    __cr_payload = __cr_json.dumps(__cr_report)
+except Exception:
+    __cr_payload = '{"error": "run report serialization failed"}'
+try:
     __cr_f = __cr_io.open({{pathLiteral}}, 'wb')
     try:
-        __cr_f.write(__cr_json.dumps(__cr_report).encode('ascii'))
+        __cr_f.write(__cr_payload.encode('ascii'))
     finally:
         __cr_f.close()
 except Exception:
     pass
-OUT = __cr_report
+OUT = 0
 """;
     }
 
     private static string Fail(string message) =>
         JsonSerializer.Serialize(new { ok = false, engine = "dynamo", error = message });
 
-    // Minimal Dynamo graph (.dyn JSON) with a single Python Script node containing the code.
+    // A Dynamo graph (.dyn JSON) with a single Python Script node containing the code.
+    // Mirrors, field for field, a .dyn that Dynamo itself saves (reference: the python.dyn
+    // test file in the DynamoDS/Dynamo repo): DynamoModel.OpenJsonFileFromPath throws
+    // NullReferenceException on files missing the standard blocks (ElementResolver,
+    // Bindings, the full View section with Camera/NodeViews), so a "minimal" graph is not
+    // an option. RunType=Automatic + HasRunWithoutCrash=true are what make the graph run
+    // on open (files without them are forced into Manual run mode and never evaluate).
     private static string WriteGraph(string code, string engine)
     {
-        var nodeId = "11111111-1111-1111-1111-111111111111";
+        var nodeId = Guid.NewGuid().ToString("N");
         var graph = new
         {
-            Uuid = "00000000-0000-0000-0000-000000000000",
+            Uuid = Guid.NewGuid().ToString("D"),
             IsCustomNode = false,
             Description = "",
             Name = "ClaudeRevit",
+            ElementResolver = new { ResolutionMap = new { } },
+            Inputs = Array.Empty<object>(),
+            Outputs = Array.Empty<object>(),
             Nodes = new object[]
             {
                 new
                 {
                     ConcreteType = "PythonNodeModels.PythonNode, PythonNodeModels",
-                    Id = nodeId,
                     NodeType = "PythonScriptNode",
                     Code = code,
                     // Older Dynamo deserializes "Engine", newer builds "EngineName"; unknown
@@ -313,12 +378,25 @@ OUT = __cr_report
                     Engine = engine,
                     EngineName = engine,
                     VariableInputPorts = true,
-                    Inputs = Array.Empty<object>(),
+                    Id = nodeId,
+                    Inputs = new object[]
+                    {
+                        new
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Name = "IN[0]",
+                            Description = "Input #0",
+                            UsingDefaultValue = false,
+                            Level = 2,
+                            UseLevels = false,
+                            KeepListStructure = false
+                        }
+                    },
                     Outputs = new object[]
                     {
                         new
                         {
-                            Id = "22222222-2222-2222-2222-222222222222",
+                            Id = Guid.NewGuid().ToString("N"),
                             Name = "OUT",
                             Description = "Result of the python script",
                             UsingDefaultValue = false,
@@ -327,21 +405,56 @@ OUT = __cr_report
                             KeepListStructure = false
                         }
                     },
-                    Replication = "Disabled"
+                    Replication = "Disabled",
+                    Description = "Runs an embedded Python script."
                 }
             },
             Connectors = Array.Empty<object>(),
-            // RunType/HasRunWithoutCrash matter on code paths that honour the file's own run
-            // settings (e.g. when the Dynamo UI is already open): without them Dynamo forces
-            // Manual run mode and the graph would open without evaluating.
+            Dependencies = Array.Empty<object>(),
+            NodeLibraryDependencies = Array.Empty<object>(),
+            Bindings = Array.Empty<object>(),
             View = new
             {
                 Dynamo = new
                 {
+                    ScaleFactor = 1.0,
+                    HasRunWithoutCrash = true,
+                    IsVisibleInDynamoLibrary = true,
                     Version = "3.0.0.0",
                     RunType = "Automatic",
-                    HasRunWithoutCrash = true
-                }
+                    RunPeriod = "1000"
+                },
+                Camera = new
+                {
+                    Name = "Background Preview",
+                    EyeX = -17.0,
+                    EyeY = 24.0,
+                    EyeZ = 50.0,
+                    LookX = 12.0,
+                    LookY = -13.0,
+                    LookZ = -58.0,
+                    UpX = 0.0,
+                    UpY = 1.0,
+                    UpZ = 0.0
+                },
+                NodeViews = new object[]
+                {
+                    new
+                    {
+                        ShowGeometry = true,
+                        Name = "Python Script",
+                        Id = nodeId,
+                        IsSetAsInput = false,
+                        IsSetAsOutput = false,
+                        Excluded = false,
+                        X = 259.0,
+                        Y = 148.5
+                    }
+                },
+                Annotations = Array.Empty<object>(),
+                X = 0.0,
+                Y = 0.0,
+                Zoom = 1.0
             }
         };
 

@@ -42,7 +42,7 @@ public class SaveProjectMemory : IRevitTool
         if (string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("note is empty.");
 
-        MemoryStore.AppendProject(doc.Title, note);
+        MemoryStore.AppendProject(doc.Title, doc.PathName, note);
         return JsonSerializer.Serialize(new { saved = true, project = doc.Title, note });
     }
 }

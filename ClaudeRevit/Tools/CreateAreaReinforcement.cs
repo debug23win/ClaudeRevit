@@ -54,25 +54,7 @@ public class CreateAreaReinforcement : IRevitTool
             throw new InvalidOperationException(
                 $"Element {host.Id.Value} is not a valid rebar host — make sure it is structural.");
 
-        RebarBarType barType;
-        if (input.TryGetValue("bar_type_name", out var bt) && bt.ValueKind == JsonValueKind.String)
-        {
-            var wanted = bt.GetString();
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType))
-                .Cast<RebarBarType>()
-                .FirstOrDefault(t => t.Name == wanted)
-                ?? throw new InvalidOperationException(
-                    $"Rebar bar type '{wanted}' not found. Call list_rebar_types to see available types.");
-        }
-        else
-        {
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType))
-                .Cast<RebarBarType>()
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException("No rebar bar types are loaded in this project.");
-        }
+        var barType = ReinforcementHelpers.ResolveBarType(doc, input);
 
         var areaType = new FilteredElementCollector(doc)
             .OfClass(typeof(AreaReinforcementType))

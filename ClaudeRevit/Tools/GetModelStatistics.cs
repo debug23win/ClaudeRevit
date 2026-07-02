@@ -76,7 +76,9 @@ public class GetModelStatistics : IRevitTool
             .GetElementCount();
 
         // Per-category deltas vs. the previous call in this session (null on the first call).
-        var snapshotKey = doc.Title + "|" + doc.PathName;
+        // The instance hash keeps two successive unsaved documents with the same title from
+        // inheriting each other's snapshot.
+        var snapshotKey = doc.Title + "|" + doc.PathName + "|" + doc.GetHashCode();
         Dictionary<string, int>? changes = null;
         if (LastCounts.TryGetValue(snapshotKey, out var previous))
         {

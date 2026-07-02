@@ -59,51 +59,26 @@ public class CreateRebar : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
-            ?? throw new InvalidOperationException("Host element not found.");
-
-        var hostData = RebarHostData.GetRebarHostData(host);
-        if (hostData == null || !hostData.IsValidHost())
-            throw new InvalidOperationException(
-                $"Element {host.Id.Value} ({host.Category?.Name}) is not a valid rebar host. " +
-                "The element must be structural (e.g. structural wall/floor/column/framing/foundation).");
+        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
 
         var start = new XYZ(input["start_x"].GetDouble(), input["start_y"].GetDouble(), input["start_z"].GetDouble());
         var end = new XYZ(input["end_x"].GetDouble(), input["end_y"].GetDouble(), input["end_z"].GetDouble());
         if (start.DistanceTo(end) < 0.01)
             throw new InvalidOperationException("Start and end points are (nearly) identical.");
 
-        RebarBarType barType;
-        if (input.TryGetValue("bar_type_name", out var bt) && bt.ValueKind == JsonValueKind.String)
-        {
-            var wanted = bt.GetString();
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType))
-                .Cast<RebarBarType>()
-                .FirstOrDefault(t => t.Name == wanted)
-                ?? throw new InvalidOperationException(
-                    $"Rebar bar type '{wanted}' not found. Call list_rebar_types to see available types.");
-        }
-        else
-        {
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType))
-                .Cast<RebarBarType>()
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException("No rebar bar types are loaded in this project.");
-        }
+        var barType = ReinforcementHelpers.ResolveBarType(doc, input);
 
         var dir = (end - start).Normalize();
 
         // The normal must be perpendicular to the bar; for a set it is also the
         // distribution direction.
         XYZ norm;
-        if (input.TryGetValue("dist_x", out var dx) || input.TryGetValue("dist_y", out _) || input.TryGetValue("dist_z", out _))
+        double? distX = ToolInput.OptionalDouble(input, "dist_x");
+        double? distY = ToolInput.OptionalDouble(input, "dist_y");
+        double? distZ = ToolInput.OptionalDouble(input, "dist_z");
+        if (distX != null || distY != null || distZ != null)
         {
-            norm = new XYZ(
-                input.TryGetValue("dist_x", out dx) ? dx.GetDouble() : 0,
-                input.TryGetValue("dist_y", out var dy) ? dy.GetDouble() : 0,
-                input.TryGetValue("dist_z", out var dz) ? dz.GetDouble() : 0);
+            norm = new XYZ(distX ?? 0, distY ?? 0, distZ ?? 0);
             if (norm.GetLength() < 1e-9)
                 throw new InvalidOperationException("Distribution vector must be non-zero.");
             norm = norm.Normalize();
@@ -113,10 +88,7 @@ public class CreateRebar : IRevitTool
         }
         else
         {
-            // pick a sensible perpendicular: vertical bars distribute along X,
-            // horizontal bars distribute along Z
-            var seed = Math.Abs(dir.DotProduct(XYZ.BasisZ)) > 0.9 ? XYZ.BasisX : XYZ.BasisZ;
-            norm = (seed - dir.Multiply(seed.DotProduct(dir))).Normalize();
+            norm = ReinforcementHelpers.PerpendicularTo(dir);
         }
 
         Rebar rebar;
@@ -130,8 +102,11 @@ public class CreateRebar : IRevitTool
                 .FirstOrDefault(s => s.Name == shapeName)
                 ?? throw new InvalidOperationException(
                     $"Rebar shape '{shapeName}' not found. Call list_rebar_types to see available shapes.");
-            // The shape plane: X along the bar run, Y along the distribution normal.
-            rebar = Rebar.CreateFromRebarShape(doc, shape, barType, host, start, dir, norm);
+            // xVec/yVec both lie IN the shape plane, and a shape-driven set distributes
+            // along the PLANE NORMAL (xVec×yVec). To make the set march along the requested
+            // distribution vector, that vector must be the plane normal: with xVec = dir and
+            // yVec = norm×dir, dir×(norm×dir) = norm (dir ⊥ norm).
+            rebar = Rebar.CreateFromRebarShape(doc, shape, barType, host, start, dir, norm.CrossProduct(dir));
         }
         else
         {
@@ -152,7 +127,9 @@ public class CreateRebar : IRevitTool
             foreach (var prop in shapeParams.EnumerateObject())
             {
                 var p = rebar.LookupParameter(prop.Name);
-                if (p == null)
+                if (prop.Value.ValueKind != JsonValueKind.Number)
+                    paramWarnings.Add($"Value for '{prop.Name}' is not a number — skipped.");
+                else if (p == null)
                     paramWarnings.Add($"Parameter '{prop.Name}' not found on the rebar instance.");
                 else if (p.IsReadOnly)
                     paramWarnings.Add($"Parameter '{prop.Name}' is read-only.");
@@ -163,8 +140,8 @@ public class CreateRebar : IRevitTool
             }
         }
 
-        int count = input.TryGetValue("count", out var c) ? c.GetInt32() : 1;
-        double? spacing = input.TryGetValue("spacing_ft", out var sp) ? sp.GetDouble() : null;
+        int count = ToolInput.OptionalInt(input, "count") ?? 1;
+        double? spacing = ToolInput.OptionalDouble(input, "spacing_ft");
         if (count > 1)
         {
             if (spacing is null or <= 0)

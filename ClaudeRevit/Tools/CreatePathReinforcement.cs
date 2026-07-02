@@ -59,17 +59,11 @@ public class CreatePathReinforcement : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
-            ?? throw new InvalidOperationException("Host element not found.");
+        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
         if (host is not Wall && host is not Floor)
             throw new InvalidOperationException(
                 $"Element {host.Id.Value} ({host.Category?.Name}) is not a wall or floor. " +
                 "Path reinforcement supports structural walls and floors only.");
-
-        var hostData = RebarHostData.GetRebarHostData(host);
-        if (hostData == null || !hostData.IsValidHost())
-            throw new InvalidOperationException(
-                $"Element {host.Id.Value} is not a valid rebar host — make sure it is structural.");
 
         var pts = input["points"].EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), p.GetProperty("z").GetDouble()))
@@ -85,30 +79,14 @@ public class CreatePathReinforcement : IRevitTool
             curves.Add(Line.CreateBound(pts[i], pts[i + 1]));
         }
 
-        RebarBarType barType;
-        if (input.TryGetValue("bar_type_name", out var bt) && bt.ValueKind == JsonValueKind.String)
-        {
-            var wanted = bt.GetString();
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
-                .FirstOrDefault(t => t.Name == wanted)
-                ?? throw new InvalidOperationException(
-                    $"Rebar bar type '{wanted}' not found. Call list_rebar_types to see available types.");
-        }
-        else
-        {
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException("No rebar bar types are loaded in this project.");
-        }
+        var barType = ReinforcementHelpers.ResolveBarType(doc, input);
 
-        var pathType = new FilteredElementCollector(doc)
-            .OfClass(typeof(PathReinforcementType)).Cast<PathReinforcementType>()
-            .FirstOrDefault();
         // CreateDefaultPathReinforcementType returns the new type's id, not the type itself.
-        var pathTypeId = pathType?.Id ?? PathReinforcementType.CreateDefaultPathReinforcementType(doc);
-        var pathTypeName = pathType?.Name ?? doc.GetElement(pathTypeId)?.Name ?? "(default)";
+        var pathTypeId = new FilteredElementCollector(doc)
+                .OfClass(typeof(PathReinforcementType)).Cast<PathReinforcementType>()
+                .FirstOrDefault()?.Id
+            ?? PathReinforcementType.CreateDefaultPathReinforcementType(doc);
+        var pathTypeName = doc.GetElement(pathTypeId).Name;
 
         bool flip = input.TryGetValue("flip", out var f) && f.ValueKind == JsonValueKind.True;
 

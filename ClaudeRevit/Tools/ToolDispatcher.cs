@@ -180,6 +180,12 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 result = tool.Execute(job.Input, app);
             }
+            // Anything that may have created/renamed types or loaded families makes the
+            // cached project catalog stale. load_family and run_dynamo_python mutate the
+            // document without RequiresTransaction (they manage transactions themselves).
+            if (tool.RequiresTransaction || tool.Name is "load_family" or "run_dynamo_python")
+                GetProjectCatalog.Invalidate();
+
             Services.Log.Info($"tool ✓ {job.Name}");
             job.Tcs.TrySetResult(result);
         }
@@ -217,7 +223,7 @@ public class ToolDispatcher : IExternalEventHandler
             }
             catch { units = "(unknown)"; }
 
-            var projectNotes = Services.MemoryStore.LoadProject(doc.Title);
+            var projectNotes = Services.MemoryStore.LoadProject(doc.Title, doc.PathName);
 
             var info = new
             {

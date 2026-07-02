@@ -66,32 +66,8 @@ public class CreateRebarBatch : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
-            ?? throw new InvalidOperationException("Host element not found.");
-
-        var hostData = RebarHostData.GetRebarHostData(host);
-        if (hostData == null || !hostData.IsValidHost())
-            throw new InvalidOperationException(
-                $"Element {host.Id.Value} ({host.Category?.Name}) is not a valid rebar host. " +
-                "The element must be structural.");
-
-        RebarBarType barType;
-        if (input.TryGetValue("bar_type_name", out var bt) && bt.ValueKind == JsonValueKind.String)
-        {
-            var wanted = bt.GetString();
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
-                .FirstOrDefault(t => t.Name == wanted)
-                ?? throw new InvalidOperationException(
-                    $"Rebar bar type '{wanted}' not found. Call list_rebar_types to see available types.");
-        }
-        else
-        {
-            barType = new FilteredElementCollector(doc)
-                .OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException("No rebar bar types are loaded in this project.");
-        }
+        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
+        var barType = ReinforcementHelpers.ResolveBarType(doc, input);
 
         var created = new List<object>();
         var failed = new List<object>();
@@ -108,8 +84,7 @@ public class CreateRebarBatch : IRevitTool
                     throw new InvalidOperationException("start and end are (nearly) identical.");
 
                 var dir = (end - start).Normalize();
-                var seed = Math.Abs(dir.DotProduct(XYZ.BasisZ)) > 0.9 ? XYZ.BasisX : XYZ.BasisZ;
-                var norm = (seed - dir.Multiply(seed.DotProduct(dir))).Normalize();
+                var norm = ReinforcementHelpers.PerpendicularTo(dir);
 
                 var curves = new List<Curve> { Line.CreateBound(start, end) };
                 using var terminations = new BarTerminationsData(doc);

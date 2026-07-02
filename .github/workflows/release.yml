@@ -40,15 +40,17 @@ jobs:
           if (-not $tag.StartsWith("v")) { $tag = "v$tag" }
           "version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      # On manual dispatch the tag doesn't exist yet (or may point elsewhere, e.g. the
-      # release API defaults a new tag to the default branch) — pin it to the commit this
-      # run actually builds, so the tag's source always matches the shipped artifacts.
-      - name: Point tag at the built commit (manual dispatch only)
+      # Refuse to silently move a published release tag: a manual dispatch may only (re)tag
+      # a version that doesn't exist yet, or one that already points at this very commit.
+      - name: Guard against retagging an existing release (manual dispatch only)
         if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
-          git tag -f "${{ steps.vars.outputs.version }}" "${{ github.sha }}"
-          git push -f origin "refs/tags/${{ steps.vars.outputs.version }}"
+          $tag = "${{ steps.vars.outputs.version }}"
+          $existing = (git ls-remote origin "refs/tags/$tag") -split "\s+" | Select-Object -First 1
+          if ($existing -and $existing -ne "${{ github.sha }}") {
+            throw "Tag $tag already exists at $existing. Refusing to move a published tag — pick a new version or delete the tag/release deliberately first."
+          }
 
       - name: Zip release artifacts
         shell: pwsh

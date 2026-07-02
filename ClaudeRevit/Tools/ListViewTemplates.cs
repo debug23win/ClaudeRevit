@@ -30,7 +30,13 @@ public class ListViewTemplates : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var templates = new FilteredElementCollector(doc)
+        var templates = Survey(doc);
+        return JsonSerializer.Serialize(new { count = templates.Count, view_templates = templates });
+    }
+
+    // Shared with get_project_catalog so both tools report identical template data.
+    internal static List<object> Survey(Document doc) =>
+        new FilteredElementCollector(doc)
             .OfClass(typeof(View)).Cast<View>()
             .Where(v => v.IsTemplate)
             .Select(v =>
@@ -47,8 +53,6 @@ public class ListViewTemplates : IRevitTool
                 };
             })
             .OrderBy(t => t.view_type).ThenBy(t => t.name)
+            .Cast<object>()
             .ToList();
-
-        return JsonSerializer.Serialize(new { count = templates.Count, view_templates = templates });
-    }
 }

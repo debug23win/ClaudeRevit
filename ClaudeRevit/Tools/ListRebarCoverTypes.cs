@@ -30,7 +30,13 @@ public class ListRebarCoverTypes : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var types = new FilteredElementCollector(doc).OfClass(typeof(RebarCoverType))
+        var types = Survey(doc);
+        return JsonSerializer.Serialize(new { count = types.Count, cover_types = types });
+    }
+
+    // Shared with get_project_catalog so both tools report identical cover data.
+    internal static List<object> Survey(Document doc) =>
+        new FilteredElementCollector(doc).OfClass(typeof(RebarCoverType))
             .Cast<RebarCoverType>()
             .Select(t => new
             {
@@ -39,8 +45,6 @@ public class ListRebarCoverTypes : IRevitTool
                 cover_mm = Math.Round(t.CoverDistance * 304.8, 1)
             })
             .OrderBy(t => t.cover_mm)
+            .Cast<object>()
             .ToList();
-
-        return JsonSerializer.Serialize(new { count = types.Count, cover_types = types });
-    }
 }
