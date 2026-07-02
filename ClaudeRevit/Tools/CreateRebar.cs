@@ -125,6 +125,18 @@ public class CreateRebar : IRevitTool
                 count, spacing.Value, true, true, true);
         }
 
+        // Regenerate inside the transaction so invalid geometry throws here (→ rollback)
+        // rather than corrupting the element and crashing Revit on the next redraw.
+        try
+        {
+            doc.Regenerate();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                "Revit rejected this rebar (invalid geometry during regeneration): " + ex.Message);
+        }
+
         return JsonSerializer.Serialize(new
         {
             id = rebar.Id.Value,

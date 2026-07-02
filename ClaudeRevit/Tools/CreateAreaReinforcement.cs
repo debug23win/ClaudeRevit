@@ -33,6 +33,9 @@ public class CreateAreaReinforcement : IRevitTool
     };
 
     public bool RequiresTransaction => true;
+    // Area reinforcement regeneration is a known Revit crash risk on bad geometry;
+    // surface it to the user before it runs.
+    public bool RequiresConfirmation => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -77,29 +80,52 @@ public class CreateAreaReinforcement : IRevitTool
             .FirstOrDefault()
             ?? throw new InvalidOperationException("No area reinforcement types exist in this project.");
 
-        XYZ majorDir;
+        // The major direction MUST lie in the plane of the host reinforcement face.
+        // If it has any component along the face normal, Revit builds a singular
+        // (non-invertible) per-bar transform during regeneration, silently commits a
+        // corrupt element, then crashes when the view later draws it. So we determine
+        // the face normal and project the candidate direction into the plane.
+        var normal = HostFaceNormal(host);
+
+        XYZ candidate;
         if (input.ContainsKey("major_dir_x") || input.ContainsKey("major_dir_y") || input.ContainsKey("major_dir_z"))
         {
-            majorDir = new XYZ(
+            candidate = new XYZ(
                 input.TryGetValue("major_dir_x", out var mx) ? mx.GetDouble() : 0,
                 input.TryGetValue("major_dir_y", out var my) ? my.GetDouble() : 0,
                 input.TryGetValue("major_dir_z", out var mz) ? mz.GetDouble() : 0);
-            if (majorDir.GetLength() < 1e-9)
+            if (candidate.GetLength() < 1e-9)
                 throw new InvalidOperationException("Major direction vector must be non-zero.");
-            majorDir = majorDir.Normalize();
         }
         else if (host is Wall wall && wall.Location is LocationCurve lc)
         {
             var curve = lc.Curve;
-            majorDir = (curve.GetEndPoint(1) - curve.GetEndPoint(0)).Normalize();
+            candidate = curve.GetEndPoint(1) - curve.GetEndPoint(0);
         }
         else
         {
-            majorDir = XYZ.BasisX;
+            candidate = XYZ.BasisX;
         }
+
+        var majorDir = ProjectIntoPlane(candidate, normal);
 
         var area = AreaReinforcement.Create(
             doc, host, majorDir, areaType.Id, barType.Id, ElementId.InvalidElementId);
+
+        // Force regeneration NOW, inside the transaction, so an invalid layout surfaces
+        // as a catchable exception (the dispatcher rolls the transaction back) instead
+        // of corrupting the element and crashing Revit on the next view redraw.
+        try
+        {
+            doc.Regenerate();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                "Revit rejected this area reinforcement (invalid geometry during regeneration): " +
+                ex.Message + ". Try a different host or an explicit major direction that lies in the " +
+                "host's face plane.");
+        }
 
         return JsonSerializer.Serialize(new
         {
@@ -108,7 +134,32 @@ public class CreateAreaReinforcement : IRevitTool
             area_type = areaType.Name,
             bar_type = barType.Name,
             host_id = host.Id.Value,
+            major_direction = new { x = majorDir.X, y = majorDir.Y, z = majorDir.Z },
             note = "Layer spacings/bar types use the type defaults — adjust with set_parameter on this element if needed."
         });
+    }
+
+    // Reinforcement face normal: a wall's exterior facing, a flat floor's up axis.
+    private static XYZ HostFaceNormal(Element host)
+    {
+        if (host is Wall w)
+        {
+            try { return w.Orientation.Normalize(); } catch { return XYZ.BasisX; }
+        }
+        return XYZ.BasisZ; // floors: top face
+    }
+
+    // Remove the component along the normal so the result lies in the face plane;
+    // fall back to a valid in-plane axis if the projection collapses to ~zero.
+    private static XYZ ProjectIntoPlane(XYZ dir, XYZ normal)
+    {
+        var proj = dir - normal.Multiply(dir.DotProduct(normal));
+        if (proj.GetLength() > 1e-6)
+            return proj.Normalize();
+
+        // dir was (near) parallel to the normal — pick any axis in the plane.
+        var seed = Math.Abs(normal.DotProduct(XYZ.BasisX)) < 0.9 ? XYZ.BasisX : XYZ.BasisY;
+        var fallback = seed - normal.Multiply(seed.DotProduct(normal));
+        return fallback.Normalize();
     }
 }
