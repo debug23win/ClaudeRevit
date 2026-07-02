@@ -65,23 +65,40 @@ public partial class ChatPaneView : UserControl
     }
 
     // Shows an Allow/Deny dialog before a destructive or arbitrary-code tool runs.
+    // NB: this pane is a Revit dockable pane, so Window.GetWindow(this) is null —
+    // passing that null as the MessageBox owner throws ArgumentNullException and
+    // (before the dispatcher net) took Revit down. Call the ownerless overload.
     private Task<bool> ConfirmToolAsync(string toolName, string input)
     {
         var tcs = new TaskCompletionSource<bool>();
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            var header = toolName == "execute_csharp"
-                ? "Claude wants to run C# code against your model:"
-                : $"Claude wants to run '{toolName}' — this modifies your model:";
-            var body = header + "\n\n" + input +
-                       "\n\nAllow this operation? (You can always ⌃Z afterwards.)";
-            var res = MessageBox.Show(
-                Window.GetWindow(this), body, "Claude Revit — confirm",
-                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-            tcs.SetResult(res == MessageBoxResult.Yes);
+            try
+            {
+                var header = toolName == "execute_csharp"
+                    ? "Claude wants to run C# code against your model:"
+                    : toolName == "run_dynamo_python"
+                        ? "Claude wants to run Python (via Dynamo) against your model:"
+                        : $"Claude wants to run '{toolName}' — this modifies your model:";
+                var body = header + "\n\n" + Truncate(input, 2000) +
+                           "\n\nAllow this operation? (You can always ⌃Z afterwards.)";
+                var res = MessageBox.Show(
+                    body, "Claude Revit — confirm",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                tcs.SetResult(res == MessageBoxResult.Yes);
+            }
+            catch (Exception ex)
+            {
+                // Never let the confirmation dialog fault the turn — deny on error.
+                Log.Error("ConfirmToolAsync dialog failed", ex);
+                tcs.SetResult(false);
+            }
         }));
         return tcs.Task;
     }
+
+    private static string Truncate(string s, int max) =>
+        string.IsNullOrEmpty(s) || s.Length <= max ? s : s[..max] + $"\n… (+{s.Length - max} more chars)";
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -144,7 +161,10 @@ public partial class ChatPaneView : UserControl
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new SettingsWindow { Owner = Window.GetWindow(this) };
+        var dlg = new SettingsWindow();
+        var owner = Window.GetWindow(this);
+        if (owner != null) dlg.Owner = owner;
+        else dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (dlg.ShowDialog() == true)
         {
             _service.RecreateClient();
