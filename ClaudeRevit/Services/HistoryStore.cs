@@ -64,26 +64,42 @@ public static class HistoryStore
         catch { }
     }
 
-    // The API rejects histories that don't start with a user turn or that contain an
-    // assistant tool_use without matching tool_results in the next user turn — keep
-    // only the longest valid prefix.
+    // The API rejects histories that don't start with a plain user turn, contain an
+    // assistant tool_use without matching tool_results in the next user turn, or a
+    // tool_result that doesn't answer a tool_use from the preceding assistant turn —
+    // keep only the longest valid prefix.
     private static List<ApiTurn> Sanitize(List<ApiTurn> turns)
     {
-        while (turns.Count > 0 && turns[0].Role != "user")
-            turns.RemoveAt(0);
+        int start = 0;
+        while (start < turns.Count &&
+               (turns[start].Role != "user" || turns[start].Blocks.OfType<ChatToolResultBlock>().Any()))
+            start++;
+        turns = turns.Skip(start).ToList();
 
         var good = new List<ApiTurn>();
         for (int i = 0; i < turns.Count; i++)
         {
             var t = turns[i];
             if (t.Blocks.Count == 0) continue;
+
+            // orphaned tool_result: must answer a tool_use from the previous kept turn
+            var results = t.Blocks.OfType<ChatToolResultBlock>().Select(b => b.ToolUseId).ToList();
+            if (results.Count > 0)
+            {
+                var prev = good.Count > 0 ? good[^1] : null;
+                var uses = prev?.Blocks.OfType<ChatToolUseBlock>().Select(b => b.Id).ToHashSet()
+                           ?? new HashSet<string>();
+                if (t.Role != "user" || prev?.Role != "assistant" || !results.All(uses.Contains)) break;
+            }
+
+            // dangling tool_use: must be answered by the next turn
             var toolUses = t.Blocks.OfType<ChatToolUseBlock>().Select(b => b.Id).ToList();
             if (t.Role == "assistant" && toolUses.Count > 0)
             {
                 var next = i + 1 < turns.Count ? turns[i + 1] : null;
-                var results = next?.Blocks.OfType<ChatToolResultBlock>().Select(b => b.ToolUseId).ToHashSet()
-                              ?? new HashSet<string>();
-                if (next?.Role != "user" || !toolUses.All(results.Contains)) break;
+                var nextResults = next?.Blocks.OfType<ChatToolResultBlock>().Select(b => b.ToolUseId).ToHashSet()
+                                  ?? new HashSet<string>();
+                if (next?.Role != "user" || !toolUses.All(nextResults.Contains)) break;
             }
             good.Add(t);
         }

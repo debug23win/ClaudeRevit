@@ -80,6 +80,7 @@ public class AnthropicChatService
         var client = GetClient();
 
         var lastUser = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
+        if (string.IsNullOrWhiteSpace(lastUser)) return; // empty text blocks are rejected by the API
 
         await CompactIfNeededAsync(client, conversation, ui, ct);
 
@@ -363,6 +364,8 @@ public class AnthropicChatService
                 if (b.TryPickText(out var t))
                     sb.Append(t.Text);
             summary = sb.ToString();
+
+            TrackUsage("haiku-4-5", resp); // compaction costs show up in telemetry too
         }
         catch
         {
