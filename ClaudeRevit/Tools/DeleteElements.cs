@@ -33,6 +33,7 @@ public class DeleteElements : IRevitTool
     };
 
     public bool RequiresTransaction => true;
+    public bool RequiresConfirmation => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

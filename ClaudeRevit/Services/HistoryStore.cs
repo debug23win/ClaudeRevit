@@ -110,10 +110,12 @@ public static class HistoryStore
         t.Role,
         t.Blocks.Select(b => b switch
         {
-            ChatToolUseBlock x => new BlockDto("tool_use", null, x.Id, x.Name, x.InputJson, null, null, false),
-            ChatToolResultBlock x => new BlockDto("tool_result", null, null, null, null, x.ToolUseId, x.Content, x.IsError),
-            ChatTextBlock x => new BlockDto("text", x.Text, null, null, null, null, null, false),
-            _ => new BlockDto("text", "", null, null, null, null, null, false)
+            ChatToolUseBlock x => new BlockDto("tool_use", null, x.Id, x.Name, x.InputJson, null, null, false, null, null),
+            ChatToolResultBlock x => new BlockDto("tool_result", null, null, null, null, x.ToolUseId, x.Content, x.IsError, null, null),
+            ChatThinkingBlock x => new BlockDto("thinking", null, null, null, null, null, null, false, x.Thinking, x.Signature),
+            ChatRedactedThinkingBlock x => new BlockDto("redacted_thinking", null, null, null, null, null, null, false, x.Data, null),
+            ChatTextBlock x => new BlockDto("text", x.Text, null, null, null, null, null, false, null, null),
+            _ => new BlockDto("text", "", null, null, null, null, null, false, null, null)
         }).ToList());
 
     private static ApiTurn FromDto(ApiMessageDto d) => new()
@@ -123,6 +125,8 @@ public static class HistoryStore
         {
             "tool_use" => new ChatToolUseBlock(b.Id ?? "", b.Name ?? "", b.InputJson ?? "{}"),
             "tool_result" => new ChatToolResultBlock(b.ToolUseId ?? "", b.Content ?? "", b.IsError),
+            "thinking" => new ChatThinkingBlock(b.Thinking ?? "", b.Signature ?? ""),
+            "redacted_thinking" => new ChatRedactedThinkingBlock(b.Thinking ?? ""),
             _ => (ChatBlock)new ChatTextBlock(b.Text ?? "")
         })).ToList()
     };
@@ -154,5 +158,6 @@ public static class HistoryStore
     private sealed record ApiMessageDto(string Role, List<BlockDto> Blocks);
     private sealed record BlockDto(
         string Type, string? Text, string? Id, string? Name,
-        string? InputJson, string? ToolUseId, string? Content, bool IsError);
+        string? InputJson, string? ToolUseId, string? Content, bool IsError,
+        string? Thinking, string? Signature);
 }

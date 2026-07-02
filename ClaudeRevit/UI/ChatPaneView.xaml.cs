@@ -33,6 +33,27 @@ public partial class ChatPaneView : UserControl
 
         SelectionService.Changed += OnSelectionChanged;
         OnSelectionChanged(SelectionService.Current);
+
+        _service.ConfirmToolAsync = ConfirmToolAsync;
+    }
+
+    // Shows an Allow/Deny dialog before a destructive or arbitrary-code tool runs.
+    private Task<bool> ConfirmToolAsync(string toolName, string input)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var header = toolName == "execute_csharp"
+                ? "Claude wants to run C# code against your model:"
+                : $"Claude wants to run '{toolName}' — this modifies your model:";
+            var body = header + "\n\n" + input +
+                       "\n\nAllow this operation? (You can always ⌃Z afterwards.)";
+            var res = MessageBox.Show(
+                Window.GetWindow(this), body, "Claude Revit — confirm",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            tcs.SetResult(res == MessageBoxResult.Yes);
+        }));
+        return tcs.Task;
     }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)

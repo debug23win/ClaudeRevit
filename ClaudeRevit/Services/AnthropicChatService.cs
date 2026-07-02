@@ -21,26 +21,28 @@ public class AnthropicChatService
 {
     // The BaseSystemPrompt is intentionally large and static — it gets cached via prompt caching
     // so we don't re-process it every turn. Same goes for the tools list. Dynamic per-turn context
-    // (current document + selection) is appended as a SECOND system block that is NOT cached.
+    // (current document + selection) is appended as a trailing block on the LAST message, AFTER the
+    // cache breakpoint, so the whole conversation prefix stays cached even when the selection changes.
     private const string BaseSystemPrompt =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. " +
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
+        "TOOL CHOICE: Prefer a dedicated tool when one exists. Use execute_csharp ONLY for operations no " +
+        "dedicated tool covers — the user has to approve every execute_csharp run, so don't reach for it lightly.\n\n" +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first.\n\n" +
-        "For destructive operations (delete_elements affecting many items, set_parameter on critical fields), " +
-        "briefly confirm with the user before acting if intent is ambiguous. Otherwise just proceed.\n\n" +
-        "If a tool returns an error, read it and adjust — try a different level name, fix coordinates, etc. " +
-        "All edits within one user prompt are bundled into a single undo entry, so the user can ⌃Z to revert.";
+        "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
+        "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
+        "being reminded.\n\n" +
+        "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
+        "If a tool returns an error, read it and adjust. All edits within one user prompt are bundled into a " +
+        "single undo entry, so the user can ⌃Z to revert.";
 
     private const int MaxIterations = 24;
     private const int MaxOutputTokens = 8192;
 
-    // Client-side compaction: when the previous request's total prompt size crosses the
-    // threshold, everything except the last few user turns is summarized into a single
-    // message before the next request is sent.
     private const long CompactionThresholdTokens = 120_000;
     private const int CompactionKeepTailTurns = 3;
     private const string CompactionModel = "claude-haiku-4-5";
@@ -48,6 +50,9 @@ public class AnthropicChatService
     private AnthropicClient? _client;
     private readonly List<ApiTurn> _history = HistoryStore.LoadApiHistory();
     private long _lastPromptTokens;
+
+    // Set by the chat pane: asks the user to approve a tool call. Returns true to run it.
+    public Func<string, string, Task<bool>>? ConfirmToolAsync;
 
     public void RecreateClient() => _client = null;
 
@@ -80,14 +85,13 @@ public class AnthropicChatService
         var client = GetClient();
 
         var lastUser = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(lastUser)) return; // empty text blocks are rejected by the API
+        if (string.IsNullOrWhiteSpace(lastUser)) return;
 
         await CompactIfNeededAsync(client, conversation, ui, ct);
 
-        // Dynamic-per-turn context (current document + selection). NOT cached.
+        // Dynamic-per-turn context (current document + selection). NOT cached — trails the prompt.
         var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
         var dynamicContext = "CURRENT DOCUMENT:\n" + contextJson;
-
         var sel = SelectionService.Current;
         if (sel.Ids.Count > 0)
         {
@@ -97,17 +101,7 @@ public class AnthropicChatService
             dynamicContext += $"\n\nCURRENT SELECTION: {sel.Description}. Element IDs: [{idList}]";
         }
 
-        // System content: BaseSystemPrompt (CACHED, 1h) + dynamic context (NOT cached).
-        var systemBlocks = new List<BetaTextBlockParam>
-        {
-            new BetaTextBlockParam
-            {
-                Text = BaseSystemPrompt,
-                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
-            },
-            new BetaTextBlockParam { Text = dynamicContext }
-        };
-
+        var systemBlocks = BuildSystemBlocks();
         var tools = BuildToolDefs();
 
         _history.Add(new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } });
@@ -130,56 +124,67 @@ public class AnthropicChatService
                     break;
                 }
 
+                var effort = EffortFor(model);
                 var parameters = new MessageCreateParams
                 {
                     Model = ResolveModel(model),
                     MaxTokens = MaxOutputTokens,
-                    Messages = BuildApiMessages(),
+                    Messages = BuildApiMessages(dynamicContext),
                     System = systemBlocks,
-                    Tools = tools
+                    Tools = tools,
+                    OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null
                 };
 
                 var aggregated = await StreamOneTurnAsync(client, parameters, conversation, ui, ct);
 
                 TrackUsage(model, aggregated);
 
-                var aggregatedText = "";
+                // Preserve blocks in order: thinking blocks must precede tool_use on replay.
+                var assistantTurn = new ApiTurn { Role = "assistant" };
                 var toolUseBlocks = new List<(string Id, string Name, IReadOnlyDictionary<string, JsonElement> Input)>();
+                var sawText = false;
                 foreach (var block in aggregated.Content)
                 {
                     if (block.TryPickText(out var t))
-                        aggregatedText += t.Text;
+                    {
+                        assistantTurn.Blocks.Add(new ChatTextBlock(t.Text));
+                        sawText = true;
+                    }
+                    else if (block.TryPickThinking(out var th))
+                    {
+                        assistantTurn.Blocks.Add(new ChatThinkingBlock(th.Thinking ?? "", th.Signature ?? ""));
+                    }
+                    else if (block.TryPickRedactedThinking(out var rt))
+                    {
+                        assistantTurn.Blocks.Add(new ChatRedactedThinkingBlock(rt.Data ?? ""));
+                    }
                     else if (block.TryPickToolUse(out var tu))
+                    {
+                        assistantTurn.Blocks.Add(new ChatToolUseBlock(tu.ID, tu.Name, JsonSerializer.Serialize(tu.Input)));
                         toolUseBlocks.Add((tu.ID, tu.Name, tu.Input));
+                    }
                 }
 
                 if (toolUseBlocks.Count == 0)
                 {
-                    if (!string.IsNullOrEmpty(aggregatedText))
+                    if (assistantTurn.Blocks.Count > 0)
+                        _history.Add(assistantTurn);
+                    if (!sawText)
                     {
-                        _history.Add(new ApiTurn { Role = "assistant", Blocks = { new ChatTextBlock(aggregatedText) } });
-                    }
-                    else
-                    {
-                        // e.g. a safety refusal on Fable 5 returns an empty content array
                         await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                         {
                             Role = "assistant",
-                            Text = "[The model returned no content — possibly a safety refusal. " +
+                            Text = "[The model returned no text — possibly a safety refusal. " +
                                    "Try rephrasing or switching the model.]"
                         }));
                     }
                     break;
                 }
 
-                var assistantTurn = new ApiTurn { Role = "assistant" };
-                if (!string.IsNullOrEmpty(aggregatedText))
-                    assistantTurn.Blocks.Add(new ChatTextBlock(aggregatedText));
                 var resultTurn = new ApiTurn { Role = "user" };
-
                 foreach (var (id, name, inp) in toolUseBlocks)
                 {
-                    assistantTurn.Blocks.Add(new ChatToolUseBlock(id, name, JsonSerializer.Serialize(inp)));
+                    var tool = ToolRegistry.Instance.Get(name);
 
                     ChatMessage toolMsg = null!;
                     await ui.InvokeAsync(() =>
@@ -193,6 +198,23 @@ public class AnthropicChatService
                         conversation.Add(toolMsg);
                     });
 
+                    // Confirmation gate for destructive / arbitrary-code tools.
+                    if (tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
+                    {
+                        var approved = await ConfirmToolAsync(name, FormatInput(inp));
+                        if (!approved)
+                        {
+                            await ui.InvokeAsync(() =>
+                            {
+                                toolMsg.Text = FormatInput(inp) + "\n⛔ denied by user";
+                                toolMsg.IsError = true;
+                            });
+                            resultTurn.Blocks.Add(new ChatToolResultBlock(
+                                id, "The user denied this operation. Do not retry it; ask how to proceed.", false));
+                            continue;
+                        }
+                    }
+
                     string content;
                     bool isError = false;
                     try
@@ -203,9 +225,6 @@ public class AnthropicChatService
                     }
                     catch (OperationCanceledException)
                     {
-                        // Don't record a half-finished exchange: the assistant/result pair
-                        // below is only appended once every tool in the round has run, so
-                        // the history can never end on a dangling tool_use.
                         await ui.InvokeAsync(() =>
                         {
                             toolMsg.Text = FormatInput(inp) + "\n✗ cancelled";
@@ -271,42 +290,49 @@ public class AnthropicChatService
         return aggregator.Message();
     }
 
-    // Rebuilds the SDK message list from our own history model on every request.
-    // The last block of the last message carries the cache breakpoint, so the whole
-    // conversation prefix is served from cache on the next turn.
-    private List<BetaMessageParam> BuildApiMessages()
+    // System = BaseSystemPrompt (+ saved memory, if any). Both cached for 1h.
+    private static List<BetaTextBlockParam> BuildSystemBlocks()
+    {
+        var blocks = new List<BetaTextBlockParam>
+        {
+            new BetaTextBlockParam
+            {
+                Text = BaseSystemPrompt,
+                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
+            }
+        };
+        var memory = MemoryStore.Load();
+        if (!string.IsNullOrWhiteSpace(memory))
+        {
+            blocks.Add(new BetaTextBlockParam
+            {
+                Text = "WHAT YOU REMEMBER (persisted notes from earlier sessions):\n" + memory,
+                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
+            });
+        }
+        return blocks;
+    }
+
+    // Rebuilds the SDK message list from our own history model. The cache breakpoint sits
+    // on the last block of the last stored message; the dynamic context is appended AFTER
+    // it (uncached) so a changed selection never invalidates the cached conversation prefix.
+    private List<BetaMessageParam> BuildApiMessages(string dynamicContext)
     {
         var msgs = new List<BetaMessageParam>(_history.Count);
         for (int i = 0; i < _history.Count; i++)
         {
             var turn = _history[i];
-            var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count);
+            bool isLast = i == _history.Count - 1;
+            var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
             for (int j = 0; j < turn.Blocks.Count; j++)
             {
-                var cache = i == _history.Count - 1 && j == turn.Blocks.Count - 1
+                var cache = isLast && j == turn.Blocks.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;
-                BetaContentBlockParam p = turn.Blocks[j] switch
-                {
-                    ChatTextBlock t => new BetaTextBlockParam { Text = t.Text, CacheControl = cache },
-                    ChatToolUseBlock tu => new BetaToolUseBlockParam
-                    {
-                        ID = tu.Id,
-                        Name = tu.Name,
-                        Input = ParseInput(tu.InputJson),
-                        CacheControl = cache
-                    },
-                    ChatToolResultBlock tr => new BetaToolResultBlockParam
-                    {
-                        ToolUseID = tr.ToolUseId,
-                        Content = tr.Content,
-                        IsError = tr.IsError,
-                        CacheControl = cache
-                    },
-                    _ => throw new InvalidOperationException("Unknown history block type.")
-                };
-                blocks.Add(p);
+                blocks.Add(ToParam(turn.Blocks[j], cache));
             }
+            if (isLast)
+                blocks.Add(new BetaTextBlockParam { Text = dynamicContext }); // trailing, uncached
             msgs.Add(new BetaMessageParam
             {
                 Role = turn.Role == "user" ? ApiRole.User : ApiRole.Assistant,
@@ -316,9 +342,28 @@ public class AnthropicChatService
         return msgs;
     }
 
-    // Summarizes everything except the last few user turns into one message when the
-    // conversation outgrows the threshold. The cut always lands just before a plain-text
-    // user turn, so assistant tool_use / tool_result pairs are never split.
+    private static BetaContentBlockParam ToParam(ChatBlock block, BetaCacheControlEphemeral? cache) => block switch
+    {
+        ChatTextBlock t => new BetaTextBlockParam { Text = t.Text, CacheControl = cache },
+        ChatThinkingBlock th => new BetaThinkingBlockParam { Thinking = th.Thinking, Signature = th.Signature },
+        ChatRedactedThinkingBlock rt => new BetaRedactedThinkingBlockParam { Data = rt.Data },
+        ChatToolUseBlock tu => new BetaToolUseBlockParam
+        {
+            ID = tu.Id,
+            Name = tu.Name,
+            Input = ParseInput(tu.InputJson),
+            CacheControl = cache
+        },
+        ChatToolResultBlock tr => new BetaToolResultBlockParam
+        {
+            ToolUseID = tr.ToolUseId,
+            Content = tr.Content,
+            IsError = tr.IsError,
+            CacheControl = cache
+        },
+        _ => throw new InvalidOperationException("Unknown history block type.")
+    };
+
     private async Task CompactIfNeededAsync(
         AnthropicClient client,
         ObservableCollection<ChatMessage> conversation,
@@ -365,11 +410,11 @@ public class AnthropicChatService
                     sb.Append(t.Text);
             summary = sb.ToString();
 
-            TrackUsage("haiku-4-5", resp); // compaction costs show up in telemetry too
+            TrackUsage("haiku-4-5", resp);
         }
         catch
         {
-            return; // compaction is best-effort; keep the full history on failure
+            return;
         }
         if (string.IsNullOrWhiteSpace(summary)) return;
 
@@ -417,7 +462,6 @@ public class AnthropicChatService
                 }
             }
         }
-        // hard cap so the summarization request itself can't overflow
         var s = sb.ToString();
         return s.Length <= 400_000 ? s : s[^400_000..];
     }
@@ -436,8 +480,6 @@ public class AnthropicChatService
         catch { /* non-fatal */ }
     }
 
-    // Tools list is large and never changes. Mark the LAST tool with a cache breakpoint
-    // so the whole tools array is cached together.
     private static List<BetaToolUnion> BuildToolDefs()
     {
         var allTools = ToolRegistry.Instance.All.ToList();
@@ -470,6 +512,14 @@ public class AnthropicChatService
             return new Dictionary<string, JsonElement>();
         }
     }
+
+    // Effort is a direct cost/quality lever. Not supported on Haiku 4.5 — omit it there.
+    private static Effort? EffortFor(string model) => model switch
+    {
+        "haiku-4-5" => null,
+        "fable-5" => Effort.High,
+        _ => Effort.Medium
+    };
 
     private static string ResolveModel(string model) => model switch
     {
