@@ -19,6 +19,11 @@ namespace ClaudeRevit.Tools;
 // Everything is late-bound via reflection so the build has no Dynamo dependency, and
 // EVERY failure path returns an error string — this tool must never crash Revit. If
 // Dynamo is not installed it says so and suggests enabling execute_csharp instead.
+//
+// Execution feedback: DynamoRevit.ExecuteCommand returns Succeeded as long as the graph
+// merely OPENED, so the snippet is wrapped in a harness that writes a run report (OUT,
+// traceback, document identity) to a temp file. No report file after the call means the
+// Python node never ran, and that is surfaced as an error instead of a fake success.
 public class RunDynamoPython : IRevitTool
 {
     public string Name => "run_dynamo_python";
@@ -30,7 +35,11 @@ public class RunDynamoPython : IRevitTool
         "environment: 'clr' is imported and you have access to RevitServices " +
         "(DocumentManager.Instance.CurrentDBDocument for the document, " +
         "TransactionManager.Instance to manage transactions) and the Revit API " +
-        "(Autodesk.Revit.DB). Put the result into the Dynamo output variable 'OUT'. " +
+        "(Autodesk.Revit.DB). Wrap model changes in a transaction — either " +
+        "TransactionManager.Instance.EnsureInTransaction(doc) + TransactionTaskDone(), or an " +
+        "explicit Autodesk.Revit.DB.Transaction. Put the result into the Dynamo output " +
+        "variable 'OUT': it is serialized and returned in the tool result ('output'), and if " +
+        "the script raises, the full traceback is returned. " +
         "Requires Dynamo for Revit to be installed. The user must approve each run.";
 
     public InputSchema InputSchema => new()
@@ -58,6 +67,7 @@ public class RunDynamoPython : IRevitTool
             throw new InvalidOperationException("code is empty.");
 
         string? dynPath = null;
+        string? reportPath = null;
         try
         {
             var dynamoRevit = FindDynamoRevitType();
@@ -65,7 +75,9 @@ public class RunDynamoPython : IRevitTool
                 return Fail("Dynamo for Revit was not found in this session. Install Dynamo for " +
                             "Revit, or ask the user to enable execute_csharp in settings as a fallback.");
 
-            dynPath = WriteGraph(code!);
+            reportPath = Path.Combine(Path.GetTempPath(),
+                "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".report.json");
+            dynPath = WriteGraph(WrapInHarness(code!, reportPath));
 
             // DynamoRevit.ExecuteCommand(DynamoRevitCommandData) drives a headless run via
             // journal data. Built entirely by reflection so we don't depend on Dynamo at
@@ -73,6 +85,12 @@ public class RunDynamoPython : IRevitTool
             var journalData = new Dictionary<string, string>
             {
                 ["dynPath"] = dynPath,
+                // Without dynPathExecute the UIless path merely OPENS the graph — and a .dyn
+                // that has never run in the UI always opens in Manual run mode, so it is shut
+                // down again without a single evaluation while ExecuteCommand still returns
+                // Succeeded. dynPathExecute makes DynamoRevit issue an explicit RunCancel
+                // command after opening, which in automation mode runs synchronously.
+                ["dynPathExecute"] = "True",
                 ["dynAutomation"] = "True",
                 ["dynShowUI"] = "False",
                 ["dynModelShutDown"] = "True"
@@ -92,14 +110,7 @@ public class RunDynamoPython : IRevitTool
 
             var result = exec.Invoke(instance, new[] { cmdData });
 
-            Log.Info("run_dynamo_python executed a graph.");
-            return JsonSerializer.Serialize(new
-            {
-                ok = true,
-                engine = "dynamo",
-                result = result?.ToString() ?? "Succeeded",
-                note = "Dynamo ran the graph. If nothing changed, check the snippet or Dynamo's own log."
-            });
+            return BuildResponse(result?.ToString() ?? "Succeeded", reportPath, app);
         }
         catch (Exception ex)
         {
@@ -110,7 +121,119 @@ public class RunDynamoPython : IRevitTool
         finally
         {
             try { if (dynPath != null && File.Exists(dynPath)) File.Delete(dynPath); } catch { }
+            try { if (reportPath != null && File.Exists(reportPath)) File.Delete(reportPath); } catch { }
         }
+    }
+
+    // Turns the run report written by the harness into the tool result. The report file is
+    // the only reliable execution signal: DynamoRevit's own return value only says the graph
+    // was opened.
+    private static string BuildResponse(string dynamoResult, string reportPath, UIApplication app)
+    {
+        if (!File.Exists(reportPath))
+            return Fail(
+                $"Dynamo returned '{dynamoResult}' but the Python node never executed (it wrote no " +
+                "run report), so NO model changes were made. Common causes: the Dynamo UI is " +
+                "currently open in Revit (ask the user to close the Dynamo window and retry), or " +
+                "this Dynamo installation has no CPython3 engine.");
+
+        JsonElement report;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
+            report = doc.RootElement.Clone();
+        }
+        catch (Exception ex)
+        {
+            return Fail("The script ran but its run report could not be parsed: " + ex.Message);
+        }
+
+        var error = report.TryGetProperty("error", out var e) ? e.GetString() : null;
+        var output = report.TryGetProperty("out", out var o) ? o.GetString() : null;
+        if (output is { Length: > 20000 })
+            output = output[..20000] + " …(truncated)";
+
+        string? dynDocTitle = null, dynDocPath = null;
+        if (report.TryGetProperty("document", out var d) && d.ValueKind == JsonValueKind.Object)
+        {
+            dynDocTitle = d.TryGetProperty("title", out var t) ? t.GetString() : null;
+            dynDocPath = d.TryGetProperty("path", out var p) ? p.GetString() : null;
+        }
+
+        // The script runs against DocumentManager.Instance.CurrentDBDocument; if that is not
+        // the document the other tools read from, say so instead of leaving both sides to
+        // silently disagree.
+        string? warning = null;
+        var activeDoc = app.ActiveUIDocument?.Document;
+        if (activeDoc != null && dynDocTitle != null &&
+            !string.Equals(dynDocTitle, activeDoc.Title, StringComparison.Ordinal))
+        {
+            warning = $"The script ran against document '{dynDocTitle}' ({dynDocPath}) but the " +
+                      $"active document is '{activeDoc.Title}' — changes went to a different document.";
+        }
+
+        if (error != null)
+        {
+            Log.Info("run_dynamo_python: script raised an exception.");
+            return JsonSerializer.Serialize(new
+            {
+                ok = false,
+                engine = "dynamo",
+                error = "The Python script raised an exception (any transaction it left open was " +
+                        "rolled back):\n" + error,
+                document = dynDocTitle,
+                warning
+            });
+        }
+
+        Log.Info("run_dynamo_python executed a graph.");
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            engine = "dynamo",
+            result = "Script executed to completion.",
+            output,
+            document = dynDocTitle,
+            warning
+        });
+    }
+
+    // Wraps the user's snippet so we get real execution feedback. The snippet itself is
+    // base64-encoded (no escaping pitfalls) and exec'd against the node's globals, so it
+    // behaves exactly as if it were the node's own code (IN/OUT/clr all visible). Whatever
+    // happens — success, OUT value, exception — is written to the report file; the file's
+    // very existence is the proof that the node actually ran.
+    private static string WrapInHarness(string userCode, string reportPath)
+    {
+        var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
+        var pathLiteral = JsonSerializer.Serialize(reportPath); // JSON string == valid Python literal
+        return $$"""
+import base64 as __cr_b64, json as __cr_json, traceback as __cr_tb
+__cr_report = {'executed': True}
+try:
+    exec(compile(__cr_b64.b64decode('{{codeB64}}').decode('utf-8'), '<claude_snippet>', 'exec'), globals())
+    if 'OUT' in globals():
+        try:
+            __cr_report['out'] = __cr_json.dumps(globals()['OUT'], default=repr, ensure_ascii=False)
+        except Exception:
+            __cr_report['out'] = repr(globals()['OUT'])
+except Exception:
+    __cr_report['error'] = __cr_tb.format_exc()
+try:
+    import clr
+    clr.AddReference('RevitServices')
+    from RevitServices.Persistence import DocumentManager as __cr_dm
+    __cr_doc = __cr_dm.Instance.CurrentDBDocument
+    __cr_report['document'] = {'title': __cr_doc.Title, 'path': __cr_doc.PathName}
+except Exception:
+    pass
+try:
+    with open({{pathLiteral}}, 'w', encoding='utf-8') as __cr_f:
+        __cr_f.write(__cr_json.dumps(__cr_report, ensure_ascii=False))
+except Exception:
+    pass
+OUT = __cr_report
+""";
     }
 
     private static string Fail(string message) =>
@@ -143,7 +266,18 @@ public class RunDynamoPython : IRevitTool
                 }
             },
             Connectors = Array.Empty<object>(),
-            View = new { Dynamo = new { Version = "3.0.0.0" } }
+            // RunType/HasRunWithoutCrash matter on code paths that honour the file's own run
+            // settings (e.g. when the Dynamo UI is already open): without them Dynamo forces
+            // Manual run mode and the graph would open without evaluating.
+            View = new
+            {
+                Dynamo = new
+                {
+                    Version = "3.0.0.0",
+                    RunType = "Automatic",
+                    HasRunWithoutCrash = true
+                }
+            }
         };
 
         var path = Path.Combine(Path.GetTempPath(), "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".dyn");
