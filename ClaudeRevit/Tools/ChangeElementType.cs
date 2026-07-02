@@ -57,12 +57,24 @@ public class ChangeElementType : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
+        // A swapped title block can have a different printable area, leaving viewports under
+        // the new frame or outside it — the caller should re-check the sheet layout.
+        string? note = null;
+        if (changed.Count > 0 && newType.Category != null &&
+            newType.Category.BuiltInCategory == BuiltInCategory.OST_TitleBlocks)
+        {
+            note = "Title block changed. The new frame's printable area may differ from the old " +
+                   "one — check viewport positions with get_sheet_views (and export_image to " +
+                   "verify visually), then adjust with move_viewport_on_sheet if needed.";
+        }
+
         return JsonSerializer.Serialize(new
         {
             new_type = newType.Name,
             changed_count = changed.Count,
             skipped_count = skipped.Count,
-            skipped
+            skipped,
+            note
         });
     }
 }
