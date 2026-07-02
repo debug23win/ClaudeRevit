@@ -31,12 +31,12 @@
         <Border Grid.Row="3" BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
         <CheckBox Grid.Row="4" x:Name="AllowCodeBox"
-                  Content="Allow Claude to run code (Dynamo / C#)"
+                  Content="Allow Claude to run code (Dynamo / Python)"
                   FontWeight="SemiBold" />
         <TextBlock Grid.Row="5" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00"
                    TextWrapping="Wrap">
             Off by default. When enabled, Claude may run scripts against the full Revit API for
-            actions no built-in tool covers — preferring Dynamo (Python), falling back to C#.
+            actions no built-in tool covers — via Dynamo (Python).
             Every run still asks for your approval. Leave this off unless you need it; arbitrary
             code can modify or delete anything in the model.
         </TextBlock>

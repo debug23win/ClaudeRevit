@@ -144,7 +144,9 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetRebarInHost());
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new RunDynamoPython());
-            ToolRegistry.Instance.Register(new ExecuteCSharp());
+            // ExecuteCSharp is intentionally NOT registered: running Roslyn via
+            // .GetAwaiter().GetResult() on Revit's API thread deadlocks the process.
+            // run_dynamo_python is the supported code path (Dynamo runs code itself).
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             SelectionService.Initialize(application);

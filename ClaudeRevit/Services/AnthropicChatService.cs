@@ -26,11 +26,12 @@ public class AnthropicChatService
     private const string BaseSystemPrompt =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. " +
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
-        "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, prefer " +
-        "run_dynamo_python (safer — Dynamo manages its own transaction) over execute_csharp; use execute_csharp " +
-        "only if Dynamo is unavailable. Both run only when the user has enabled code execution and approves each " +
-        "run, so don't reach for them lightly. If neither is offered to you, code execution is disabled — tell the " +
-        "user they can enable it via the gear icon.\n\n" +
+        "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, use " +
+        "run_dynamo_python (runs Python via Dynamo, which manages its own transaction). It runs only when the " +
+        "user has enabled code execution and approves each run, so do not reach for it lightly. If it is not " +
+        "offered to you, code execution is disabled. Tell the user they can enable it via the gear icon.
+
+" +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
