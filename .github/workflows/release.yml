@@ -40,6 +40,16 @@ jobs:
           if (-not $tag.StartsWith("v")) { $tag = "v$tag" }
           "version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      # On manual dispatch the tag doesn't exist yet (or may point elsewhere, e.g. the
+      # release API defaults a new tag to the default branch) — pin it to the commit this
+      # run actually builds, so the tag's source always matches the shipped artifacts.
+      - name: Point tag at the built commit (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          git tag -f "${{ steps.vars.outputs.version }}" "${{ github.sha }}"
+          git push -f origin "refs/tags/${{ steps.vars.outputs.version }}"
+
       - name: Zip release artifacts
         shell: pwsh
         run: |
@@ -69,6 +79,7 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.version }}
           name: ${{ steps.vars.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: |
             ClaudeRevit-${{ steps.vars.outputs.version }}.zip
