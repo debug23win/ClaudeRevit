@@ -34,21 +34,28 @@ public static class ElementIdLinker
 
     private static void OnTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        var text = (string?)e.NewValue ?? "";
-        var inlines = BuildInlines(text);
-
-        if (d is RichTextBox rtb)
+        try
         {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            foreach (var inline in inlines) paragraph.Inlines.Add(inline);
-            rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
-            return;
+            var text = (string?)e.NewValue ?? "";
+            var inlines = BuildInlines(text);
+
+            if (d is RichTextBox rtb)
+            {
+                var paragraph = new Paragraph { Margin = new Thickness(0) };
+                foreach (var inline in inlines) paragraph.Inlines.Add(inline);
+                rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
+                return;
+            }
+
+            if (d is TextBlock tb)
+            {
+                tb.Inlines.Clear();
+                foreach (var inline in inlines) tb.Inlines.Add(inline);
+            }
         }
-
-        if (d is TextBlock tb)
+        catch (System.Exception ex)
         {
-            tb.Inlines.Clear();
-            foreach (var inline in inlines) tb.Inlines.Add(inline);
+            ClaudeRevit.Services.Log.Error("ElementIdLinker.OnTextChanged failed", ex);
         }
     }
 

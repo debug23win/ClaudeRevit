@@ -25,9 +25,16 @@ public static class PlainTextProp
 
     private static void OnTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is not RichTextBox rtb) return;
-        var text = (string?)e.NewValue ?? "";
-        var paragraph = new Paragraph(new Run(text)) { Margin = new Thickness(0) };
-        rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
+        try
+        {
+            if (d is not RichTextBox rtb) return;
+            var text = (string?)e.NewValue ?? "";
+            var paragraph = new Paragraph(new Run(text)) { Margin = new Thickness(0) };
+            rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
+        }
+        catch (System.Exception ex)
+        {
+            Services.Log.Error("PlainTextProp.OnTextChanged failed", ex);
+        }
     }
 }

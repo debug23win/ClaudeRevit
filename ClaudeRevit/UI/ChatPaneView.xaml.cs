@@ -35,6 +35,33 @@ public partial class ChatPaneView : UserControl
         OnSelectionChanged(SelectionService.Current);
 
         _service.ConfirmToolAsync = ConfirmToolAsync;
+
+        // Safety net: an unhandled exception on the WPF dispatcher normally takes the
+        // whole Revit process down. Log every one; and if the fault originates in OUR
+        // code, mark it handled so the chat pane can never crash Revit. Exceptions from
+        // Revit itself or other add-ins are logged but left to their normal handling.
+        Dispatcher.UnhandledException += OnDispatcherUnhandledException;
+    }
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        var trace = e.Exception.ToString();
+        Log.Error("Dispatcher unhandled exception (RenderMode/UI thread)", e.Exception);
+        if (trace.Contains("ClaudeRevit"))
+        {
+            e.Handled = true;
+            try
+            {
+                Messages.Add(new ChatMessage
+                {
+                    Role = "assistant",
+                    Text = "[Internal error in the Claude pane was caught and suppressed so Revit " +
+                           "stays up: " + e.Exception.Message + ". Details logged to " +
+                           "%AppData%\\ClaudeRevit\\log.txt.]"
+                });
+            }
+            catch { }
+        }
     }
 
     // Shows an Allow/Deny dialog before a destructive or arbitrary-code tool runs.

@@ -22,21 +22,28 @@ public static class MarkdownProps
 
     private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        var text = (string?)e.NewValue ?? "";
-        var rendered = MarkdownInlineRenderer.Render(text).ToList();
-
-        if (d is RichTextBox rtb)
+        try
         {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            foreach (var inline in rendered) paragraph.Inlines.Add(inline);
-            rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
-            return;
+            var text = (string?)e.NewValue ?? "";
+            var rendered = MarkdownInlineRenderer.Render(text).ToList();
+
+            if (d is RichTextBox rtb)
+            {
+                var paragraph = new Paragraph { Margin = new Thickness(0) };
+                foreach (var inline in rendered) paragraph.Inlines.Add(inline);
+                rtb.Document = new FlowDocument(paragraph) { PagePadding = new Thickness(0) };
+                return;
+            }
+
+            if (d is TextBlock tb)
+            {
+                tb.Inlines.Clear();
+                foreach (var inline in rendered) tb.Inlines.Add(inline);
+            }
         }
-
-        if (d is TextBlock tb)
+        catch (System.Exception ex)
         {
-            tb.Inlines.Clear();
-            foreach (var inline in rendered) tb.Inlines.Add(inline);
+            Services.Log.Error("MarkdownProps.OnMarkdownChanged failed", ex);
         }
     }
 }

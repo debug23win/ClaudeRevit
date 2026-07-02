@@ -143,6 +143,9 @@ public class ToolDispatcher : IExternalEventHandler
 
     private void HandleTool(UIApplication app, ToolJob job)
     {
+        // Log before running so, if a tool corrupts the model and Revit crashes on the
+        // next redraw, the log's last line names the culprit tool and its arguments.
+        Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
         try
         {
             var tool = _registry.Get(job.Name)
@@ -170,9 +173,19 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 result = tool.Execute(job.Input, app);
             }
+            Services.Log.Info($"tool ✓ {job.Name}");
             job.Tcs.TrySetResult(result);
         }
-        catch (Exception ex) { job.Tcs.TrySetException(ex); }
+        catch (Exception ex)
+        {
+            Services.Log.Error($"tool ✗ {job.Name}", ex);
+            job.Tcs.TrySetException(ex);
+        }
+    }
+
+    private static string SafeArgs(IReadOnlyDictionary<string, JsonElement> input)
+    {
+        try { return JsonSerializer.Serialize(input); } catch { return "(unprintable)"; }
     }
 
     private void HandleGetContext(UIApplication app, GetContextJob job)

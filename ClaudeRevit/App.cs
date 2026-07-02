@@ -168,10 +168,12 @@ public class App : IExternalApplication
             };
             panel.AddItem(chatButton);
 
+            Services.Log.Info($"ClaudeRevit started (assembly {Assembly.GetExecutingAssembly().GetName().Version}).");
             return Result.Succeeded;
         }
         catch (Exception ex)
         {
+            Services.Log.Error("OnStartup failed", ex);
             TaskDialog.Show("Claude Add-in", $"Failed to start: {ex.Message}");
             return Result.Failed;
         }
