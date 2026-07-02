@@ -1,5 +1,5 @@
-using System;
 using System.Windows;
+using ClaudeRevit.Services;
 
 namespace ClaudeRevit.UI;
 
@@ -8,7 +8,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
-        var existing = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        var existing = ApiKeyStore.Load();
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
     }
 
@@ -24,8 +24,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key, EnvironmentVariableTarget.User);
-        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
+        ApiKeyStore.Save(key);
 
         DialogResult = true;
         Close();

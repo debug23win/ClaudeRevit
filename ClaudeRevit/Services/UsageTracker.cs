@@ -11,9 +11,12 @@ public static class UsageTracker
     // Base rates per million tokens
     private static readonly Dictionary<string, (decimal Input, decimal Output)> _rates = new()
     {
+        ["sonnet-5"] = (3.0m, 15.0m),
+        ["opus-4-8"] = (5.0m, 25.0m),
+        ["fable-5"] = (10.0m, 50.0m),
+        ["haiku-4-5"] = (1.0m, 5.0m),
         ["sonnet-4-6"] = (3.0m, 15.0m),
-        ["opus-4-7"] = (15.0m, 75.0m),
-        ["haiku-4-5"] = (0.80m, 4.0m)
+        ["opus-4-7"] = (5.0m, 25.0m)
     };
 
     // 1-hour cache: write = 2x base input rate; read = 0.1x base input rate

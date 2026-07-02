@@ -17,7 +17,7 @@ public partial class ChatPaneView : UserControl
 
     private readonly AnthropicChatService _service = new();
     private CancellationTokenSource? _cts;
-    private string _selectedModel = "sonnet-4-6";
+    private string _selectedModel = "sonnet-5";
 
     public ChatPaneView()
     {
@@ -25,7 +25,7 @@ public partial class ChatPaneView : UserControl
         DataContext = this;
         Messages.CollectionChanged += OnMessagesChanged;
 
-        foreach (var m in HistoryStore.Load())
+        foreach (var m in HistoryStore.LoadUiMessages())
             Messages.Add(m);
 
         UsageTracker.Updated += UpdateUsageText;
@@ -67,13 +67,14 @@ public partial class ChatPaneView : UserControl
         }));
     }
 
-    private void InputBox_KeyDown(object sender, KeyEventArgs e)
+    // PreviewKeyDown, not KeyDown: with AcceptsReturn="True" the TextBox marks the
+    // Enter KeyDown as handled internally, so a plain KeyDown handler never fires.
+    private void InputBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
         {
             e.Handled = true;
-            if (_cts != null) _cts.Cancel();
-            else _ = SendAsync();
+            if (_cts == null) _ = SendAsync();
         }
     }
 
@@ -87,7 +88,7 @@ public partial class ChatPaneView : UserControl
     {
         if (_cts != null) return;
         Messages.Clear();
-        HistoryStore.Clear();
+        _service.ClearHistory();
         UsageTracker.Reset();
         StatusText.Text = "";
         InputBox.Focus();
@@ -137,7 +138,7 @@ public partial class ChatPaneView : UserControl
         }
         finally
         {
-            HistoryStore.Save(Messages);
+            _service.SaveHistory(Messages);
             _cts?.Dispose();
             _cts = null;
             SendButton.Content = "Send";

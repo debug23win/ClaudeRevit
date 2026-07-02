@@ -1,21 +1,24 @@
 # Claude Revit
 
-Claude AI in Autodesk Revit 2027 — a dockable chat pane with **127 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, draft sketches, and more.
+Claude AI in Autodesk Revit 2027 — a dockable chat pane with **125 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, draft sketches, and more.
 
 ---
 
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **127 tools** spanning modeling, views, sheets, annotation, schedules, filters, families
+- **125 tools** spanning modeling, views, sheets, annotation, schedules, filters, families
 - **Single-undo per prompt** — Ctrl+Z reverts everything Claude did in one turn
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
 - **Clickable element IDs** — click any id in a tool result, Revit selects and zooms to that element
 - **Cost telemetry** with prompt caching (1h TTL on system prompt + tools = ~5-7× cheaper for long sessions)
-- **History persistence** — your conversation survives Revit restarts
-- **Model picker** — Sonnet 4.6 / Opus 4.7 / Haiku 4.5
-- **In-pane API key entry** — gear icon, no env-var dance
+- **Full context persistence** — the entire API conversation (including tool calls, results and element IDs) survives Revit restarts, so Claude remembers what it built
+- **Automatic compaction** — when the conversation outgrows ~120K tokens, older turns are summarized (via Haiku) instead of overflowing the context window
+- **Conversation prompt caching** — the growing message history is cached alongside the system prompt and tools, so each turn only pays for new tokens
+- **Model picker** — Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5 (+ legacy Sonnet 4.6, Opus 4.7)
+- **Enter to send** — Enter sends the message, Shift+Enter inserts a new line
+- **In-pane API key entry** — gear icon; the key is stored encrypted with Windows DPAPI (no plain-text env var)
 
 ---
 
@@ -107,7 +110,7 @@ The deploy target also follows the version, copying to `%AppData%\Autodesk\Revit
 
 ## Tools
 
-The plugin exposes **127 tools** to Claude across these categories:
+The plugin exposes **125 tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams

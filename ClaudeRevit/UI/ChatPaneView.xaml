@@ -42,9 +42,12 @@
                 <ComboBox Grid.Column="0" x:Name="ModelPicker"
                           Width="170" Height="24" VerticalContentAlignment="Center"
                           SelectionChanged="ModelPicker_SelectionChanged">
-                    <ComboBoxItem Tag="sonnet-4-6" IsSelected="True">Sonnet 4.6 (default)</ComboBoxItem>
-                    <ComboBoxItem Tag="opus-4-7">Opus 4.7 (smartest)</ComboBoxItem>
+                    <ComboBoxItem Tag="sonnet-5" IsSelected="True">Sonnet 5 (default)</ComboBoxItem>
+                    <ComboBoxItem Tag="opus-4-8">Opus 4.8 (smart)</ComboBoxItem>
+                    <ComboBoxItem Tag="fable-5">Fable 5 (smartest)</ComboBoxItem>
                     <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (fastest)</ComboBoxItem>
+                    <ComboBoxItem Tag="sonnet-4-6">Sonnet 4.6</ComboBoxItem>
+                    <ComboBoxItem Tag="opus-4-7">Opus 4.7</ComboBoxItem>
                 </ComboBox>
                 <Button Grid.Column="2" x:Name="ClearButton"
                         Content="Clear" Height="24" Padding="10,0" Margin="0,0,4,0"
@@ -164,7 +167,8 @@
                      MinHeight="60" MaxHeight="180"
                      VerticalScrollBarVisibility="Auto"
                      Padding="8" BorderBrush="#CCC"
-                     KeyDown="InputBox_KeyDown" />
+                     ToolTip="Enter — send, Shift+Enter — new line"
+                     PreviewKeyDown="InputBox_PreviewKeyDown" />
             <Button Grid.Column="1" x:Name="SendButton"
                     Content="Send" Width="72" Margin="6,0,0,0"
                     Click="SendButton_Click" />

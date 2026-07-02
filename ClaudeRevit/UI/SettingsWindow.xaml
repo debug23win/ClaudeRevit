@@ -20,8 +20,8 @@
         <PasswordBox Grid.Row="1" x:Name="ApiKeyBox" Padding="6" Height="28" />
         <TextBlock Grid.Row="2" Margin="0,8,0,0" FontSize="11" Foreground="#888"
                    TextWrapping="Wrap">
-            Stored as the User-scope environment variable
-            <Run FontFamily="Consolas">ANTHROPIC_API_KEY</Run>.
+            Stored encrypted (Windows DPAPI, current user) in
+            <Run FontFamily="Consolas">%AppData%\ClaudeRevit</Run>.
             Get a key at console.anthropic.com → Settings → API Keys.
         </TextBlock>
 
