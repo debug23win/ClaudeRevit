@@ -151,6 +151,13 @@ public class ToolDispatcher : IExternalEventHandler
             var tool = _registry.Get(job.Name)
                 ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
 
+            // Defence in depth: even if a gated tool is somehow requested while the setting
+            // is off, refuse rather than run arbitrary code.
+            if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
+                throw new InvalidOperationException(
+                    "Code execution is disabled. The user must tick 'Allow Claude to run code' in " +
+                    "the settings (gear icon) before this tool can run.");
+
             string result;
             if (tool.RequiresTransaction)
             {

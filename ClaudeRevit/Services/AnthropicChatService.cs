@@ -26,8 +26,11 @@ public class AnthropicChatService
     private const string BaseSystemPrompt =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. " +
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
-        "TOOL CHOICE: Prefer a dedicated tool when one exists. Use execute_csharp ONLY for operations no " +
-        "dedicated tool covers — the user has to approve every execute_csharp run, so don't reach for it lightly.\n\n" +
+        "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, prefer " +
+        "run_dynamo_python (safer — Dynamo manages its own transaction) over execute_csharp; use execute_csharp " +
+        "only if Dynamo is unavailable. Both run only when the user has enabled code execution and approves each " +
+        "run, so don't reach for them lightly. If neither is offered to you, code execution is disabled — tell the " +
+        "user they can enable it via the gear icon.\n\n" +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
@@ -482,7 +485,12 @@ public class AnthropicChatService
 
     private static List<BetaToolUnion> BuildToolDefs()
     {
-        var allTools = ToolRegistry.Instance.All.ToList();
+        // Code-execution tools are hidden from Claude entirely unless the user opted in,
+        // so they can't be invoked (or even suggested) by accident.
+        var allowCode = SettingsStore.AllowCodeExecution;
+        var allTools = ToolRegistry.Instance.All
+            .Where(t => allowCode || !t.RequiresCodeExecutionOptIn)
+            .ToList();
         var toolDefs = new List<BetaTool>(allTools.Count);
         for (int i = 0; i < allTools.Count; i++)
         {

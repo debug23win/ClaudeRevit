@@ -26,8 +26,9 @@ public class ExecuteCSharp : IRevitTool
     public string Name => "execute_csharp";
 
     public string Description =>
-        "Runs a C# snippet against the full Revit API when no dedicated tool fits. " +
-        "Prefer a dedicated tool whenever one exists — only use this for operations no tool covers. " +
+        "Runs a C# snippet against the full Revit API. Use this ONLY as a fallback when a dedicated " +
+        "tool doesn't fit AND run_dynamo_python is unavailable — prefer run_dynamo_python, which is " +
+        "safer. Only use this for operations no dedicated tool covers. " +
         "Available globals: 'uiapp' (UIApplication), 'doc' (active Document). Return a value (any " +
         "type) or a string to report back; it is ToString()'d. The snippet already runs inside a " +
         "transaction, so do NOT open your own. Namespaces Autodesk.Revit.DB, .Structure, .UI, " +
@@ -48,6 +49,7 @@ public class ExecuteCSharp : IRevitTool
 
     public bool RequiresTransaction => true;
     public bool RequiresConfirmation => true;
+    public bool RequiresCodeExecutionOptIn => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

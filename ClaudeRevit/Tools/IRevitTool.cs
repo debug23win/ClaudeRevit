@@ -16,5 +16,9 @@ public interface IRevitTool
     // before the call runs. Use for destructive or arbitrary-code operations.
     bool RequiresConfirmation => false;
 
+    // When true, the tool is only offered to Claude (and only runs) if the user has
+    // ticked "Allow code execution" in settings. Arbitrary-code tools set this.
+    bool RequiresCodeExecutionOptIn => false;
+
     string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app);
 }

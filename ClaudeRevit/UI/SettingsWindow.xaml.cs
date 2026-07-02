@@ -10,6 +10,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         var existing = ApiKeyStore.Load();
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
+        AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -25,6 +26,7 @@ public partial class SettingsWindow : Window
         }
 
         ApiKeyStore.Save(key);
+        SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
 
         DialogResult = true;
         Close();

@@ -143,6 +143,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new CreateAreaReinforcement());
             ToolRegistry.Instance.Register(new GetRebarInHost());
             ToolRegistry.Instance.Register(new SaveMemory());
+            ToolRegistry.Instance.Register(new RunDynamoPython());
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 

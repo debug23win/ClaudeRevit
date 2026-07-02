@@ -2,14 +2,14 @@
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit 2027 — a dockable chat pane with **131 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, draft sketches, and more.
+Claude AI in Autodesk Revit 2027 — a dockable chat pane with **132 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, draft sketches, and more.
 
 ---
 
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **131 tools** spanning modeling, views, sheets, annotation, schedules, filters, families
+- **132 tools** spanning modeling, views, sheets, annotation, schedules, filters, families
 - **Single-undo per prompt** — Ctrl+Z reverts everything Claude did in one turn
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
@@ -19,7 +19,7 @@ Claude AI in Autodesk Revit 2027 — a dockable chat pane with **131 tools** tha
 - **Automatic compaction** — when the conversation outgrows ~120K tokens, older turns are summarized (via Haiku) instead of overflowing the context window
 - **Conversation prompt caching** — the growing message history is cached alongside the system prompt and tools, so each turn only pays for new tokens
 - **Self-learning** — `save_memory` lets Claude persist your preferences and project standards and apply them in every future session
-- **Full Revit API escape hatch** — `execute_csharp` compiles a C# snippet (Roslyn) against the live Revit API and runs it in-transaction, gated behind an Allow/Deny prompt
+- **Full Revit API escape hatch (opt-in)** — for actions no built-in tool covers, Claude can run scripts against the full Revit API: `run_dynamo_python` (preferred — runs via Dynamo, which manages its own transaction) or `execute_csharp` (Roslyn fallback). **Off by default**: enable it with a checkbox in settings; every run also asks for Allow/Deny.
 - **Confirmation for destructive ops** — deleting elements or running code requires an explicit Yes in a dialog
 - **Model picker** — Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5 (+ legacy Sonnet 4.6, Opus 4.7)
 - **Enter to send** — Enter sends the message, Shift+Enter inserts a new line
@@ -115,12 +115,12 @@ The deploy target also follows the version, copying to `%AppData%\Autodesk\Revit
 
 ## Tools
 
-The plugin exposes **131 tools** to Claude across these categories:
+The plugin exposes **132 tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams
 - **Reinforcement** — rebar sets (straight bars with count/spacing), area (mesh) reinforcement for walls/floors, rebar type listing and host inspection
-- **Self-learning & escape hatch** — `save_memory` (persistent notes Claude applies in every future session) and `execute_csharp` (runs arbitrary Revit API code when no dedicated tool fits, gated behind an Allow/Deny prompt)
+- **Self-learning & escape hatch** — `save_memory` (persistent notes Claude applies in every future session); `run_dynamo_python` / `execute_csharp` (full-API code for actions no tool covers — off by default, enable via a settings checkbox, Allow/Deny per run)
 - **Element ops** — move, rotate, copy, mirror, array, delete, set_parameter, pin/unpin
 - **Views** — 3D, floor plan, ceiling plan, section, elevation, callouts, duplicate, set scale, apply template
 - **Sheets** — create sheets, place views/schedules on sheets
