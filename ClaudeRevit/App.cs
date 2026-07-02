@@ -138,6 +138,10 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetIntersectingElements());
             ToolRegistry.Instance.Register(new AddCurtainGrid());
             ToolRegistry.Instance.Register(new GetTypeParameters());
+            ToolRegistry.Instance.Register(new ListRebarTypes());
+            ToolRegistry.Instance.Register(new CreateRebar());
+            ToolRegistry.Instance.Register(new CreateAreaReinforcement());
+            ToolRegistry.Instance.Register(new GetRebarInHost());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             SelectionService.Initialize(application);
