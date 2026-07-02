@@ -1,6 +1,8 @@
 # Claude Revit
 
-Claude AI in Autodesk Revit 2027 — a dockable chat pane with **131 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, draft sketches, and more.
+**English** | [Русский](README.ru.md)
+
+Claude AI in Autodesk Revit 2027 — a dockable chat pane with **131 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, draft sketches, and more.
 
 ---
 
@@ -16,6 +18,9 @@ Claude AI in Autodesk Revit 2027 — a dockable chat pane with **131 tools** tha
 - **Full context persistence** — the entire API conversation (including tool calls, results and element IDs) survives Revit restarts, so Claude remembers what it built
 - **Automatic compaction** — when the conversation outgrows ~120K tokens, older turns are summarized (via Haiku) instead of overflowing the context window
 - **Conversation prompt caching** — the growing message history is cached alongside the system prompt and tools, so each turn only pays for new tokens
+- **Self-learning** — `save_memory` lets Claude persist your preferences and project standards and apply them in every future session
+- **Full Revit API escape hatch** — `execute_csharp` compiles a C# snippet (Roslyn) against the live Revit API and runs it in-transaction, gated behind an Allow/Deny prompt
+- **Confirmation for destructive ops** — deleting elements or running code requires an explicit Yes in a dialog
 - **Model picker** — Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5 (+ legacy Sonnet 4.6, Opus 4.7)
 - **Enter to send** — Enter sends the message, Shift+Enter inserts a new line
 - **In-pane API key entry** — gear icon; the key is stored encrypted with Windows DPAPI (no plain-text env var)
@@ -34,7 +39,7 @@ Pick whichever install path you prefer:
 
 ### Option A — Installer .exe (easiest)
 
-Download **`ClaudeRevit-Setup-vX.Y.exe`** from the [latest release](https://github.com/roubaudal-maker/ClaudeRevit/releases/latest), double-click, click Next → Install. Done.
+Download **`ClaudeRevit-Setup-vX.Y.exe`** from the [latest release](https://github.com/debug23win/ClaudeRevit/releases/latest), double-click, click Next → Install. Done.
 
 > Windows SmartScreen may say "Windows protected your PC" the first time (the installer isn't code-signed yet). Click **More info → Run anyway**.
 
@@ -43,7 +48,7 @@ Download **`ClaudeRevit-Setup-vX.Y.exe`** from the [latest release](https://gith
 Open PowerShell and run:
 
 ```powershell
-iwr https://raw.githubusercontent.com/roubaudal-maker/ClaudeRevit/main/install.ps1 | iex
+iwr https://raw.githubusercontent.com/debug23win/ClaudeRevit/main/install.ps1 | iex
 ```
 
 Either way: launch Revit, open any project, look for the **Claude** tab in the ribbon. Click **Chat** → the pane opens on the right. First time? Click the **⚙** icon in the pane and paste your API key.
@@ -64,7 +69,7 @@ Steps:
 
 1. Clone:
    ```powershell
-   git clone https://github.com/roubaudal-maker/ClaudeRevit.git
+   git clone https://github.com/debug23win/ClaudeRevit.git
    cd ClaudeRevit
    ```
 2. Open `ClaudeRevit.sln` in Visual Studio.
