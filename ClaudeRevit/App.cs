@@ -140,9 +140,17 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetTypeParameters());
             ToolRegistry.Instance.Register(new ListRebarTypes());
             ToolRegistry.Instance.Register(new CreateRebar());
+            ToolRegistry.Instance.Register(new CreateRebarBatch());
             ToolRegistry.Instance.Register(new CreateAreaReinforcement());
+            ToolRegistry.Instance.Register(new CreatePathReinforcement());
             ToolRegistry.Instance.Register(new GetRebarInHost());
+            ToolRegistry.Instance.Register(new CreateRebarCoverType());
+            ToolRegistry.Instance.Register(new ListRebarCoverTypes());
+            ToolRegistry.Instance.Register(new SetRebarCover());
+            ToolRegistry.Instance.Register(new ListViewTemplates());
+            ToolRegistry.Instance.Register(new GetProjectCatalog());
             ToolRegistry.Instance.Register(new SaveMemory());
+            ToolRegistry.Instance.Register(new SaveProjectMemory());
             ToolRegistry.Instance.Register(new RunDynamoPython());
             // ExecuteCSharp is intentionally NOT registered: running Roslyn via
             // .GetAwaiter().GetResult() on Revit's API thread deadlocks the process.

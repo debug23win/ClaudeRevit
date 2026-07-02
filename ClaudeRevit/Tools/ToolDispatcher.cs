@@ -217,13 +217,16 @@ public class ToolDispatcher : IExternalEventHandler
             }
             catch { units = "(unknown)"; }
 
+            var projectNotes = Services.MemoryStore.LoadProject(doc.Title);
+
             var info = new
             {
                 title = doc.Title,
                 active_view = doc.ActiveView?.Name,
                 length_units = units,
                 level_count = levels.Count,
-                levels
+                levels,
+                project_notes = string.IsNullOrWhiteSpace(projectNotes) ? null : projectNotes
             };
             job.Tcs.TrySetResult(JsonSerializer.Serialize(info));
         }

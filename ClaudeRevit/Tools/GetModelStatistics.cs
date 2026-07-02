@@ -15,7 +15,10 @@ public class GetModelStatistics : IRevitTool
 
     public string Description =>
         "Returns summary statistics about the model: element counts by major category, " +
-        "view/sheet/family counts, warnings count, and file size if saved.";
+        "view/sheet/family counts, warnings count, and file size if saved. Also reports " +
+        "changes_since_previous_call — per-category count deltas versus the previous call in " +
+        "this Revit session — so unexpected disappearances (e.g. a door lost to a cascade " +
+        "delete) are visible immediately.";
 
     public InputSchema InputSchema => new()
     {
@@ -24,6 +27,10 @@ public class GetModelStatistics : IRevitTool
     };
 
     public bool RequiresTransaction => false;
+
+    // Last snapshot per document (session-scoped) — the basis for change reporting.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<string, int>>
+        LastCounts = new();
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -68,6 +75,18 @@ public class GetModelStatistics : IRevitTool
             .WhereElementIsNotElementType()
             .GetElementCount();
 
+        // Per-category deltas vs. the previous call in this session (null on the first call).
+        var snapshotKey = doc.Title + "|" + doc.PathName;
+        Dictionary<string, int>? changes = null;
+        if (LastCounts.TryGetValue(snapshotKey, out var previous))
+        {
+            changes = counts
+                .Select(kv => (kv.Key, Delta: kv.Value - previous.GetValueOrDefault(kv.Key)))
+                .Where(x => x.Delta != 0)
+                .ToDictionary(x => x.Key, x => x.Delta);
+        }
+        LastCounts[snapshotKey] = new Dictionary<string, int>(counts);
+
         return JsonSerializer.Serialize(new
         {
             document = doc.Title,
@@ -75,6 +94,7 @@ public class GetModelStatistics : IRevitTool
             file_size_kb = fileSizeKb,
             total_elements = totalElements,
             elements_by_category = counts,
+            changes_since_previous_call = changes,
             views = viewCount,
             sheets = sheetCount,
             families = familyCount,

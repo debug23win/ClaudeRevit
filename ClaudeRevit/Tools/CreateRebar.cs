@@ -14,11 +14,15 @@ public class CreateRebar : IRevitTool
     public string Name => "create_rebar";
 
     public string Description =>
-        "Creates straight rebar (a single bar or a linear set) inside a structural host " +
-        "element — wall, floor, column, beam or foundation. The bar runs from start to end " +
-        "point (feet, model coordinates). With count > 1 the set is distributed along the " +
-        "distribution vector with the given spacing. The host must be a valid rebar host " +
-        "(structural). Use list_rebar_types first to pick a bar type name.";
+        "Creates rebar (a single bar or a linear set) inside a structural host element — wall, " +
+        "floor, column, beam or foundation. By default the bar is straight from start to end " +
+        "point (feet, model coordinates). Pass shape_name to place a catalog rebar shape " +
+        "(e.g. a GOST bent shape) instead: the shape is placed at the start point, its X axis " +
+        "along start→end, and its dimensions can be set via shape_parameters. With count > 1 " +
+        "the set is distributed along the distribution vector with the given spacing. " +
+        "Use list_rebar_types first to pick bar type and shape names. Note: rebar is " +
+        "associative to its host — when the host's type or size changes, Revit recalculates " +
+        "bar lengths and counts automatically; do not recreate the rebar.";
 
     public InputSchema InputSchema => new()
     {
@@ -32,6 +36,13 @@ public class CreateRebar : IRevitTool
             ["end_y"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Bar end Y in feet." }),
             ["end_z"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Bar end Z in feet." }),
             ["bar_type_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional rebar bar type name (defaults to the first available)." }),
+            ["shape_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional rebar shape name from the catalog (see list_rebar_types). When set, the shape is placed at the start point with its X axis along start→end instead of creating a straight bar from curves." }),
+            ["shape_parameters"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "object",
+                description = "Optional shape dimension values, keyed by the parameter name as shown on the rebar instance (e.g. \"A\", \"B\" or localized names). Values are lengths in FEET.",
+                additionalProperties = new { type = "number" }
+            }),
             ["count"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "Number of bars in the set (default 1).", minimum = 1 }),
             ["spacing_ft"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Spacing between bars in feet (required when count > 1).", minimum = 0.01 }),
             ["dist_x"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution direction X (must be perpendicular to the bar). Default: computed automatically." }),
@@ -108,12 +119,49 @@ public class CreateRebar : IRevitTool
             norm = (seed - dir.Multiply(seed.DotProduct(dir))).Normalize();
         }
 
-        var curves = new List<Curve> { Line.CreateBound(start, end) };
-        // Default BarTerminationsData = straight bar, no hooks (Revit 2027 API)
-        using var terminations = new BarTerminationsData(doc);
-        var rebar = Rebar.CreateFromCurves(
-            doc, RebarStyle.Standard, barType, host, norm, curves,
-            terminations, useExistingShapeIfPossible: true, createNewShape: true);
+        Rebar rebar;
+        string? shapeName = null;
+        if (input.TryGetValue("shape_name", out var sn) && sn.ValueKind == JsonValueKind.String)
+        {
+            shapeName = sn.GetString();
+            var shape = new FilteredElementCollector(doc)
+                .OfClass(typeof(RebarShape))
+                .Cast<RebarShape>()
+                .FirstOrDefault(s => s.Name == shapeName)
+                ?? throw new InvalidOperationException(
+                    $"Rebar shape '{shapeName}' not found. Call list_rebar_types to see available shapes.");
+            // The shape plane: X along the bar run, Y along the distribution normal.
+            rebar = Rebar.CreateFromRebarShape(doc, shape, barType, host, start, dir, norm);
+        }
+        else
+        {
+            var curves = new List<Curve> { Line.CreateBound(start, end) };
+            // Default BarTerminationsData = straight bar, no hooks (Revit 2027 API)
+            using var terminations = new BarTerminationsData(doc);
+            rebar = Rebar.CreateFromCurves(
+                doc, RebarStyle.Standard, barType, host, norm, curves,
+                terminations, useExistingShapeIfPossible: true, createNewShape: true);
+        }
+
+        // Shape dimension parameters (A, B, hook lengths…) live on the instance once a
+        // shape-driven rebar exists. Applied by name; unknown/read-only names are reported
+        // back instead of failing the whole call.
+        var paramWarnings = new List<string>();
+        if (input.TryGetValue("shape_parameters", out var shapeParams) && shapeParams.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in shapeParams.EnumerateObject())
+            {
+                var p = rebar.LookupParameter(prop.Name);
+                if (p == null)
+                    paramWarnings.Add($"Parameter '{prop.Name}' not found on the rebar instance.");
+                else if (p.IsReadOnly)
+                    paramWarnings.Add($"Parameter '{prop.Name}' is read-only.");
+                else if (p.StorageType == StorageType.Double)
+                    p.Set(prop.Value.GetDouble());
+                else
+                    paramWarnings.Add($"Parameter '{prop.Name}' is not a number ({p.StorageType}).");
+            }
+        }
 
         int count = input.TryGetValue("count", out var c) ? c.GetInt32() : 1;
         double? spacing = input.TryGetValue("spacing_ft", out var sp) ? sp.GetDouble() : null;
@@ -142,10 +190,12 @@ public class CreateRebar : IRevitTool
             id = rebar.Id.Value,
             type = "Rebar",
             bar_type = barType.Name,
+            shape = shapeName,
             host_id = host.Id.Value,
             bars = count,
             length_ft = start.DistanceTo(end),
-            spacing_ft = count > 1 ? spacing : null
+            spacing_ft = count > 1 ? spacing : null,
+            warnings = paramWarnings.Count > 0 ? paramWarnings : null
         });
     }
 }
