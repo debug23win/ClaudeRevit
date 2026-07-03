@@ -110,7 +110,7 @@ public class RunDynamoPython : IRevitTool
                 return Fail("The Dynamo window is currently open in Revit, which blocks headless " +
                             "script execution. Ask the user to close the Dynamo window, then retry.");
 
-            var (report, parseError) = RunGraph(dynamoRevit, app, code!, engine);
+            var (report, parseError, keptDynPath) = RunGraph(dynamoRevit, app, code!, engine);
 
             if (parseError != null)
                 return Fail("The Python node ran but its run report could not be parsed (" + parseError +
@@ -119,12 +119,22 @@ public class RunDynamoPython : IRevitTool
                             "re-running anything.");
 
             if (report == null)
+            {
+                // Self-diagnose instead of guessing: Dynamo writes its startup/run problems
+                // (node deserialization errors, missing Python engine, graph-open failures)
+                // to its own session log — return the tail so the cause is visible directly.
+                var dynamoLog = ReadDynamoLogTail();
                 return Fail(
                     $"The Python node wrote no run report on engine {engine}, so it most likely never " +
                     "executed — but this cannot be fully guaranteed, so VERIFY with query tools before " +
-                    "re-running a model-mutating script. Likely causes: this Dynamo installation lacks " +
-                    $"the {engine} engine (you may retry once with the other engine explicitly), or the " +
-                    "graph failed to open. Dynamo's own log is at %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs.");
+                    "re-running a model-mutating script. " +
+                    $"Dynamo state after the run: '{GetDynamoState(dynamoRevit) ?? "(unknown)"}'. " +
+                    $"The generated graph was kept at {keptDynPath} — the user can open it in Dynamo " +
+                    "manually to see the failure. " +
+                    (dynamoLog != null
+                        ? "Tail of Dynamo's own session log:\n" + dynamoLog
+                        : "Dynamo's session log was not found under %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs."));
+            }
 
             return BuildResponse(report.Value, engine, app);
         }
@@ -140,12 +150,14 @@ public class RunDynamoPython : IRevitTool
 
     // One full headless run on the given engine, in the two calls current DynamoRevit
     // requires (see the file header): reset+boot, then open+execute. Returns the parsed
-    // run report (null = no report file → the node almost certainly never ran) and a
-    // parse-error message when a report exists but is unreadable.
-    private static (JsonElement? Report, string? ParseError) RunGraph(
+    // run report (null = no report file → the node almost certainly never ran), a
+    // parse-error message when a report exists but is unreadable, and the graph path
+    // (kept on disk when there was no report, for manual inspection).
+    private static (JsonElement? Report, string? ParseError, string? DynPath) RunGraph(
         System.Type dynamoRevit, UIApplication app, string code, string engine)
     {
         string? dynPath = null;
+        var succeeded = false;
         var reportPath = Path.Combine(Path.GetTempPath(),
             "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".report.json");
         try
@@ -176,23 +188,60 @@ public class RunDynamoPython : IRevitTool
             });
 
             if (!File.Exists(reportPath))
-                return (null, null);
+                return (null, null, dynPath);
             try
             {
                 using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
-                return (doc.RootElement.Clone(), null);
+                succeeded = true;
+                return (doc.RootElement.Clone(), null, dynPath);
             }
             catch (Exception ex)
             {
                 // A present-but-unreadable report means the node DID run; never treat this
                 // as "did not execute".
-                return (null, ex.Message);
+                return (null, ex.Message, dynPath);
             }
         }
         finally
         {
-            try { if (dynPath != null && File.Exists(dynPath)) File.Delete(dynPath); } catch { }
+            // Keep the graph on failure so it can be opened manually for diagnosis.
+            try { if (succeeded && dynPath != null && File.Exists(dynPath)) File.Delete(dynPath); } catch { }
             try { if (File.Exists(reportPath)) File.Delete(reportPath); } catch { }
+        }
+    }
+
+    // Tail of the newest Dynamo session log (%AppData%\Dynamo\Dynamo Revit\<ver>\Logs\
+    // dynamoLog_*.txt) — where Dynamo records graph-open failures, node deserialization
+    // problems and missing-engine errors that never surface through ExecuteCommand.
+    private static string? ReadDynamoLogTail()
+    {
+        try
+        {
+            var root = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Dynamo", "Dynamo Revit");
+            if (!Directory.Exists(root)) return null;
+
+            var newest = Directory.GetDirectories(root)
+                .Select(v => Path.Combine(v, "Logs"))
+                .Where(Directory.Exists)
+                .SelectMany(logs => Directory.GetFiles(logs, "dynamoLog_*.txt"))
+                .Select(f => new FileInfo(f))
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .FirstOrDefault();
+            if (newest == null) return null;
+
+            // Share-friendly read: Dynamo may still hold the file open.
+            using var stream = new FileStream(newest.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream);
+            var text = reader.ReadToEnd();
+            const int tail = 3000;
+            var slice = text.Length <= tail ? text : text[^tail..];
+            return $"[{newest.FullName}]\n" + slice;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -415,12 +464,14 @@ OUT = 0
             Bindings = Array.Empty<object>(),
             View = new
             {
+                // No Version field on purpose: DynamoModel treats a null workspace version
+                // as "current Dynamo version", which is always right — a hardcoded number
+                // (Revit 2027 ships Dynamo 27.x, not 3.x) risks migration-path surprises.
                 Dynamo = new
                 {
                     ScaleFactor = 1.0,
                     HasRunWithoutCrash = true,
                     IsVisibleInDynamoLibrary = true,
-                    Version = "3.0.0.0",
                     RunType = "Automatic",
                     RunPeriod = "1000"
                 },
