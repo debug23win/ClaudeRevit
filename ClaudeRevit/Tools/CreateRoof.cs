@@ -62,18 +62,24 @@ public class CreateRoof : IRevitTool
             .FirstOrDefault(l => l.Name == levelName)
             ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
 
+        var roofTypes = new FilteredElementCollector(doc).OfClass(typeof(RoofType)).Cast<RoofType>()
+            .ToList();
+
         RoofType roofType;
         if (input.TryGetValue("roof_type_name", out var rt) && rt.ValueKind == JsonValueKind.String)
         {
             var name = rt.GetString();
-            roofType = new FilteredElementCollector(doc).OfClass(typeof(RoofType)).Cast<RoofType>()
-                .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Roof type '{name}' not found.");
+            roofType = roofTypes.FirstOrDefault(t => t.Name == name)
+                ?? throw new InvalidOperationException(
+                    $"Roof type '{name}' not found. Available roof types: " +
+                    string.Join(", ", roofTypes.Select(t => $"'{t.Name}'")));
         }
         else
         {
-            roofType = new FilteredElementCollector(doc).OfClass(typeof(RoofType)).Cast<RoofType>()
-                .FirstOrDefault()
+            // Prefer a type with a compound structure (a Basic Roof): the first RoofType in
+            // the collector can be a sloped-glazing type, which a footprint roof can't use.
+            roofType = roofTypes.FirstOrDefault(t => t.GetCompoundStructure() != null)
+                ?? roofTypes.FirstOrDefault()
                 ?? throw new InvalidOperationException("No roof types are loaded in this document.");
         }
 
@@ -87,7 +93,11 @@ public class CreateRoof : IRevitTool
             curveArray.Append(Line.CreateBound(a, b));
         }
 
-        var roof = doc.Create.NewFootPrintRoof(curveArray, level, roofType, out _);
+        // NewFootPrintRoof's implementation reads the incoming ModelCurveArray (it fills the
+        // caller's array rather than allocating one), so the argument must be a live instance —
+        // `out _` passes null and every call dies with "Value cannot be null".
+        var footprintMapping = new ModelCurveArray();
+        var roof = doc.Create.NewFootPrintRoof(curveArray, level, roofType, out footprintMapping);
 
         return JsonSerializer.Serialize(new
         {

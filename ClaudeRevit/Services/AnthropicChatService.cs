@@ -26,15 +26,19 @@ public class AnthropicChatService
     private const string BaseSystemPrompt =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. " +
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
-        "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, use " +
-        "run_dynamo_python (runs Python via Dynamo, which manages its own transaction). It runs only when the " +
-        "user has enabled code execution and approves each run, so do not reach for it lightly. If it is not " +
-        "offered to you, code execution is disabled. Tell the user they can enable it via the gear icon. " +
+        "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, the " +
+        "DEFAULT escape hatch is execute_csharp: C# directly against the Revit API, no Dynamo dependency, " +
+        "runs inside a managed transaction that rolls back automatically on error. Use run_dynamo_python " +
+        "only when Python is specifically better — a proven Python snippet from get_script_journal, code " +
+        "adapted from the Dynamo community, or the user asked for Python. Both run only when the user has " +
+        "enabled code execution, so do not reach for them lightly. If they are not offered to you, code " +
+        "execution is disabled. Tell the user they can enable it via the gear icon. " +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
-        "'this' / 'these' / 'the selected', call get_selection first.\n\n" +
+        "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +
+        "2027 API: ElementId.Value (long) — ElementId.IntegerValue was removed.\n\n" +
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
@@ -200,8 +204,10 @@ public class AnthropicChatService
                         conversation.Add(toolMsg);
                     });
 
-                    // Confirmation gate for destructive / arbitrary-code tools.
-                    if (tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
+                    // Confirmation gate for destructive / arbitrary-code tools — only when
+                    // the user re-enabled it in settings (off by default: every turn is one
+                    // undo step, and code execution has its own opt-in).
+                    if (SettingsStore.ConfirmOperations && tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
                     {
                         var approved = await ConfirmToolAsync(name, FormatInput(inp));
                         if (!approved)

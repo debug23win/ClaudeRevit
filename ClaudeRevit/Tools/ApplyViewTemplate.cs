@@ -58,11 +58,27 @@ public class ApplyViewTemplate : IRevitTool
 
         var applied = new List<long>();
         var skipped = new List<object>();
+        var warnings = new List<object>();
         foreach (var id in viewIds)
         {
             var v = doc.GetElement(id) as View;
             if (v == null) { skipped.Add(new { id = id.Value, reason = "not a view" }); continue; }
-            try { v.ViewTemplateId = template.Id; applied.Add(id.Value); }
+            try
+            {
+                v.ViewTemplateId = template.Id;
+                applied.Add(id.Value);
+                // Revit accepts some cross-kind assignments (e.g. a structural-plan template
+                // on an architectural floor plan) that silently hide categories the view was
+                // meant to show — flag them instead of leaving it to a visual check.
+                if (template.ViewType != v.ViewType)
+                    warnings.Add(new
+                    {
+                        id = id.Value,
+                        warning = $"Template '{template.Name}' is a {template.ViewType} template but " +
+                                  $"view '{v.Name}' is a {v.ViewType} view — it may hide categories " +
+                                  "this view is meant to show. Verify the view still reads correctly."
+                    });
+            }
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
@@ -71,7 +87,8 @@ public class ApplyViewTemplate : IRevitTool
             template = template.Name,
             applied_count = applied.Count,
             applied_ids = applied,
-            skipped
+            skipped,
+            warnings
         });
     }
 }

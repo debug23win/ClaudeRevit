@@ -14,7 +14,8 @@ public class GetRebarInHost : IRevitTool
     public string Name => "get_rebar_in_host";
 
     public string Description =>
-        "Lists all rebar placed in a structural host element: bar type, quantity, total length. " +
+        "Lists ALL reinforcement placed in a structural host element: rebar sets (bar type, " +
+        "quantity, total length), path reinforcement and area (mesh) reinforcement. " +
         "Use to inspect existing reinforcement before adding or modifying it.";
 
     public InputSchema InputSchema => new()
@@ -51,12 +52,34 @@ public class GetRebarInHost : IRevitTool
             })
             .ToList();
 
+        var paths = hostData.GetPathReinforcementsInHost()
+            .Select(p => new
+            {
+                id = p.Id.Value,
+                path_type = p.PathReinforcementType?.Name,
+                orientation = p.PrimaryBarOrientation.ToString(),
+                number_of_bars = p.get_Parameter(BuiltInParameter.PATH_REIN_NUMBER_OF_BARS)?.AsInteger(),
+                spacing_ft = p.get_Parameter(BuiltInParameter.PATH_REIN_SPACING) is { } sp
+                    ? Math.Round(sp.AsDouble(), 4) : (double?)null
+            })
+            .ToList();
+
+        var areas = hostData.GetAreaReinforcementsInHost()
+            .Select(a => new
+            {
+                id = a.Id.Value,
+                area_type = doc.GetElement(a.GetTypeId())?.Name
+            })
+            .ToList();
+
         return JsonSerializer.Serialize(new
         {
             host_id = host.Id.Value,
             rebar_sets = rebars.Count,
             total_bars = rebars.Sum(r => r.quantity),
-            rebars
+            rebars,
+            path_reinforcements = paths,
+            area_reinforcements = areas
         });
     }
 }

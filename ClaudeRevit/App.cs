@@ -140,14 +140,28 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetTypeParameters());
             ToolRegistry.Instance.Register(new ListRebarTypes());
             ToolRegistry.Instance.Register(new CreateRebar());
+            ToolRegistry.Instance.Register(new CreateRebarBatch());
             ToolRegistry.Instance.Register(new CreateAreaReinforcement());
+            ToolRegistry.Instance.Register(new CreatePathReinforcement());
             ToolRegistry.Instance.Register(new GetRebarInHost());
+            ToolRegistry.Instance.Register(new CreateRebarCoverType());
+            ToolRegistry.Instance.Register(new ListRebarCoverTypes());
+            ToolRegistry.Instance.Register(new SetRebarCover());
+            ToolRegistry.Instance.Register(new ListViewTemplates());
+            ToolRegistry.Instance.Register(new GetProjectCatalog());
             ToolRegistry.Instance.Register(new SaveMemory());
+            ToolRegistry.Instance.Register(new SaveProjectMemory());
+            ToolRegistry.Instance.Register(new GetScriptJournal());
+            // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
+            // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
+            // gone; no Dynamo dependency). RunDynamoPython remains for Python-flavoured
+            // scripts and proven community snippets; registered after C# on purpose.
+            ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolRegistry.Instance.Register(new RunDynamoPython());
-            // ExecuteCSharp is intentionally NOT registered: running Roslyn via
-            // .GetAwaiter().GetResult() on Revit's API thread deadlocks the process.
-            // run_dynamo_python is the supported code path (Dynamo runs code itself).
             ToolDispatcher.Initialize(ToolRegistry.Instance);
+
+            // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
+            application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
 
             SelectionService.Initialize(application);
 

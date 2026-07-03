@@ -21,11 +21,33 @@ public static class SettingsStore
         set { Current.AllowCodeExecution = value; Save(); }
     }
 
-    // "dynamo" (preferred, safer) or "csharp"
-    public static string CodeBackend
+    // Per-operation Allow/Deny dialogs. Off by default: every mutation is already
+    // grouped into one undo step (Ctrl+Z), and the code-execution opt-in still gates
+    // the script tools.
+    public static bool ConfirmOperations
     {
-        get => string.IsNullOrWhiteSpace(Current.CodeBackend) ? "dynamo" : Current.CodeBackend;
-        set { Current.CodeBackend = value; Save(); }
+        get => Current.ConfirmOperations;
+        set { Current.ConfirmOperations = value; Save(); }
+    }
+
+    // User-entered account balance (from console.anthropic.com) and the estimated
+    // spend accumulated since it was entered. The API exposes no balance endpoint,
+    // so the pane shows balance − local spend estimate.
+    public static decimal BalanceUsd => Current.BalanceUsd;
+    public static decimal SpentUsd => Current.SpentUsd;
+
+    public static void SetBalance(decimal balanceUsd)
+    {
+        Current.BalanceUsd = balanceUsd;
+        Current.SpentUsd = 0;
+        Save();
+    }
+
+    public static void AddSpend(decimal usd)
+    {
+        if (usd <= 0) return;
+        Current.SpentUsd += usd;
+        Save();
     }
 
     private static Settings Current
@@ -57,6 +79,8 @@ public static class SettingsStore
     private sealed class Settings
     {
         public bool AllowCodeExecution { get; set; } = false;
-        public string CodeBackend { get; set; } = "dynamo";
+        public bool ConfirmOperations { get; set; } = false;
+        public decimal BalanceUsd { get; set; } = 0;
+        public decimal SpentUsd { get; set; } = 0;
     }
 }
