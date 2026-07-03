@@ -20,20 +20,19 @@ namespace ClaudeRevit.Tools;
 // EVERY failure path returns an error string — this tool must never crash Revit. If
 // Dynamo is not installed it says so and suggests enabling execute_csharp instead.
 //
-// Execution flow (matches DynamoRevit.ExecuteCommand in current DynamoRevit sources):
-// with dynShowUI=False the command NEVER opens a graph on the call that (re)initializes
-// the UIless model — it boots the model and returns Succeeded. The graph is opened (and,
-// in automation mode, run synchronously) only on a SUBSEQUENT call, when the model is
-// already StartedUIless and no dynModelShutDown key is present. So the tool makes two
-// calls per run: (1) reset+boot bound to the current document, (2) open+execute.
-// dynShowUI=False also means the WebView2 splash screen is never shown, so a broken
-// splash (e.g. unwritable WebView2 data folder) does not affect this path.
+// Execution flow: one journal call boots a headless (dynShowUI=False — no WebView2
+// splash) Dynamo model bound to the current document, which also loads Dynamo's Python
+// engine extensions. The snippet is then evaluated DIRECTLY through the engine object in
+// Dynamo.PythonServices.PythonEngineManager — a synchronous call on this thread, immune
+// to graph-schema, run-mode and model-lifecycle quirks. Only when that manager doesn't
+// exist (pre-PythonServices Dynamo) does the tool fall back to a journal-driven graph run
+// (open a generated .dyn; in automation mode opening runs it synchronously).
 //
-// Execution feedback: ExecuteCommand's return value only reflects opening, so the snippet
-// is wrapped in a harness that writes a run report (OUT, traceback, document identity) to
-// a temp file. A missing report is surfaced as an honest error instead of a fake success —
-// and the tool never re-runs the snippet by itself, because a missing report cannot prove
-// the code did not execute (partial commits may have happened).
+// Execution feedback: the harness returns a run report (OUT, traceback, document
+// identity) — directly as the evaluation result on the primary path, via a temp file on
+// the graph fallback. A missing report is surfaced as an honest error instead of a fake
+// success — and the tool never re-runs the snippet by itself, because a missing report
+// cannot prove the code did not execute (partial commits may have happened).
 public class RunDynamoPython : IRevitTool
 {
     public string Name => "run_dynamo_python";
@@ -112,6 +111,18 @@ public class RunDynamoPython : IRevitTool
                 return Fail("The Dynamo window is currently open in Revit, which blocks headless " +
                             "script execution. Ask the user to close the Dynamo window, then retry.");
 
+            // Boot (or reset) the headless Dynamo model bound to the CURRENT document.
+            // This also loads Dynamo's Python engine extensions into the process.
+            BootDynamo(dynamoRevit, app);
+
+            // Primary path: call the Python engine DIRECTLY via PythonEngineManager —
+            // synchronous, on this thread, no .dyn file, no graph open/run semantics, no
+            // race with Dynamo's model lifecycle. Returns null only when the manager or
+            // engines are unavailable (older Dynamo) — then the journal graph path runs.
+            var direct = TryDirectEvaluate(app, code!, engine);
+            if (direct != null)
+                return direct;
+
             var (report, parseError, keptDynPath, usedEngine) = RunGraph(dynamoRevit, app, code!, engine);
             engine = usedEngine;
 
@@ -155,11 +166,141 @@ public class RunDynamoPython : IRevitTool
     // Engine names in preference order; used both for input validation and detection.
     private static readonly string[] KnownEngines = ["PythonNet3", "CPython3", "IronPython2"];
 
-    // One full headless run, in the two calls current DynamoRevit requires (see the file
-    // header): reset+boot, then open+execute. Returns the parsed run report (null = no
-    // report file → the node almost certainly never ran), a parse-error message when a
-    // report exists but is unreadable, the graph path (kept on disk when there was no
-    // report, for manual inspection) and the engine actually used.
+    // Reset+boot: if a UIless model is alive (possibly bound to a previously active
+    // document), dynModelShutDown makes ExecuteCommand shut it down and boot a fresh one
+    // bound to the CURRENT document. This call never opens a graph.
+    private static void BootDynamo(System.Type dynamoRevit, UIApplication app)
+    {
+        InvokeExecuteCommand(dynamoRevit, app, new Dictionary<string, string>
+        {
+            ["dynShowUI"] = "False",
+            ["dynAutomation"] = "True",
+            ["dynModelShutDown"] = "True"
+        });
+    }
+
+    // Primary execution path: evaluate the snippet through the Python engine object that
+    // the booted Dynamo registered in Dynamo.PythonServices.PythonEngineManager — a plain
+    // synchronous method call on this thread. Returns the complete tool response, or null
+    // when no engine manager / engines exist (pre-PythonServices Dynamo) so the caller can
+    // fall back to the journal-driven graph run.
+    private static string? TryDirectEvaluate(UIApplication app, string code, string? requestedEngine)
+    {
+        object? manager;
+        try
+        {
+            var managerType = FindType("Dynamo.PythonServices.PythonEngineManager");
+            manager = managerType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+        }
+        catch
+        {
+            return null;
+        }
+        if (manager == null) return null;
+
+        // AvailableEngines is a public field on current Dynamo; tolerate a property too.
+        var enginesMember =
+            (object?)manager.GetType().GetField("AvailableEngines", BindingFlags.Public | BindingFlags.Instance)?.GetValue(manager)
+            ?? manager.GetType().GetProperty("AvailableEngines", BindingFlags.Public | BindingFlags.Instance)?.GetValue(manager);
+        if (enginesMember is not System.Collections.IEnumerable engines) return null;
+
+        var byName = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var engineObj in engines)
+        {
+            if (engineObj == null) continue;
+            var name = engineObj.GetType().GetProperty("Name")?.GetValue(engineObj)?.ToString();
+            if (!string.IsNullOrEmpty(name)) byName[name!] = engineObj;
+        }
+        if (byName.Count == 0) return null;
+
+        object? engineInstance;
+        string engineName;
+        if (requestedEngine != null)
+        {
+            if (!byName.TryGetValue(requestedEngine, out engineInstance))
+                return Fail($"Python engine '{requestedEngine}' is not loaded in this Dynamo. " +
+                            $"Available engines: {string.Join(", ", byName.Keys)}.");
+            engineName = requestedEngine;
+        }
+        else
+        {
+            engineName = KnownEngines.FirstOrDefault(byName.ContainsKey) ?? byName.Keys.First();
+            engineInstance = byName[engineName];
+        }
+
+        var evaluate = engineInstance!.GetType().GetMethod(
+            "Evaluate", BindingFlags.Public | BindingFlags.Instance,
+            [typeof(string), typeof(System.Collections.IList), typeof(System.Collections.IList)]);
+        if (evaluate == null) return null;
+
+        object? result;
+        try
+        {
+            result = evaluate.Invoke(engineInstance,
+                [WrapForDirectEvaluation(code), new System.Collections.ArrayList(), new System.Collections.ArrayList()]);
+        }
+        catch (Exception ex)
+        {
+            var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
+            // Engine exists but evaluation blew up below the harness (engine init, marshal…).
+            // Do NOT fall back to the graph path: the snippet may have partially executed,
+            // and running it again could double-commit model changes.
+            return Fail($"Python engine {engineName} failed to evaluate the script: {inner.Message}. " +
+                        "If the script may have started, verify the model state with query tools " +
+                        "before re-running it.");
+        }
+
+        var reportJson = result?.ToString();
+        if (string.IsNullOrWhiteSpace(reportJson))
+            return Fail($"Python engine {engineName} returned no report. The MODEL STATE IS UNKNOWN — " +
+                        "verify with query tools before re-running anything.");
+        try
+        {
+            using var doc = JsonDocument.Parse(reportJson!);
+            return BuildResponse(doc.RootElement.Clone(), engineName, app);
+        }
+        catch (Exception ex)
+        {
+            return Fail($"Python engine {engineName} ran but its report could not be parsed ({ex.Message}). " +
+                        "The MODEL STATE IS UNKNOWN — verify with query tools before re-running anything.");
+        }
+    }
+
+    // Same harness as the graph path, but the report comes back as the evaluation result
+    // instead of going through a temp file.
+    private static string WrapForDirectEvaluation(string userCode)
+    {
+        var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
+        return $$"""
+import base64 as __cr_b64, json as __cr_json, traceback as __cr_tb, sys as __cr_sys
+__cr_report = {'python': __cr_sys.version.split()[0]}
+try:
+    exec(compile(__cr_b64.b64decode('{{codeB64}}').decode('utf-8'), '<claude_snippet>', 'exec'), globals())
+    if 'OUT' in globals():
+        try:
+            __cr_report['out'] = __cr_json.dumps(globals()['OUT'], default=repr)
+        except Exception:
+            __cr_report['out'] = repr(globals()['OUT'])
+except BaseException:
+    __cr_report['error'] = __cr_tb.format_exc()
+try:
+    import clr
+    clr.AddReference('RevitServices')
+    from RevitServices.Persistence import DocumentManager as __cr_dm
+    __cr_doc = __cr_dm.Instance.CurrentDBDocument
+    __cr_report['document'] = {'title': __cr_doc.Title, 'path': __cr_doc.PathName}
+except Exception:
+    pass
+OUT = __cr_json.dumps(__cr_report)
+""";
+    }
+
+    // Fallback for Dynamo versions without PythonEngineManager: a full journal-driven
+    // graph run. Returns the parsed run report (null = no report file → the node almost
+    // certainly never ran), a parse-error message when a report exists but is unreadable,
+    // the graph path (kept on disk when there was no report, for manual inspection) and
+    // the engine actually used.
     private static (JsonElement? Report, string? ParseError, string? DynPath, string Engine) RunGraph(
         System.Type dynamoRevit, UIApplication app, string code, string? engine)
     {
@@ -169,16 +310,6 @@ public class RunDynamoPython : IRevitTool
             "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".report.json");
         try
         {
-            // Call 1 — reset: if a UIless model is alive (possibly bound to a previously
-            // active document), dynModelShutDown makes ExecuteCommand shut it down and boot
-            // a fresh one bound to the CURRENT document. This call never opens a graph.
-            InvokeExecuteCommand(dynamoRevit, app, new Dictionary<string, string>
-            {
-                ["dynShowUI"] = "False",
-                ["dynAutomation"] = "True",
-                ["dynModelShutDown"] = "True"
-            });
-
             // The graph is written AFTER the boot so auto-detection can look at the Python
             // engine assemblies the booted model loaded.
             engine ??= DetectEngine();
