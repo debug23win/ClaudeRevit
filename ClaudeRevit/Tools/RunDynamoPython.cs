@@ -24,15 +24,15 @@ namespace ClaudeRevit.Tools;
 // splash) Dynamo model bound to the current document, which also loads Dynamo's Python
 // engine extensions. The snippet is then evaluated DIRECTLY through the engine object in
 // Dynamo.PythonServices.PythonEngineManager — a synchronous call on this thread, immune
-// to graph-schema, run-mode and model-lifecycle quirks. Only when that manager doesn't
-// exist (pre-PythonServices Dynamo) does the tool fall back to a journal-driven graph run
-// (open a generated .dyn; in automation mode opening runs it synchronously).
+// to graph-schema, run-mode and model-lifecycle quirks. (The old journal-driven .dyn
+// graph run was removed: it only served pre-PythonEngineManager Dynamo, which cannot
+// ship with the Revit 2027 this add-in targets, and it was the most failure-prone code
+// in the project — see the v1.9–v1.12 history.)
 //
 // Execution feedback: the harness returns a run report (OUT, traceback, document
-// identity) — directly as the evaluation result on the primary path, via a temp file on
-// the graph fallback. A missing report is surfaced as an honest error instead of a fake
-// success — and the tool never re-runs the snippet by itself, because a missing report
-// cannot prove the code did not execute (partial commits may have happened).
+// identity) as the evaluation result. Errors are honest — the tool never re-runs the
+// snippet by itself, because a failed report cannot prove the code did not execute
+// (partial commits may have happened).
 public class RunDynamoPython : IRevitTool
 {
     public string Name => "run_dynamo_python";
@@ -122,43 +122,24 @@ public class RunDynamoPython : IRevitTool
             // This also loads Dynamo's Python engine extensions into the process.
             BootDynamo(dynamoRevit, app);
 
-            // Primary path: call the Python engine DIRECTLY via PythonEngineManager —
-            // synchronous, on this thread, no .dyn file, no graph open/run semantics, no
-            // race with Dynamo's model lifecycle. Returns null only when the manager or
-            // engines are unavailable (older Dynamo) — then the journal graph path runs.
+            // Single execution path: call the Python engine DIRECTLY via
+            // PythonEngineManager — synchronous, on this thread, no .dyn file, no graph
+            // open/run semantics, no race with Dynamo's model lifecycle. (The old
+            // journal-driven graph run was removed: it only served pre-PythonEngineManager
+            // Dynamo, which cannot ship with the Revit 2027 this add-in targets, and it
+            // was the most failure-prone code in the project.)
             var direct = TryDirectEvaluate(app, code!, engine);
             if (direct != null)
                 return direct;
 
-            var (report, parseError, keptDynPath, usedEngine) = RunGraph(dynamoRevit, app, code!, engine);
-            engine = usedEngine;
-
-            if (parseError != null)
-                return Fail("The Python node ran but its run report could not be parsed (" + parseError +
-                            "). The MODEL STATE IS UNKNOWN — the script may have committed changes. " +
-                            "Verify with query tools (query_elements / get_element_parameters) before " +
-                            "re-running anything.");
-
-            if (report == null)
-            {
-                // Self-diagnose instead of guessing: Dynamo writes its startup/run problems
-                // (node deserialization errors, missing Python engine, graph-open failures)
-                // to its own session log — return the tail so the cause is visible directly.
-                var dynamoLog = ReadDynamoLogTail();
-                return Fail(
-                    $"The Python node wrote no run report on engine {engine}, so it most likely never " +
-                    "executed — but this cannot be fully guaranteed, so VERIFY with query tools before " +
-                    "re-running a model-mutating script. If the log below shows an engine problem, an " +
-                    $"explicit 'engine' value may help (valid: {string.Join(", ", KnownEngines)}). " +
-                    $"Dynamo state after the run: '{GetDynamoState(dynamoRevit) ?? "(unknown)"}'. " +
-                    $"The generated graph was kept at {keptDynPath} — the user can open it in Dynamo " +
-                    "manually to see the failure. " +
-                    (dynamoLog != null
-                        ? "Tail of Dynamo's own session log:\n" + dynamoLog
-                        : "Dynamo's session log was not found under %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs."));
-            }
-
-            return BuildResponse(report.Value, engine, app);
+            var dynamoLog = ReadDynamoLogTail();
+            return Fail(
+                "Dynamo booted but exposed no Python engines (PythonEngineManager is missing or " +
+                "empty) — this Dynamo installation cannot run Python headlessly. Use execute_csharp " +
+                "instead. " +
+                (dynamoLog != null
+                    ? "Tail of Dynamo's own session log:\n" + dynamoLog
+                    : "Dynamo's session log was not found under %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs."));
         }
         catch (Exception ex)
         {
@@ -312,61 +293,6 @@ OUT = __cr_json.dumps(__cr_report)
 """;
     }
 
-    // Fallback for Dynamo versions without PythonEngineManager: a full journal-driven
-    // graph run. Returns the parsed run report (null = no report file → the node almost
-    // certainly never ran), a parse-error message when a report exists but is unreadable,
-    // the graph path (kept on disk when there was no report, for manual inspection) and
-    // the engine actually used.
-    private static (JsonElement? Report, string? ParseError, string? DynPath, string Engine) RunGraph(
-        System.Type dynamoRevit, UIApplication app, string code, string? engine)
-    {
-        string? dynPath = null;
-        var succeeded = false;
-        var reportPath = Path.Combine(Path.GetTempPath(),
-            "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".report.json");
-        try
-        {
-            // The graph is written AFTER the boot so auto-detection can look at the Python
-            // engine assemblies the booted model loaded.
-            engine ??= DetectEngine();
-            dynPath = WriteGraph(WrapInHarness(code, reportPath), engine);
-
-            // Call 2 — run: with the model StartedUIless and NO shutdown key, ExecuteCommand
-            // routes to TryOpenAndExecuteWorkspaceInCommandData, which opens the graph; in
-            // automation mode opening runs it synchronously on this thread ("the model will
-            // run anyway ... regardless of the DynPathExecuteKey"). dynPathExecute is kept
-            // for older DynamoRevit versions where the explicit Run() branch needs it.
-            InvokeExecuteCommand(dynamoRevit, app, new Dictionary<string, string>
-            {
-                ["dynShowUI"] = "False",
-                ["dynAutomation"] = "True",
-                ["dynPath"] = dynPath,
-                ["dynPathExecute"] = "True"
-            });
-
-            if (!File.Exists(reportPath))
-                return (null, null, dynPath, engine);
-            try
-            {
-                using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
-                succeeded = true;
-                return (doc.RootElement.Clone(), null, dynPath, engine);
-            }
-            catch (Exception ex)
-            {
-                // A present-but-unreadable report means the node DID run; never treat this
-                // as "did not execute".
-                return (null, ex.Message, dynPath, engine);
-            }
-        }
-        finally
-        {
-            // Keep the graph on failure so it can be opened manually for diagnosis.
-            try { if (succeeded && dynPath != null && File.Exists(dynPath)) File.Delete(dynPath); } catch { }
-            try { if (File.Exists(reportPath)) File.Delete(reportPath); } catch { }
-        }
-    }
-
     // Tail of the newest Dynamo session log (%AppData%\Dynamo\Dynamo Revit\<ver>\Logs\
     // dynamoLog_*.txt) — where Dynamo records graph-open failures, node deserialization
     // problems and missing-engine errors that never surface through ExecuteCommand.
@@ -400,27 +326,6 @@ OUT = __cr_json.dumps(__cr_report)
         {
             return null;
         }
-    }
-
-    // Picks the Python engine the booted Dynamo actually ships, by looking for its engine
-    // assemblies in the AppDomain (they load as Dynamo extensions during model start —
-    // e.g. DSPythonNet3Extension in Dynamo 4.x, DSCPython in 2.5–3.x, DSIronPython in 2.x).
-    // Dynamo 4.x dropped CPython3, so a hardcoded default cannot work across versions.
-    private static string DetectEngine()
-    {
-        var names = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => { try { return a.GetName().Name ?? ""; } catch { return ""; } })
-            .ToList();
-
-        if (names.Any(n => n.Contains("PythonNet3", StringComparison.OrdinalIgnoreCase)))
-            return "PythonNet3";
-        if (names.Any(n => n.Contains("DSCPython", StringComparison.OrdinalIgnoreCase)))
-            return "CPython3";
-        if (names.Any(n => n.Contains("DSIronPython", StringComparison.OrdinalIgnoreCase)))
-            return "IronPython2";
-
-        // Nothing loaded (engines can load lazily on some versions) — assume the newest.
-        return "PythonNet3";
     }
 
     // DynamoRevit.ExecuteCommand(DynamoRevitCommandData) driven via journal data. Built
@@ -539,174 +444,8 @@ OUT = __cr_json.dumps(__cr_report)
         });
     }
 
-    // Wraps the user's snippet so we get real execution feedback. The snippet itself is
-    // base64-encoded (no escaping pitfalls) and exec'd against the node's globals, so it
-    // behaves exactly as if it were the node's own code (IN/OUT/clr all visible). Whatever
-    // happens — success, OUT value, exception — is written to the report file; the file's
-    // very existence is the proof that the node actually ran.
-    //
-    // Deliberately Python-2/3 compatible (io.open in binary mode, ASCII-only JSON) so the
-    // same harness runs on both the CPython3 and IronPython2 engines.
-    private static string WrapInHarness(string userCode, string reportPath)
-    {
-        var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
-        var pathLiteral = JsonSerializer.Serialize(reportPath); // JSON string == valid Python literal
-        return $$"""
-import base64 as __cr_b64, json as __cr_json, traceback as __cr_tb, io as __cr_io, sys as __cr_sys
-__cr_report = {'python': __cr_sys.version.split()[0]}
-try:
-    exec(compile(__cr_b64.b64decode('{{codeB64}}').decode('utf-8'), '<claude_snippet>', 'exec'), globals())
-    if 'OUT' in globals():
-        try:
-            __cr_report['out'] = __cr_json.dumps(globals()['OUT'], default=repr)
-        except Exception:
-            __cr_report['out'] = repr(globals()['OUT'])
-except BaseException:
-    __cr_report['error'] = __cr_tb.format_exc()
-try:
-    import clr
-    clr.AddReference('RevitServices')
-    from RevitServices.Persistence import DocumentManager as __cr_dm
-    __cr_doc = __cr_dm.Instance.CurrentDBDocument
-    __cr_report['document'] = {'title': __cr_doc.Title, 'path': __cr_doc.PathName}
-except Exception:
-    pass
-try:
-    __cr_payload = __cr_json.dumps(__cr_report)
-except Exception:
-    __cr_payload = '{"error": "run report serialization failed"}'
-try:
-    __cr_f = __cr_io.open({{pathLiteral}}, 'wb')
-    try:
-        __cr_f.write(__cr_payload.encode('ascii'))
-    finally:
-        __cr_f.close()
-except Exception:
-    pass
-OUT = 0
-""";
-    }
-
     private static string Fail(string message) =>
         JsonSerializer.Serialize(new { ok = false, engine = "dynamo", error = message });
-
-    // A Dynamo graph (.dyn JSON) with a single Python Script node containing the code.
-    // Mirrors, field for field, a .dyn that Dynamo itself saves (reference: the python.dyn
-    // test file in the DynamoDS/Dynamo repo): DynamoModel.OpenJsonFileFromPath throws
-    // NullReferenceException on files missing the standard blocks (ElementResolver,
-    // Bindings, the full View section with Camera/NodeViews), so a "minimal" graph is not
-    // an option. RunType=Automatic + HasRunWithoutCrash=true are what make the graph run
-    // on open (files without them are forced into Manual run mode and never evaluate).
-    private static string WriteGraph(string code, string engine)
-    {
-        var nodeId = Guid.NewGuid().ToString("N");
-        var graph = new
-        {
-            Uuid = Guid.NewGuid().ToString("D"),
-            IsCustomNode = false,
-            Description = "",
-            Name = "ClaudeRevit",
-            ElementResolver = new { ResolutionMap = new { } },
-            Inputs = Array.Empty<object>(),
-            Outputs = Array.Empty<object>(),
-            Nodes = new object[]
-            {
-                new
-                {
-                    ConcreteType = "PythonNodeModels.PythonNode, PythonNodeModels",
-                    NodeType = "PythonScriptNode",
-                    Code = code,
-                    // Older Dynamo deserializes "Engine", newer builds "EngineName"; unknown
-                    // JSON properties are ignored, so write both.
-                    Engine = engine,
-                    EngineName = engine,
-                    VariableInputPorts = true,
-                    Id = nodeId,
-                    Inputs = new object[]
-                    {
-                        new
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Name = "IN[0]",
-                            Description = "Input #0",
-                            UsingDefaultValue = false,
-                            Level = 2,
-                            UseLevels = false,
-                            KeepListStructure = false
-                        }
-                    },
-                    Outputs = new object[]
-                    {
-                        new
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Name = "OUT",
-                            Description = "Result of the python script",
-                            UsingDefaultValue = false,
-                            Level = 2,
-                            UseLevels = false,
-                            KeepListStructure = false
-                        }
-                    },
-                    Replication = "Disabled",
-                    Description = "Runs an embedded Python script."
-                }
-            },
-            Connectors = Array.Empty<object>(),
-            Dependencies = Array.Empty<object>(),
-            NodeLibraryDependencies = Array.Empty<object>(),
-            Bindings = Array.Empty<object>(),
-            View = new
-            {
-                // No Version field on purpose: DynamoModel treats a null workspace version
-                // as "current Dynamo version", which is always right — a hardcoded number
-                // (Revit 2027 ships Dynamo 27.x, not 3.x) risks migration-path surprises.
-                Dynamo = new
-                {
-                    ScaleFactor = 1.0,
-                    HasRunWithoutCrash = true,
-                    IsVisibleInDynamoLibrary = true,
-                    RunType = "Automatic",
-                    RunPeriod = "1000"
-                },
-                Camera = new
-                {
-                    Name = "Background Preview",
-                    EyeX = -17.0,
-                    EyeY = 24.0,
-                    EyeZ = 50.0,
-                    LookX = 12.0,
-                    LookY = -13.0,
-                    LookZ = -58.0,
-                    UpX = 0.0,
-                    UpY = 1.0,
-                    UpZ = 0.0
-                },
-                NodeViews = new object[]
-                {
-                    new
-                    {
-                        ShowGeometry = true,
-                        Name = "Python Script",
-                        Id = nodeId,
-                        IsSetAsInput = false,
-                        IsSetAsOutput = false,
-                        Excluded = false,
-                        X = 259.0,
-                        Y = 148.5
-                    }
-                },
-                Annotations = Array.Empty<object>(),
-                X = 0.0,
-                Y = 0.0,
-                Zoom = 1.0
-            }
-        };
-
-        var path = Path.Combine(Path.GetTempPath(), "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".dyn");
-        File.WriteAllText(path, JsonSerializer.Serialize(graph), Encoding.UTF8);
-        return path;
-    }
 
     private static System.Type? FindDynamoRevitType() =>
         FindType("Dynamo.Applications.DynamoRevit");
