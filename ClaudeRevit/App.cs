@@ -151,12 +151,16 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetProjectCatalog());
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new SaveProjectMemory());
+            ToolRegistry.Instance.Register(new GetScriptJournal());
             ToolRegistry.Instance.Register(new RunDynamoPython());
             // ExecuteCSharp compiles synchronously (CSharpCompilation.Emit, no async) — the
             // old CSharpScript sync-over-async deadlock is gone. It is the Dynamo-free code
             // path; run_dynamo_python remains for Python/RevitServices-flavoured scripts.
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
+
+            // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
+            application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
 
             SelectionService.Initialize(application);
 

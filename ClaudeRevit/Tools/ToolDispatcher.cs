@@ -158,6 +158,20 @@ public class ToolDispatcher : IExternalEventHandler
                     "Code execution is disabled. The user must tick 'Allow Claude to run code' in " +
                     "the settings (gear icon) before this tool can run.");
 
+            // Learning mode: script escape hatches are journaled together with the model
+            // delta they produce (via DocumentChanged), so proven snippets can be reused
+            // and recurring patterns promoted into dedicated tools.
+            var isScriptTool = job.Name is "execute_csharp" or "run_dynamo_python";
+            if (isScriptTool)
+            {
+                Services.ScriptJournal.Begin(
+                    job.Name,
+                    job.Input.TryGetValue("code", out var codeEl) ? codeEl.GetString() ?? "" : "",
+                    job.Input.TryGetValue("engine", out var engEl) && engEl.ValueKind == JsonValueKind.String
+                        ? engEl.GetString() : null,
+                    app.ActiveUIDocument?.Document?.Title);
+            }
+
             string result;
             if (tool.RequiresTransaction)
             {
@@ -180,6 +194,9 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 result = tool.Execute(job.Input, app);
             }
+            if (isScriptTool)
+                Services.ScriptJournal.Complete(ok: true, result);
+
             // Anything that may have created/renamed types or loaded families makes the
             // cached project catalog stale. load_family and run_dynamo_python mutate the
             // document without RequiresTransaction (they manage transactions themselves).
@@ -191,6 +208,7 @@ public class ToolDispatcher : IExternalEventHandler
         }
         catch (Exception ex)
         {
+            Services.ScriptJournal.Complete(ok: false, ex.Message);
             Services.Log.Error($"tool ✗ {job.Name}", ex);
             job.Tcs.TrySetException(ex);
         }
