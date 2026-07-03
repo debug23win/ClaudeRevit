@@ -57,20 +57,24 @@ public class GetProjectCatalog : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var cacheKey = doc.Title + "|" + doc.PathName + "|" + doc.GetHashCode();
-        bool refresh = input.TryGetValue("refresh", out var r) && r.ValueKind == JsonValueKind.True;
+        bool refresh = ToolInput.Flag(input, "refresh");
 
-        if (refresh || !Cache.TryGetValue(cacheKey, out var catalog))
+        JsonElement catalog = default;
+        bool cached = !refresh && Cache.TryGetValue(cacheKey, out catalog);
+        if (!cached)
         {
             catalog = BuildCatalog(doc);
             Cache[cacheKey] = catalog;
-            return JsonSerializer.Serialize(new { cached = false, note = (string?)null, catalog });
         }
 
+        // One serialization site so the cached and fresh response shapes can't diverge.
         return JsonSerializer.Serialize(new
         {
-            cached = true,
-            note = "Served from the session cache — pass refresh=true if families/types changed " +
-                   "outside this assistant (its own tool calls invalidate the cache automatically).",
+            cached,
+            note = cached
+                ? "Served from the session cache — pass refresh=true if families/types changed " +
+                  "outside this assistant (its own tool calls invalidate the cache automatically)."
+                : null,
             catalog
         });
     }

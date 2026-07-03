@@ -23,6 +23,8 @@ public static class UsageTracker
     private const decimal CacheWriteMultiplier = 2.0m;
     private const decimal CacheReadMultiplier = 0.1m;
 
+    private static readonly HashSet<string> _unknownTagsLogged = new();
+
     public static event Action? Updated;
 
     public static void Add(
@@ -41,15 +43,20 @@ public static class UsageTracker
         cur.CacheRead += cacheReadTokens;
         _byModel[modelTag] = cur;
 
-        // Persist the estimated spend so the balance countdown survives restarts.
-        if (_rates.TryGetValue(modelTag, out var rate))
+        // Persist the estimated spend so the balance countdown survives restarts. An
+        // unknown model tag must NOT silently accrue $0 — the countdown exists for spend
+        // safety, so overestimate with the highest known rate and log once.
+        if (!_rates.TryGetValue(modelTag, out var rate))
         {
-            SettingsStore.AddSpend(
-                inputTokens / 1_000_000m * rate.Input
-                + outputTokens / 1_000_000m * rate.Output
-                + cacheCreationTokens / 1_000_000m * rate.Input * CacheWriteMultiplier
-                + cacheReadTokens / 1_000_000m * rate.Input * CacheReadMultiplier);
+            rate = (10.0m, 50.0m);
+            if (_unknownTagsLogged.Add(modelTag))
+                Log.Info($"UsageTracker: no price for model '{modelTag}' — using the highest known rate.");
         }
+        SettingsStore.AddSpend(
+            inputTokens / 1_000_000m * rate.Input
+            + outputTokens / 1_000_000m * rate.Output
+            + cacheCreationTokens / 1_000_000m * rate.Input * CacheWriteMultiplier
+            + cacheReadTokens / 1_000_000m * rate.Input * CacheReadMultiplier);
 
         Updated?.Invoke();
     }
@@ -66,13 +73,14 @@ public static class UsageTracker
                 to += kv.Value.Output;
                 tcc += kv.Value.CacheCreation;
                 tcr += kv.Value.CacheRead;
-                if (_rates.TryGetValue(kv.Key, out var rate))
-                {
-                    cost += kv.Value.Input / 1_000_000m * rate.Input
-                          + kv.Value.Output / 1_000_000m * rate.Output
-                          + kv.Value.CacheCreation / 1_000_000m * rate.Input * CacheWriteMultiplier
-                          + kv.Value.CacheRead / 1_000_000m * rate.Input * CacheReadMultiplier;
-                }
+                // Same fallback as Add(): unknown models show the conservative estimate
+                // instead of silently displaying $0.
+                if (!_rates.TryGetValue(kv.Key, out var rate))
+                    rate = (10.0m, 50.0m);
+                cost += kv.Value.Input / 1_000_000m * rate.Input
+                      + kv.Value.Output / 1_000_000m * rate.Output
+                      + kv.Value.CacheCreation / 1_000_000m * rate.Input * CacheWriteMultiplier
+                      + kv.Value.CacheRead / 1_000_000m * rate.Input * CacheReadMultiplier;
             }
             return (ti, to, tcc, tcr, cost);
         }

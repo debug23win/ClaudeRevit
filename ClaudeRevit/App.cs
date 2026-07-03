@@ -196,5 +196,11 @@ public class App : IExternalApplication
         }
     }
 
-    public Result OnShutdown(UIControlledApplication application) => Result.Succeeded;
+    public Result OnShutdown(UIControlledApplication application)
+    {
+        // Events registered in OnStartup must be unregistered here (Revit add-in contract).
+        try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
+        catch { /* shutting down anyway */ }
+        return Result.Succeeded;
+    }
 }

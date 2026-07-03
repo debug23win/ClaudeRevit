@@ -32,6 +32,7 @@ public class LoadFamily : IRevitTool
 
     // LoadFamily manages its own transaction; don't wrap.
     public bool RequiresTransaction => false;
+    public bool MutatesWithoutTransaction => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

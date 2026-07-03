@@ -161,8 +161,7 @@ public class ToolDispatcher : IExternalEventHandler
             // Learning mode: script escape hatches are journaled together with the model
             // delta they produce (via DocumentChanged), so proven snippets can be reused
             // and recurring patterns promoted into dedicated tools.
-            var isScriptTool = job.Name is "execute_csharp" or "run_dynamo_python";
-            if (isScriptTool)
+            if (tool.IsScriptTool)
             {
                 Services.ScriptJournal.Begin(
                     job.Name,
@@ -194,13 +193,15 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 result = tool.Execute(job.Input, app);
             }
-            if (isScriptTool)
-                Services.ScriptJournal.Complete(ok: true, result);
+            // Script tools report failures as normal {"ok":false,...} results without
+            // throwing — read the flag from the result, or the journal would advertise
+            // broken snippets as proven.
+            if (tool.IsScriptTool)
+                Services.ScriptJournal.Complete(ResultLooksOk(result), result);
 
             // Anything that may have created/renamed types or loaded families makes the
-            // cached project catalog stale. load_family and run_dynamo_python mutate the
-            // document without RequiresTransaction (they manage transactions themselves).
-            if (tool.RequiresTransaction || tool.Name is "load_family" or "run_dynamo_python")
+            // cached project catalog stale.
+            if (tool.RequiresTransaction || tool.MutatesWithoutTransaction)
                 GetProjectCatalog.Invalidate();
 
             Services.Log.Info($"tool ✓ {job.Name}");
@@ -217,6 +218,20 @@ public class ToolDispatcher : IExternalEventHandler
     private static string SafeArgs(IReadOnlyDictionary<string, JsonElement> input)
     {
         try { return JsonSerializer.Serialize(input); } catch { return "(unprintable)"; }
+    }
+
+    // Script tool results are our own JSON with a top-level "ok"; absence means success.
+    private static bool ResultLooksOk(string result)
+    {
+        try
+        {
+            using var d = JsonDocument.Parse(result);
+            return !(d.RootElement.TryGetProperty("ok", out var o) && o.ValueKind == JsonValueKind.False);
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private void HandleGetContext(UIApplication app, GetContextJob job)
