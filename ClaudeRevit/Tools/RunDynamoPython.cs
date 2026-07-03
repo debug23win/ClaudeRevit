@@ -38,17 +38,18 @@ public class RunDynamoPython : IRevitTool
     public string Name => "run_dynamo_python";
 
     public string Description =>
-        "Runs a Python snippet through Dynamo for Revit — the preferred way to perform an " +
-        "action the dedicated tools don't cover. Dynamo manages its own transaction, so this " +
-        "is safer than execute_csharp. The snippet runs with the standard Dynamo-Revit Python " +
-        "environment: 'clr' is imported and you have access to RevitServices " +
-        "(DocumentManager.Instance.CurrentDBDocument for the document, " +
+        "Runs a Python snippet through Dynamo for Revit's Python engine. The snippet runs " +
+        "with the standard Dynamo-Revit Python environment: 'clr' is imported and you have " +
+        "access to RevitServices (DocumentManager.Instance.CurrentDBDocument for the document, " +
         "TransactionManager.Instance to manage transactions) and the Revit API " +
         "(Autodesk.Revit.DB). Wrap model changes in a transaction — either " +
         "TransactionManager.Instance.EnsureInTransaction(doc) + TransactionTaskDone(), or an " +
         "explicit Autodesk.Revit.DB.Transaction. Put the result into the Dynamo output " +
         "variable 'OUT': it is serialized and returned in the tool result ('output'), and if " +
-        "the script raises, the full traceback is returned. " +
+        "the script raises, the full traceback is returned. LEAVE 'engine' UNSET — it is " +
+        "auto-detected from the running Dynamo (Dynamo 4.x / Revit 2027 ships ONLY PythonNet3; " +
+        "CPython3/IronPython2 exist only in older versions or as separately installed packages). " +
+        "Revit 2027 API note: use ElementId.Value (long) — ElementId.IntegerValue was removed. " +
         "Requires Dynamo for Revit to be installed. The user must approve each run.";
 
     public InputSchema InputSchema => new()

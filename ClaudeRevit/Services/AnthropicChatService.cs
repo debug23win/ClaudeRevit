@@ -36,7 +36,8 @@ public class AnthropicChatService
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
-        "'this' / 'these' / 'the selected', call get_selection first.\n\n" +
+        "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +
+        "2027 API: ElementId.Value (long) — ElementId.IntegerValue was removed.\n\n" +
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
