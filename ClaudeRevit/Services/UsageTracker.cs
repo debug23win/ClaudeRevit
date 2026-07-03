@@ -41,6 +41,16 @@ public static class UsageTracker
         cur.CacheRead += cacheReadTokens;
         _byModel[modelTag] = cur;
 
+        // Persist the estimated spend so the balance countdown survives restarts.
+        if (_rates.TryGetValue(modelTag, out var rate))
+        {
+            SettingsStore.AddSpend(
+                inputTokens / 1_000_000m * rate.Input
+                + outputTokens / 1_000_000m * rate.Output
+                + cacheCreationTokens / 1_000_000m * rate.Input * CacheWriteMultiplier
+                + cacheReadTokens / 1_000_000m * rate.Input * CacheReadMultiplier);
+        }
+
         Updated?.Invoke();
     }
 
@@ -77,14 +87,21 @@ public static class UsageTracker
     public static string Format()
     {
         var (i, o, cc, cr, cost) = Totals;
-        if (i == 0 && o == 0 && cc == 0 && cr == 0) return "";
+        // The balance countdown is meaningful even before this session spends anything.
+        var balance = SettingsStore.BalanceUsd;
+        var balanceLabel = balance > 0
+            ? $" · balance ≈ ${Math.Max(0, balance - SettingsStore.SpentUsd):F2}"
+            : "";
+
+        if (i == 0 && o == 0 && cc == 0 && cr == 0)
+            return balanceLabel.Length > 0 ? balanceLabel[3..] : "";
 
         var totalInput = i + cc + cr;
         var cacheLabel = (cc + cr) > 0
             ? $" ({(int)(cr * 100.0 / Math.Max(1, totalInput))}% cached)"
             : "";
 
-        return $"{FormatTokens(totalInput)} in{cacheLabel} · {FormatTokens(o)} out · ${cost:F3}";
+        return $"{FormatTokens(totalInput)} in{cacheLabel} · {FormatTokens(o)} out · ${cost:F3}{balanceLabel}";
     }
 
     private static string FormatTokens(long n) => n switch

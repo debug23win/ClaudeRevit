@@ -42,9 +42,11 @@ public class RunDynamoPython : IRevitTool
         "with the standard Dynamo-Revit Python environment: 'clr' is imported and you have " +
         "access to RevitServices (DocumentManager.Instance.CurrentDBDocument for the document, " +
         "TransactionManager.Instance to manage transactions) and the Revit API " +
-        "(Autodesk.Revit.DB). Wrap model changes in a transaction — either " +
-        "TransactionManager.Instance.EnsureInTransaction(doc) + TransactionTaskDone(), or an " +
-        "explicit Autodesk.Revit.DB.Transaction. Put the result into the Dynamo output " +
+        "(Autodesk.Revit.DB). Wrap model changes in an EXPLICIT Autodesk.Revit.DB.Transaction " +
+        "(t = Transaction(doc, 'name'); t.Start(); …; t.Commit()) — that is the reliable " +
+        "pattern here. TransactionManager.Instance.EnsureInTransaction also works (the tool " +
+        "force-commits it after the script), but explicit transactions give you control over " +
+        "what commits when. Put the result into the Dynamo output " +
         "variable 'OUT': it is serialized and returned in the tool result ('output'), and if " +
         "the script raises, the full traceback is returned. LEAVE 'engine' UNSET — it is " +
         "auto-detected from the running Dynamo (Dynamo 4.x / Revit 2027 ships ONLY PythonNet3; " +
@@ -251,6 +253,15 @@ public class RunDynamoPython : IRevitTool
                         "If the script may have started, verify the model state with query tools " +
                         "before re-running it.");
         }
+        finally
+        {
+            // A script using TransactionManager.Instance.EnsureInTransaction relies on
+            // Dynamo's graph-run lifecycle to commit at the end of the run. There is no
+            // run here, so an open RevitServices transaction would be silently rolled
+            // back by the next model reset — close (commit) it the way Dynamo's own
+            // evaluation loop does. No-op when the script used explicit Transactions.
+            ForceCloseDynamoTransaction();
+        }
 
         var reportJson = result?.ToString();
         if (string.IsNullOrWhiteSpace(reportJson))
@@ -431,6 +442,22 @@ OUT = __cr_json.dumps(__cr_report)
     // Current DynamoRevit keeps the state on the static RevitDynamoModel instance
     // (State: NotStarted / StartedUIless / StartedUI); very old versions exposed a static
     // ModelState property instead. Null when neither exists or nothing started yet.
+    // EnsureInTransaction opens a transaction that Dynamo normally commits at the end of
+    // a graph run; direct evaluation has no run lifecycle, so commit it explicitly.
+    private static void ForceCloseDynamoTransaction()
+    {
+        try
+        {
+            var tmType = FindType("RevitServices.Transactions.TransactionManager");
+            var instance = tmType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            instance?.GetType()
+                .GetMethod("ForceCloseTransaction", BindingFlags.Public | BindingFlags.Instance)
+                ?.Invoke(instance, null);
+        }
+        catch { /* best-effort */ }
+    }
+
     private static string? GetDynamoState(System.Type dynamoRevit)
     {
         try

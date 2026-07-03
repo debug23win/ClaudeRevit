@@ -18,11 +18,16 @@ public class CreateRebar : IRevitTool
         "floor, column, beam or foundation. By default the bar is straight from start to end " +
         "point (feet, model coordinates). Pass shape_name to place a catalog rebar shape " +
         "(e.g. a GOST bent shape) instead: the shape is placed at the start point, its X axis " +
-        "along start→end, and its dimensions can be set via shape_parameters. With count > 1 " +
-        "the set is distributed along the distribution vector with the given spacing. " +
-        "Use list_rebar_types first to pick bar type and shape names. Note: rebar is " +
-        "associative to its host — when the host's type or size changes, Revit recalculates " +
-        "bar lengths and counts automatically; do not recreate the rebar.";
+        "along start→end, and its dimensions can be set via shape_parameters. " +
+        "SHAPE PLANE: the dist vector is the NORMAL of the bent shape's plane. Example: a " +
+        "vertical U-bar closing a slab edge that runs along X needs start→end along X and " +
+        "dist_y=1 (dist_z would lay the shape FLAT in the horizontal plane — the default). " +
+        "The shape's placement point is its dimension reference, which can be offset from the " +
+        "physical steel by the bend geometry — verify with get_element_bounding_box and adjust " +
+        "with move_elements. With count > 1 the set is distributed along the same dist vector " +
+        "with the given spacing. Use list_rebar_types first to pick bar type and shape names. " +
+        "Note: rebar is associative to its host — when the host's type or size changes, Revit " +
+        "recalculates bar lengths and counts automatically; do not recreate the rebar.";
 
     public InputSchema InputSchema => new()
     {
@@ -45,9 +50,9 @@ public class CreateRebar : IRevitTool
             }),
             ["count"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "Number of bars in the set (default 1).", minimum = 1 }),
             ["spacing_ft"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Spacing between bars in feet (required when count > 1).", minimum = 0.01 }),
-            ["dist_x"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution direction X (must be perpendicular to the bar). Default: computed automatically." }),
-            ["dist_y"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution direction Y." }),
-            ["dist_z"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution direction Z." })
+            ["dist_x"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution vector X (must be perpendicular to the bar). For a bent shape this vector is ALSO the shape plane's normal. Default: computed automatically (horizontal bars → Z, i.e. a flat/horizontal shape plane)." }),
+            ["dist_y"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution vector Y. dist_y=1 with a bar along X gives a VERTICAL shape plane (XZ)." }),
+            ["dist_z"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Optional distribution vector Z. Note: for a horizontal bar this equals the default and lays a bent shape flat." })
         },
         Required = ["host_id", "start_x", "start_y", "start_z", "end_x", "end_y", "end_z"]
     };
@@ -168,6 +173,11 @@ public class CreateRebar : IRevitTool
             type = "Rebar",
             bar_type = barType.Name,
             shape = shapeName,
+            // For bent shapes: the plane normal that was actually used — check it matches
+            // the intended orientation before assuming the geometry is right.
+            shape_plane_normal = shapeName != null
+                ? new { x = Math.Round(norm.X, 4), y = Math.Round(norm.Y, 4), z = Math.Round(norm.Z, 4) }
+                : null,
             host_id = host.Id.Value,
             bars = count,
             length_ft = start.DistanceTo(end),

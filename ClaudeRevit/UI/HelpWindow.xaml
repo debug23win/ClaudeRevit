@@ -1,0 +1,91 @@
+<Window x:Class="ClaudeRevit.UI.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Claude Revit — Help / Помощь"
+        Width="640" Height="640"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="10">
+        <TabControl>
+            <TabItem Header="Русский">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Text="Как эффективно работать с Claude Revit" Margin="0,0,0,10" />
+
+                        <TextBlock FontWeight="SemiBold" Text="Начало работы" Margin="0,6,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            1. Вставьте API-ключ (console.anthropic.com → Settings → API Keys) в настройках.&#10;
+                            2. При необходимости включите «Allow Claude to run code» — это открывает Claude полный Revit API через C#/Python для операций, которых нет среди встроенных инструментов.&#10;
+                            3. Введите текущий баланс аккаунта — внизу панели появится счётчик остатка (баланс минус оценка расходов).
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Эффективные приёмы" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • Начинайте сессию с фразы «изучи проект» — Claude вызовет get_project_catalog и за один запрос узнает все уровни, семейства, типы, шаблоны видов и арматурный каталог.&#10;
+                            • Выделяйте элементы в Revit и говорите «эти» / «выделенное» — Claude видит текущее выделение.&#10;
+                            • Говорите в привычных единицах (мм, м) — конвертация в футы (внутренние единицы Revit) выполняется автоматически.&#10;
+                            • Сообщайте стандарты проекта («защитный слой всегда 40 мм», «хомуты — форма 21 СК ГС») — Claude сохранит их в память проекта и применит в следующих сессиях с этим файлом.&#10;
+                            • Один ваш запрос = один шаг отмены: Ctrl+Z откатывает все изменения этого запроса целиком.&#10;
+                            • После массовых изменений просите проверку: «покажи статистику» (счётчики с дельтой) или «сделай разрез и картинку» — визуальный контроль дешевле переделки.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Скрипты (когда нет готового инструмента)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • execute_csharp — C# напрямую против Revit API; транзакция уже открыта, свою создавать не нужно. Самый надёжный путь.&#10;
+                            • run_dynamo_python — Python через движок Dynamo (в Revit 2027 — PythonNet3, выбирается автоматически). Транзакциями управляет скрипт: используйте явный Transaction / Start / Commit.&#10;
+                            • Claude ведёт журнал скриптов с фактическими изменениями модели (get_script_journal) — успешные приёмы переиспользуются, а повторяющиеся станут встроенными инструментами.&#10;
+                            • В Revit 2027 используйте ElementId.Value — свойство IntegerValue удалено.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Безопасность и стоимость" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • Подтверждения операций по умолчанию выключены (всё откатывается Ctrl+Z); включить обратно можно в настройках.&#10;
+                            • Строка внизу панели: токены, процент кэша, стоимость сессии и остаток баланса.&#10;
+                            • История чата сжимается автоматически, а кэш запросов снижает стоимость длинных сессий — держать одну длинную сессию выгоднее, чем много коротких.
+                        </TextBlock>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="English">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Text="Working effectively with Claude Revit" Margin="0,0,0,10" />
+
+                        <TextBlock FontWeight="SemiBold" Text="Getting started" Margin="0,6,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            1. Paste your API key (console.anthropic.com → Settings → API Keys) in Settings.&#10;
+                            2. Optionally enable “Allow Claude to run code” — this gives Claude the full Revit API via C#/Python for operations no built-in tool covers.&#10;
+                            3. Enter your current account balance — the pane footer will show the remainder (balance minus estimated spend).
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Effective habits" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • Start a session with “survey the project” — Claude calls get_project_catalog and learns all levels, families, types, view templates and the rebar catalog in one request.&#10;
+                            • Select elements in Revit and say “these” / “the selected” — Claude sees the current selection.&#10;
+                            • Use your normal units (mm, m) — conversion to feet (Revit's internal unit) is automatic.&#10;
+                            • State project standards (“cover is always 40 mm”, “stirrups use shape 21”) — Claude saves them to per-project memory and applies them in future sessions with this file.&#10;
+                            • One prompt = one undo step: Ctrl+Z reverts everything that prompt changed.&#10;
+                            • After bulk changes ask for verification: “show statistics” (counts with deltas) or “cut a section and render an image” — visual checks are cheaper than rework.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Scripts (when no dedicated tool exists)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • execute_csharp — C# directly against the Revit API; a transaction is already open, do not start your own. The most reliable path.&#10;
+                            • run_dynamo_python — Python via Dynamo's engine (PythonNet3 on Revit 2027, auto-detected). The script manages transactions: use explicit Transaction / Start / Commit.&#10;
+                            • Claude keeps a journal of script runs with the actual model deltas (get_script_journal) — proven snippets get reused, recurring ones become built-in tools.&#10;
+                            • On Revit 2027 use ElementId.Value — IntegerValue was removed.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Safety and cost" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • Per-operation confirmations are off by default (everything is Ctrl+Z-able); re-enable them in Settings.&#10;
+                            • The pane footer shows tokens, cache hit rate, session cost and the balance remainder.&#10;
+                            • Chat history compacts automatically and prompt caching keeps long sessions cheap — one long session beats many short ones.
+                        </TextBlock>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

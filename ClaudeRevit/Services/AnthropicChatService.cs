@@ -203,8 +203,10 @@ public class AnthropicChatService
                         conversation.Add(toolMsg);
                     });
 
-                    // Confirmation gate for destructive / arbitrary-code tools.
-                    if (tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
+                    // Confirmation gate for destructive / arbitrary-code tools — only when
+                    // the user re-enabled it in settings (off by default: every turn is one
+                    // undo step, and code execution has its own opt-in).
+                    if (SettingsStore.ConfirmOperations && tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
                     {
                         var approved = await ConfirmToolAsync(name, FormatInput(inp));
                         if (!approved)
