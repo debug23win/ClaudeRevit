@@ -1,38 +1,36 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text.Json;
 using Anthropic.Models.Beta.Messages;
-using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace ClaudeRevit.Tools;
 
-// Escape hatch giving Claude the full Revit API when no dedicated tool exists.
-// Compiles a C# snippet with Roslyn and runs it on the Revit API thread inside a
-// transaction. GATED: RequiresConfirmation shows the code for Allow/Deny first.
+// Escape hatch giving Claude the full Revit API when no dedicated tool exists — with no
+// Dynamo involved. The snippet is wrapped in a static method, compiled SYNCHRONOUSLY with
+// Roslyn (CSharpCompilation.Emit — deliberately no CSharpScript/async: blocking on the
+// scripting API's tasks from Revit's UI thread is what deadlocked Revit before), loaded
+// into a collectible AssemblyLoadContext and invoked on the Revit API thread inside the
+// dispatcher's transaction. GATED: RequiresConfirmation shows the code for Allow/Deny.
 public class ExecuteCSharp : IRevitTool
 {
-    // Globals available to the snippet
-    public class Ctx
-    {
-        public UIApplication uiapp = null!;
-        public Document doc = null!;
-    }
-
     public string Name => "execute_csharp";
 
     public string Description =>
-        "Runs a C# snippet against the full Revit API. Use this ONLY as a fallback when a dedicated " +
-        "tool doesn't fit AND run_dynamo_python is unavailable — prefer run_dynamo_python, which is " +
-        "safer. Only use this for operations no dedicated tool covers. " +
-        "Available globals: 'uiapp' (UIApplication), 'doc' (active Document). Return a value (any " +
-        "type) or a string to report back; it is ToString()'d. The snippet already runs inside a " +
-        "transaction, so do NOT open your own. Namespaces Autodesk.Revit.DB, .Structure, .UI, " +
-        "System, System.Linq, System.Collections.Generic are imported. The user must approve each run.";
+        "Runs a C# snippet directly against the full Revit API — no Dynamo required. Use for " +
+        "operations no dedicated tool covers. Available variables: 'uiapp' (UIApplication) and " +
+        "'doc' (active Document). End with 'return <expr>;' to report a result (it is " +
+        "ToString()'d); a plain 'return doc.Title;' is a good smoke test. The snippet already " +
+        "runs inside a transaction — do NOT open your own Transaction (SubTransactions are " +
+        "fine). Imported namespaces: System, System.Linq, System.Collections.Generic, " +
+        "Autodesk.Revit.DB, .DB.Structure, .DB.Architecture, Autodesk.Revit.UI. " +
+        "The user must approve each run.";
 
     public InputSchema InputSchema => new()
     {
@@ -51,57 +49,95 @@ public class ExecuteCSharp : IRevitTool
     public bool RequiresConfirmation => true;
     public bool RequiresCodeExecutionOptIn => true;
 
+    // The method body starts right after this prelude; used to map compiler diagnostics
+    // back to the user's snippet line numbers.
+    private const string Prelude =
+        "using System;\n" +
+        "using System.Linq;\n" +
+        "using System.Collections.Generic;\n" +
+        "using Autodesk.Revit.DB;\n" +
+        "using Autodesk.Revit.DB.Structure;\n" +
+        "using Autodesk.Revit.DB.Architecture;\n" +
+        "using Autodesk.Revit.UI;\n" +
+        "#pragma warning disable CS0162\n" +
+        "public static class __ClaudeScript\n" +
+        "{\n" +
+        "    public static object Run(UIApplication uiapp, Document doc)\n" +
+        "    {\n";
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var code = input["code"].GetString()
-            ?? throw new InvalidOperationException("code is empty.");
+        var code = input["code"].GetString();
+        if (string.IsNullOrWhiteSpace(code))
+            throw new InvalidOperationException("code is empty.");
 
-        var options = ScriptOptions.Default
-            .WithReferences(RuntimeRevitAssemblies())
-            .WithImports(
-                "System", "System.Linq", "System.Collections.Generic",
-                "Autodesk.Revit.DB", "Autodesk.Revit.DB.Structure", "Autodesk.Revit.UI");
+        var doc = app.ActiveUIDocument?.Document
+            ?? throw new InvalidOperationException("No document is open.");
 
-        var ctx = new Ctx { uiapp = app, doc = app.ActiveUIDocument?.Document! };
+        var source = Prelude + code + "\nreturn null;\n    }\n}\n";
+        var preludeLines = Prelude.Count(c => c == '\n');
 
-        object? result;
+        var compilation = CSharpCompilation.Create(
+            "ClaudeScript_" + Guid.NewGuid().ToString("N"),
+            [CSharpSyntaxTree.ParseText(source)],
+            RuntimeReferences(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                optimizationLevel: OptimizationLevel.Release));
+
+        using var ms = new MemoryStream();
+        var emit = compilation.Emit(ms);
+        if (!emit.Success)
+        {
+            // Report errors with line numbers relative to the user's snippet.
+            var errors = emit.Diagnostics
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Take(20)
+                .Select(d =>
+                {
+                    var line = d.Location.GetLineSpan().StartLinePosition.Line - preludeLines + 1;
+                    return $"line {line}: {d.GetMessage()}";
+                });
+            throw new InvalidOperationException("Compilation error:\n" + string.Join("\n", errors));
+        }
+
+        ms.Position = 0;
+        var alc = new AssemblyLoadContext("ClaudeScript", isCollectible: true);
         try
         {
-            // Runs on the Revit API thread (external event handler), so blocking here is fine.
-            result = CSharpScript.EvaluateAsync<object>(code, options, ctx, typeof(Ctx))
-                .GetAwaiter().GetResult();
-        }
-        catch (CompilationErrorException ce)
-        {
-            throw new InvalidOperationException(
-                "Compilation error:\n" + string.Join("\n", ce.Diagnostics));
-        }
+            var asm = alc.LoadFromStream(ms);
+            var run = asm.GetType("__ClaudeScript")!.GetMethod("Run", BindingFlags.Public | BindingFlags.Static)!;
 
-        return JsonSerializer.Serialize(new
-        {
-            ok = true,
-            result = result?.ToString() ?? "(no return value)"
-        });
-    }
-
-    // Reference the real Revit assemblies currently loaded in the process (not the
-    // NuGet reference-only DLLs, which can't be used to run code).
-    private static IEnumerable<Assembly> RuntimeRevitAssemblies()
-    {
-        var wanted = new[]
-        {
-            "RevitAPI", "RevitAPIUI", "System.Runtime", "System.Linq",
-            "System.Collections", "netstandard", "mscorlib", "System.Private.CoreLib"
-        };
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .Where(a =>
+            object? result;
+            try
             {
-                var n = a.GetName().Name ?? "";
-                return wanted.Contains(n) || n.StartsWith("System") || n == "Autodesk.Revit.DB"
-                       || n.StartsWith("RevitAPI");
-            })
-            .GroupBy(a => a.GetName().Name)
-            .Select(g => g.First());
+                result = run.Invoke(null, [app, doc]);
+            }
+            catch (TargetInvocationException tie)
+            {
+                var inner = tie.InnerException ?? tie;
+                throw new InvalidOperationException(
+                    $"The snippet threw {inner.GetType().Name}: {inner.Message}");
+            }
+
+            // ToString() before the load context is unloaded so no live references remain.
+            return JsonSerializer.Serialize(new
+            {
+                ok = true,
+                result = result?.ToString() ?? "(no return value)"
+            });
+        }
+        finally
+        {
+            try { alc.Unload(); } catch { }
+        }
     }
+
+    // Reference the real assemblies currently loaded in the process (not the NuGet
+    // reference-only DLLs, which can't be used to run code).
+    private static List<MetadataReference> RuntimeReferences() =>
+        AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .GroupBy(a => a.GetName().Name)
+            .Select(g => (MetadataReference)MetadataReference.CreateFromFile(g.First().Location))
+            .ToList();
 }
