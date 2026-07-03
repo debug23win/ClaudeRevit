@@ -64,10 +64,11 @@ public class RunDynamoPython : IRevitTool
             ["engine"] = JsonSerializer.SerializeToElement(new
             {
                 type = "string",
-                @enum = new[] { "CPython3", "IronPython2" },
-                description = "Python engine (default CPython3). The tool never retries by itself; " +
-                              "if a run reports that the node did not execute, decide yourself whether " +
-                              "to retry with the other engine."
+                @enum = new[] { "PythonNet3", "CPython3", "IronPython2" },
+                description = "Python engine. Default: auto-detected from the running Dynamo " +
+                              "(Dynamo 4.x ships PythonNet3 and no longer supports CPython3; older " +
+                              "versions ship CPython3). Only set this explicitly if auto-detection " +
+                              "picked wrong. The tool never retries by itself."
             })
         },
         Required = ["code"]
@@ -91,14 +92,15 @@ public class RunDynamoPython : IRevitTool
                 return Fail("Dynamo for Revit was not found in this session. Install Dynamo for " +
                             "Revit, or ask the user to enable execute_csharp in settings as a fallback.");
 
-            var engine = "CPython3";
+            // null = auto-detect after the Dynamo model has booted (its Python extension
+            // assemblies are loaded by then, so we can see which engine actually exists).
+            string? engine = null;
             if (input.TryGetValue("engine", out var e) && e.ValueKind == JsonValueKind.String)
             {
                 var wanted = e.GetString();
-                if (string.Equals(wanted, "IronPython2", StringComparison.OrdinalIgnoreCase))
-                    engine = "IronPython2";
-                else if (!string.Equals(wanted, "CPython3", StringComparison.OrdinalIgnoreCase))
-                    return Fail($"Unknown engine '{wanted}'. Valid values: CPython3, IronPython2.");
+                engine = KnownEngines.FirstOrDefault(k => string.Equals(k, wanted, StringComparison.OrdinalIgnoreCase));
+                if (engine == null)
+                    return Fail($"Unknown engine '{wanted}'. Valid values: {string.Join(", ", KnownEngines)}.");
             }
 
             // The headless journal path only executes when Dynamo is NOT showing its UI —
@@ -110,7 +112,8 @@ public class RunDynamoPython : IRevitTool
                 return Fail("The Dynamo window is currently open in Revit, which blocks headless " +
                             "script execution. Ask the user to close the Dynamo window, then retry.");
 
-            var (report, parseError, keptDynPath) = RunGraph(dynamoRevit, app, code!, engine);
+            var (report, parseError, keptDynPath, usedEngine) = RunGraph(dynamoRevit, app, code!, engine);
+            engine = usedEngine;
 
             if (parseError != null)
                 return Fail("The Python node ran but its run report could not be parsed (" + parseError +
@@ -127,7 +130,8 @@ public class RunDynamoPython : IRevitTool
                 return Fail(
                     $"The Python node wrote no run report on engine {engine}, so it most likely never " +
                     "executed — but this cannot be fully guaranteed, so VERIFY with query tools before " +
-                    "re-running a model-mutating script. " +
+                    "re-running a model-mutating script. If the log below shows an engine problem, an " +
+                    $"explicit 'engine' value may help (valid: {string.Join(", ", KnownEngines)}). " +
                     $"Dynamo state after the run: '{GetDynamoState(dynamoRevit) ?? "(unknown)"}'. " +
                     $"The generated graph was kept at {keptDynPath} — the user can open it in Dynamo " +
                     "manually to see the failure. " +
@@ -148,13 +152,16 @@ public class RunDynamoPython : IRevitTool
         }
     }
 
-    // One full headless run on the given engine, in the two calls current DynamoRevit
-    // requires (see the file header): reset+boot, then open+execute. Returns the parsed
-    // run report (null = no report file → the node almost certainly never ran), a
-    // parse-error message when a report exists but is unreadable, and the graph path
-    // (kept on disk when there was no report, for manual inspection).
-    private static (JsonElement? Report, string? ParseError, string? DynPath) RunGraph(
-        System.Type dynamoRevit, UIApplication app, string code, string engine)
+    // Engine names in preference order; used both for input validation and detection.
+    private static readonly string[] KnownEngines = ["PythonNet3", "CPython3", "IronPython2"];
+
+    // One full headless run, in the two calls current DynamoRevit requires (see the file
+    // header): reset+boot, then open+execute. Returns the parsed run report (null = no
+    // report file → the node almost certainly never ran), a parse-error message when a
+    // report exists but is unreadable, the graph path (kept on disk when there was no
+    // report, for manual inspection) and the engine actually used.
+    private static (JsonElement? Report, string? ParseError, string? DynPath, string Engine) RunGraph(
+        System.Type dynamoRevit, UIApplication app, string code, string? engine)
     {
         string? dynPath = null;
         var succeeded = false;
@@ -162,8 +169,6 @@ public class RunDynamoPython : IRevitTool
             "ClaudeRevit_" + Guid.NewGuid().ToString("N") + ".report.json");
         try
         {
-            dynPath = WriteGraph(WrapInHarness(code, reportPath), engine);
-
             // Call 1 — reset: if a UIless model is alive (possibly bound to a previously
             // active document), dynModelShutDown makes ExecuteCommand shut it down and boot
             // a fresh one bound to the CURRENT document. This call never opens a graph.
@@ -173,6 +178,11 @@ public class RunDynamoPython : IRevitTool
                 ["dynAutomation"] = "True",
                 ["dynModelShutDown"] = "True"
             });
+
+            // The graph is written AFTER the boot so auto-detection can look at the Python
+            // engine assemblies the booted model loaded.
+            engine ??= DetectEngine();
+            dynPath = WriteGraph(WrapInHarness(code, reportPath), engine);
 
             // Call 2 — run: with the model StartedUIless and NO shutdown key, ExecuteCommand
             // routes to TryOpenAndExecuteWorkspaceInCommandData, which opens the graph; in
@@ -188,18 +198,18 @@ public class RunDynamoPython : IRevitTool
             });
 
             if (!File.Exists(reportPath))
-                return (null, null, dynPath);
+                return (null, null, dynPath, engine);
             try
             {
                 using var doc = JsonDocument.Parse(File.ReadAllText(reportPath));
                 succeeded = true;
-                return (doc.RootElement.Clone(), null, dynPath);
+                return (doc.RootElement.Clone(), null, dynPath, engine);
             }
             catch (Exception ex)
             {
                 // A present-but-unreadable report means the node DID run; never treat this
                 // as "did not execute".
-                return (null, ex.Message, dynPath);
+                return (null, ex.Message, dynPath, engine);
             }
         }
         finally
@@ -243,6 +253,27 @@ public class RunDynamoPython : IRevitTool
         {
             return null;
         }
+    }
+
+    // Picks the Python engine the booted Dynamo actually ships, by looking for its engine
+    // assemblies in the AppDomain (they load as Dynamo extensions during model start —
+    // e.g. DSPythonNet3Extension in Dynamo 4.x, DSCPython in 2.5–3.x, DSIronPython in 2.x).
+    // Dynamo 4.x dropped CPython3, so a hardcoded default cannot work across versions.
+    private static string DetectEngine()
+    {
+        var names = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => { try { return a.GetName().Name ?? ""; } catch { return ""; } })
+            .ToList();
+
+        if (names.Any(n => n.Contains("PythonNet3", StringComparison.OrdinalIgnoreCase)))
+            return "PythonNet3";
+        if (names.Any(n => n.Contains("DSCPython", StringComparison.OrdinalIgnoreCase)))
+            return "CPython3";
+        if (names.Any(n => n.Contains("DSIronPython", StringComparison.OrdinalIgnoreCase)))
+            return "IronPython2";
+
+        // Nothing loaded (engines can load lazily on some versions) — assume the newest.
+        return "PythonNet3";
     }
 
     // DynamoRevit.ExecuteCommand(DynamoRevitCommandData) driven via journal data. Built
