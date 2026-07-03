@@ -21,13 +21,6 @@ public static class SettingsStore
         set { Current.AllowCodeExecution = value; Save(); }
     }
 
-    // "dynamo" (preferred, safer) or "csharp"
-    public static string CodeBackend
-    {
-        get => string.IsNullOrWhiteSpace(Current.CodeBackend) ? "dynamo" : Current.CodeBackend;
-        set { Current.CodeBackend = value; Save(); }
-    }
-
     // Per-operation Allow/Deny dialogs. Off by default: every mutation is already
     // grouped into one undo step (Ctrl+Z), and the code-execution opt-in still gates
     // the script tools.
@@ -86,7 +79,6 @@ public static class SettingsStore
     private sealed class Settings
     {
         public bool AllowCodeExecution { get; set; } = false;
-        public string CodeBackend { get; set; } = "dynamo";
         public bool ConfirmOperations { get; set; } = false;
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;

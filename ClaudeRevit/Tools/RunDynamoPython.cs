@@ -38,7 +38,11 @@ public class RunDynamoPython : IRevitTool
     public string Name => "run_dynamo_python";
 
     public string Description =>
-        "Runs a Python snippet through Dynamo for Revit's Python engine. The snippet runs " +
+        "Runs a Python snippet through Dynamo for Revit's Python engine. PREFER execute_csharp " +
+        "for new code — it is faster (no Dynamo boot) and its transaction rolls back " +
+        "automatically on error; use this tool when Python is specifically better: a proven " +
+        "snippet from get_script_journal, code adapted from the Dynamo community, or the user " +
+        "asked for Python. The snippet runs " +
         "with the standard Dynamo-Revit Python environment: 'clr' is imported and you have " +
         "access to RevitServices (DocumentManager.Instance.CurrentDBDocument for the document, " +
         "TransactionManager.Instance to manage transactions) and the Revit API " +

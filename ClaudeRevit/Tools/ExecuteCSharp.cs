@@ -23,8 +23,9 @@ public class ExecuteCSharp : IRevitTool
     public string Name => "execute_csharp";
 
     public string Description =>
-        "Runs a C# snippet directly against the full Revit API — no Dynamo required. Use for " +
-        "operations no dedicated tool covers. Available variables: 'uiapp' (UIApplication) and " +
+        "The DEFAULT code escape hatch: runs a C# snippet directly against the full Revit API — " +
+        "no Dynamo required, fastest and most reliable. Use for operations no dedicated tool " +
+        "covers. Available variables: 'uiapp' (UIApplication) and " +
         "'doc' (active Document). End with 'return <expr>;' to report a result (it is " +
         "ToString()'d); a plain 'return doc.Title;' is a good smoke test. The snippet already " +
         "runs inside a transaction — do NOT open your own Transaction (SubTransactions are " +
