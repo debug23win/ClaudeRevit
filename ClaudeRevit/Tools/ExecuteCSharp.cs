@@ -17,21 +17,33 @@ namespace ClaudeRevit.Tools;
 // Roslyn (CSharpCompilation.Emit — deliberately no CSharpScript/async: blocking on the
 // scripting API's tasks from Revit's UI thread is what deadlocked Revit before), loaded
 // into a collectible AssemblyLoadContext and invoked on the Revit API thread inside the
-// dispatcher's transaction. GATED: RequiresConfirmation shows the code for Allow/Deny.
+// dispatcher's transaction. Gated by the code-execution opt-in; per-run confirmation only
+// if the user enabled it in settings.
 public class ExecuteCSharp : IRevitTool
 {
+    // Single source for the namespaces available to snippets — feeds both the compiled
+    // prelude and the tool description so they cannot drift.
+    private static readonly string[] Namespaces =
+    [
+        "System", "System.Linq", "System.Collections.Generic",
+        "Autodesk.Revit.DB", "Autodesk.Revit.DB.Structure",
+        "Autodesk.Revit.DB.Architecture", "Autodesk.Revit.UI"
+    ];
+
     public string Name => "execute_csharp";
 
     public string Description =>
         "The DEFAULT code escape hatch: runs a C# snippet directly against the full Revit API — " +
         "no Dynamo required, fastest and most reliable. Use for operations no dedicated tool " +
         "covers. Available variables: 'uiapp' (UIApplication) and " +
-        "'doc' (active Document). End with 'return <expr>;' to report a result (it is " +
-        "ToString()'d); a plain 'return doc.Title;' is a good smoke test. The snippet already " +
-        "runs inside a transaction — do NOT open your own Transaction (SubTransactions are " +
-        "fine). Imported namespaces: System, System.Linq, System.Collections.Generic, " +
-        "Autodesk.Revit.DB, .DB.Structure, .DB.Architecture, Autodesk.Revit.UI. " +
-        "The user must approve each run.";
+        "'doc' (active Document). Write STATEMENTS (the snippet becomes a method body — no " +
+        "top-level classes, no bare trailing expressions) and end with 'return <expr>;' to " +
+        "report a result (it is ToString()'d); 'return doc.Title;' is a good smoke test. " +
+        "The snippet already runs inside a transaction that rolls back if it throws — do NOT " +
+        "open your own Transaction (SubTransactions are fine). Imported namespaces: " +
+        string.Join(", ", Namespaces) + ". " +
+        "Runs require the user's code-execution opt-in (plus per-run confirmation if the " +
+        "user enabled it in settings).";
 
     public InputSchema InputSchema => new()
     {
@@ -49,17 +61,15 @@ public class ExecuteCSharp : IRevitTool
     public bool RequiresTransaction => true;
     public bool RequiresConfirmation => true;
     public bool RequiresCodeExecutionOptIn => true;
+    public bool IsScriptTool => true;
+
+    // Emitted assembly bytes keyed by full source — see Execute.
+    private static readonly Dictionary<string, byte[]> CompileCache = new();
 
     // The method body starts right after this prelude; used to map compiler diagnostics
     // back to the user's snippet line numbers.
-    private const string Prelude =
-        "using System;\n" +
-        "using System.Linq;\n" +
-        "using System.Collections.Generic;\n" +
-        "using Autodesk.Revit.DB;\n" +
-        "using Autodesk.Revit.DB.Structure;\n" +
-        "using Autodesk.Revit.DB.Architecture;\n" +
-        "using Autodesk.Revit.UI;\n" +
+    private static readonly string Prelude =
+        string.Concat(Namespaces.Select(n => $"using {n};\n")) +
         "#pragma warning disable CS0162\n" +
         "public static class __ClaudeScript\n" +
         "{\n" +
@@ -78,34 +88,42 @@ public class ExecuteCSharp : IRevitTool
         var source = Prelude + code + "\nreturn null;\n    }\n}\n";
         var preludeLines = Prelude.Count(c => c == '\n');
 
-        var compilation = CSharpCompilation.Create(
-            "ClaudeScript_" + Guid.NewGuid().ToString("N"),
-            [CSharpSyntaxTree.ParseText(source)],
-            RuntimeReferences(),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
-                optimizationLevel: OptimizationLevel.Release));
-
-        using var ms = new MemoryStream();
-        var emit = compilation.Emit(ms);
-        if (!emit.Success)
+        // Repeated snippets (retry loops, replay from the script journal) skip Roslyn.
+        if (!CompileCache.TryGetValue(source, out var assemblyBytes))
         {
-            // Report errors with line numbers relative to the user's snippet.
-            var errors = emit.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Take(20)
-                .Select(d =>
-                {
-                    var line = d.Location.GetLineSpan().StartLinePosition.Line - preludeLines + 1;
-                    return $"line {line}: {d.GetMessage()}";
-                });
-            throw new InvalidOperationException("Compilation error:\n" + string.Join("\n", errors));
+            var compilation = CSharpCompilation.Create(
+                "ClaudeScript_" + Guid.NewGuid().ToString("N"),
+                [CSharpSyntaxTree.ParseText(source)],
+                RuntimeReferences(),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                    optimizationLevel: OptimizationLevel.Release));
+
+            using var ms = new MemoryStream();
+            var emit = compilation.Emit(ms);
+            if (!emit.Success)
+            {
+                // Report errors with line numbers relative to the user's snippet.
+                var errors = emit.Diagnostics
+                    .Where(d => d.Severity == DiagnosticSeverity.Error)
+                    .Take(20)
+                    .Select(d =>
+                    {
+                        var line = d.Location.GetLineSpan().StartLinePosition.Line - preludeLines + 1;
+                        return $"line {line}: {d.GetMessage()}";
+                    });
+                throw new InvalidOperationException("Compilation error:\n" + string.Join("\n", errors));
+            }
+
+            assemblyBytes = ms.ToArray();
+            if (CompileCache.Count >= 20) CompileCache.Clear(); // tiny bound is plenty
+            CompileCache[source] = assemblyBytes;
         }
 
-        ms.Position = 0;
         var alc = new AssemblyLoadContext("ClaudeScript", isCollectible: true);
         try
         {
-            var asm = alc.LoadFromStream(ms);
+            using var loadStream = new MemoryStream(assemblyBytes);
+            var asm = alc.LoadFromStream(loadStream);
             var run = asm.GetType("__ClaudeScript")!.GetMethod("Run", BindingFlags.Public | BindingFlags.Static)!;
 
             object? result;
@@ -134,11 +152,30 @@ public class ExecuteCSharp : IRevitTool
     }
 
     // Reference the real assemblies currently loaded in the process (not the NuGet
-    // reference-only DLLs, which can't be used to run code).
-    private static List<MetadataReference> RuntimeReferences() =>
-        AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .GroupBy(a => a.GetName().Name)
-            .Select(g => (MetadataReference)MetadataReference.CreateFromFile(g.First().Location))
-            .ToList();
+    // reference-only DLLs, which can't be used to run code). Cached: reading metadata for
+    // hundreds of assemblies on Revit's UI thread per call froze Revit for seconds, and a
+    // single unreadable file (shadow-copied then deleted by another add-in) must skip that
+    // assembly, not brick the whole tool. Rebuilt when the assembly count changes.
+    private static List<MetadataReference>? _cachedReferences;
+    private static int _cachedAssemblyCount;
+
+    private static List<MetadataReference> RuntimeReferences()
+    {
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        if (_cachedReferences != null && assemblies.Length == _cachedAssemblyCount)
+            return _cachedReferences;
+
+        var refs = new List<MetadataReference>();
+        foreach (var group in assemblies
+                     .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                     .GroupBy(a => a.GetName().Name))
+        {
+            try { refs.Add(MetadataReference.CreateFromFile(group.First().Location)); }
+            catch { /* vanished/unreadable file — skip this assembly */ }
+        }
+
+        _cachedReferences = refs;
+        _cachedAssemblyCount = assemblies.Length;
+        return refs;
+    }
 }

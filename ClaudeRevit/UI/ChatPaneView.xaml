@@ -48,6 +48,7 @@
                     <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (fastest)</ComboBoxItem>
                     <ComboBoxItem Tag="sonnet-4-6">Sonnet 4.6</ComboBoxItem>
                     <ComboBoxItem Tag="opus-4-7">Opus 4.7</ComboBoxItem>
+                    <ComboBoxItem Tag="alt" x:Name="AltModelItem">Alt model (set up in ⚙)</ComboBoxItem>
                 </ComboBox>
                 <Button Grid.Column="2" x:Name="ClearButton"
                         Content="Clear" Height="24" Padding="10,0" Margin="0,0,4,0"

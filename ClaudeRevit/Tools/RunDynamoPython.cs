@@ -11,10 +11,8 @@ using ClaudeRevit.Services;
 
 namespace ClaudeRevit.Tools;
 
-// Preferred full-API escape hatch: runs a Python snippet through Dynamo for Revit
-// instead of raw C#. Dynamo hosts the code in its own engine and manages its own
-// transactions, so — unlike execute_csharp — it does not block Revit's API thread
-// with an open transaction (the pattern that repeatedly crashed Revit).
+// Secondary (Python) escape hatch — execute_csharp is the default one. Kept for proven
+// Python snippets, Dynamo-community code and users who ask for Python.
 //
 // Everything is late-bound via reflection so the build has no Dynamo dependency, and
 // EVERY failure path returns an error string — this tool must never crash Revit. If
@@ -48,15 +46,16 @@ public class RunDynamoPython : IRevitTool
         "TransactionManager.Instance to manage transactions) and the Revit API " +
         "(Autodesk.Revit.DB). Wrap model changes in an EXPLICIT Autodesk.Revit.DB.Transaction " +
         "(t = Transaction(doc, 'name'); t.Start(); …; t.Commit()) — that is the reliable " +
-        "pattern here. TransactionManager.Instance.EnsureInTransaction also works (the tool " +
-        "force-commits it after the script), but explicit transactions give you control over " +
-        "what commits when. Put the result into the Dynamo output " +
+        "pattern here. TransactionManager.Instance.EnsureInTransaction also works: the tool " +
+        "commits it after a successful script and ROLLS IT BACK when the script raises. " +
+        "Put the result into the Dynamo output " +
         "variable 'OUT': it is serialized and returned in the tool result ('output'), and if " +
         "the script raises, the full traceback is returned. LEAVE 'engine' UNSET — it is " +
         "auto-detected from the running Dynamo (Dynamo 4.x / Revit 2027 ships ONLY PythonNet3; " +
         "CPython3/IronPython2 exist only in older versions or as separately installed packages). " +
         "Revit 2027 API note: use ElementId.Value (long) — ElementId.IntegerValue was removed. " +
-        "Requires Dynamo for Revit to be installed. The user must approve each run.";
+        "Requires Dynamo for Revit and the user's code-execution opt-in (plus per-run " +
+        "confirmation if the user enabled it in settings).";
 
     public InputSchema InputSchema => new()
     {
@@ -80,10 +79,13 @@ public class RunDynamoPython : IRevitTool
         Required = ["code"]
     };
 
-    // Dynamo runs its own transactions — we must NOT wrap it in one of ours.
+    // The script manages its own transactions (and the tool closes leftovers) — we must
+    // NOT wrap the call in a dispatcher transaction.
     public bool RequiresTransaction => false;
     public bool RequiresConfirmation => true;
     public bool RequiresCodeExecutionOptIn => true;
+    public bool IsScriptTool => true;
+    public bool MutatesWithoutTransaction => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -109,50 +111,73 @@ public class RunDynamoPython : IRevitTool
                     return Fail($"Unknown engine '{wanted}'. Valid values: {string.Join(", ", KnownEngines)}.");
             }
 
-            // The headless journal path only executes when Dynamo is NOT showing its UI —
-            // with the Dynamo window open, ExecuteCommand routes the graph through the UI
-            // view-model and the node never executes headlessly. Fail fast with a clear
-            // action instead of a silent no-op.
+            // The direct evaluation only works headlessly — with the Dynamo window open,
+            // the model belongs to the user's UI session. Fail fast with a clear action
+            // instead of a silent no-op.
             var modelState = GetDynamoState(dynamoRevit);
             if (modelState is "StartedUI" or "StartedUIThread")
                 return Fail("The Dynamo window is currently open in Revit, which blocks headless " +
                             "script execution. Ask the user to close the Dynamo window, then retry.");
 
-            // Boot (or reset) the headless Dynamo model bound to the CURRENT document.
-            // This also loads Dynamo's Python engine extensions into the process.
-            BootDynamo(dynamoRevit, app);
+            // A full Dynamo model reboot costs ~15s of frozen UI, and its only purpose is
+            // rebinding to the CURRENT document — skip it when a healthy UIless model is
+            // already bound to this very document. Fail open (reboot) in every doubtful
+            // case, and always reboot after a failed run: a crashed script may have left
+            // engine state dirty.
+            var activeDoc = app.ActiveUIDocument?.Document;
+            var docKey = activeDoc == null
+                ? null
+                : activeDoc.Title + "|" + activeDoc.PathName + "|" + activeDoc.GetHashCode();
+            if (docKey == null || docKey != _lastBootDocKey || modelState != "StartedUIless")
+            {
+                // Boot (or reset) the headless Dynamo model bound to the current document.
+                // This also loads Dynamo's Python engine extensions into the process.
+                BootDynamo(dynamoRevit, app);
+            }
+            _lastBootDocKey = null; // re-armed below only after a clean success
 
             // Single execution path: call the Python engine DIRECTLY via
             // PythonEngineManager — synchronous, on this thread, no .dyn file, no graph
-            // open/run semantics, no race with Dynamo's model lifecycle. (The old
-            // journal-driven graph run was removed: it only served pre-PythonEngineManager
-            // Dynamo, which cannot ship with the Revit 2027 this add-in targets, and it
-            // was the most failure-prone code in the project.)
-            var direct = TryDirectEvaluate(app, code!, engine);
-            if (direct != null)
-                return direct;
-
-            var dynamoLog = ReadDynamoLogTail();
-            return Fail(
-                "Dynamo booted but exposed no Python engines (PythonEngineManager is missing or " +
-                "empty) — this Dynamo installation cannot run Python headlessly. Use execute_csharp " +
-                "instead. " +
-                (dynamoLog != null
-                    ? "Tail of Dynamo's own session log:\n" + dynamoLog
-                    : "Dynamo's session log was not found under %AppData%\\Dynamo\\Dynamo Revit\\<version>\\Logs."));
+            // open/run semantics, no race with Dynamo's model lifecycle.
+            var response = TryDirectEvaluate(app, code!, engine);
+            if (IsOkResponse(response))
+                _lastBootDocKey = docKey;
+            return response;
         }
         catch (Exception ex)
         {
             // Never rethrow — a crash here is exactly what we're avoiding.
             Log.Error("run_dynamo_python failed", ex);
             return Fail("Dynamo execution failed: " + (ex.InnerException?.Message ?? ex.Message) +
-                        ". If the script may have started, verify the model state with query tools " +
-                        "before re-running it.");
+                        ". If the script may have started, " + VerifyGuidance);
         }
     }
 
     // Engine names in preference order; used both for input validation and detection.
     private static readonly string[] KnownEngines = ["PythonNet3", "CPython3", "IronPython2"];
+
+    // Document the last (successful) boot bound the UIless model to — see Execute.
+    private static string? _lastBootDocKey;
+
+    // Load-bearing prompt engineering: this is what stops the model from blindly
+    // re-running a script that may have half-committed transactions. One copy only.
+    private const string VerifyGuidance =
+        "verify the actual model state with query tools (query_elements / " +
+        "get_element_parameters / get_model_statistics) before re-running anything that " +
+        "mutates the model.";
+
+    private static bool IsOkResponse(string json)
+    {
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            return d.RootElement.TryGetProperty("ok", out var o) && o.ValueKind == JsonValueKind.True;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     // Reset+boot: if a UIless model is alive (possibly bound to a previously active
     // document), dynModelShutDown makes ExecuteCommand shut it down and boot a fresh one
@@ -167,31 +192,39 @@ public class RunDynamoPython : IRevitTool
         });
     }
 
-    // Primary execution path: evaluate the snippet through the Python engine object that
+    // Single execution path: evaluate the snippet through the Python engine object that
     // the booted Dynamo registered in Dynamo.PythonServices.PythonEngineManager — a plain
-    // synchronous method call on this thread. Returns the complete tool response, or null
-    // when no engine manager / engines exist (pre-PythonServices Dynamo) so the caller can
-    // fall back to the journal-driven graph run.
-    private static string? TryDirectEvaluate(UIApplication app, string code, string? requestedEngine)
+    // synchronous method call on this thread. Always returns a complete tool response,
+    // with a SPECIFIC diagnosis per failure point (an engine-API drift must not read as
+    // "no engines installed").
+    private static string TryDirectEvaluate(UIApplication app, string code, string? requestedEngine)
     {
         object? manager;
         try
         {
             var managerType = FindType("Dynamo.PythonServices.PythonEngineManager");
-            manager = managerType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
+            if (managerType == null)
+                return Fail("Dynamo.PythonServices.PythonEngineManager was not found — this Dynamo " +
+                            "predates the direct Python API this tool requires. Use execute_csharp instead.");
+            manager = managerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            return Fail("Reading PythonEngineManager failed: " + ex.Message + ". Use execute_csharp instead.");
         }
-        if (manager == null) return null;
+        if (manager == null)
+            return Fail("PythonEngineManager.Instance returned null — Dynamo's Python services did " +
+                        "not initialize. Use execute_csharp instead.");
 
         // AvailableEngines is a public field on current Dynamo; tolerate a property too.
         var enginesMember =
             (object?)manager.GetType().GetField("AvailableEngines", BindingFlags.Public | BindingFlags.Instance)?.GetValue(manager)
             ?? manager.GetType().GetProperty("AvailableEngines", BindingFlags.Public | BindingFlags.Instance)?.GetValue(manager);
-        if (enginesMember is not System.Collections.IEnumerable engines) return null;
+        if (enginesMember is not System.Collections.IEnumerable engines)
+            return Fail("PythonEngineManager exists but its AvailableEngines member has an unexpected " +
+                        "shape — Dynamo's API changed. Use execute_csharp and report this so the tool " +
+                        "can be updated.");
 
         var byName = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var engineObj in engines)
@@ -200,7 +233,13 @@ public class RunDynamoPython : IRevitTool
             var name = engineObj.GetType().GetProperty("Name")?.GetValue(engineObj)?.ToString();
             if (!string.IsNullOrEmpty(name)) byName[name!] = engineObj;
         }
-        if (byName.Count == 0) return null;
+        if (byName.Count == 0)
+        {
+            var dynamoLog = ReadDynamoLogTail();
+            return Fail("Dynamo booted but has NO Python engines loaded — this installation cannot " +
+                        "run Python headlessly. Use execute_csharp instead. " +
+                        (dynamoLog != null ? "Tail of Dynamo's own session log:\n" + dynamoLog : ""));
+        }
 
         object? engineInstance;
         string engineName;
@@ -217,10 +256,17 @@ public class RunDynamoPython : IRevitTool
             engineInstance = byName[engineName];
         }
 
+        // The learning journal should record the engine that actually ran, not the
+        // (usually absent) request input.
+        ScriptJournal.SetEngine(engineName);
+
         var evaluate = engineInstance!.GetType().GetMethod(
             "Evaluate", BindingFlags.Public | BindingFlags.Instance,
             [typeof(string), typeof(System.Collections.IList), typeof(System.Collections.IList)]);
-        if (evaluate == null) return null;
+        if (evaluate == null)
+            return Fail($"Python engine {engineName} is loaded but has no " +
+                        "Evaluate(string, IList, IList) method — Dynamo's engine API changed. " +
+                        "Use execute_csharp and report this so the tool can be updated.");
 
         object? result;
         try
@@ -230,42 +276,46 @@ public class RunDynamoPython : IRevitTool
         }
         catch (Exception ex)
         {
-            var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
             // Engine exists but evaluation blew up below the harness (engine init, marshal…).
-            // Do NOT fall back to the graph path: the snippet may have partially executed,
-            // and running it again could double-commit model changes.
+            // The snippet may have partially executed — roll back anything it left open.
+            CloseDynamoTransaction(commit: false);
+            var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
             return Fail($"Python engine {engineName} failed to evaluate the script: {inner.Message}. " +
-                        "If the script may have started, verify the model state with query tools " +
-                        "before re-running it.");
-        }
-        finally
-        {
-            // A script using TransactionManager.Instance.EnsureInTransaction relies on
-            // Dynamo's graph-run lifecycle to commit at the end of the run. There is no
-            // run here, so an open RevitServices transaction would be silently rolled
-            // back by the next model reset — close (commit) it the way Dynamo's own
-            // evaluation loop does. No-op when the script used explicit Transactions.
-            ForceCloseDynamoTransaction();
+                        "If the script may have started, " + VerifyGuidance);
         }
 
         var reportJson = result?.ToString();
         if (string.IsNullOrWhiteSpace(reportJson))
+        {
+            CloseDynamoTransaction(commit: false);
             return Fail($"Python engine {engineName} returned no report. The MODEL STATE IS UNKNOWN — " +
-                        "verify with query tools before re-running anything.");
+                        VerifyGuidance);
+        }
+
+        JsonElement report;
         try
         {
             using var doc = JsonDocument.Parse(reportJson!);
-            return BuildResponse(doc.RootElement.Clone(), engineName, app);
+            report = doc.RootElement.Clone();
         }
         catch (Exception ex)
         {
+            CloseDynamoTransaction(commit: false);
             return Fail($"Python engine {engineName} ran but its report could not be parsed ({ex.Message}). " +
-                        "The MODEL STATE IS UNKNOWN — verify with query tools before re-running anything.");
+                        "The MODEL STATE IS UNKNOWN — " + VerifyGuidance);
         }
+
+        // A script using TransactionManager.Instance.EnsureInTransaction relies on Dynamo's
+        // graph-run lifecycle to close the transaction; there is no run here, so close it
+        // ourselves — COMMIT only when the script finished cleanly, ROLL BACK its half-done
+        // work when it raised. No-op for scripts using explicit Transactions.
+        CloseDynamoTransaction(commit: !report.TryGetProperty("error", out _));
+
+        return BuildResponse(report, engineName, app);
     }
 
-    // Same harness as the graph path, but the report comes back as the evaluation result
-    // instead of going through a temp file.
+    // Wraps the user's snippet so its OUT value, traceback and document identity come back
+    // as the evaluation result (a JSON string).
     private static string WrapForDirectEvaluation(string userCode)
     {
         var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
@@ -348,25 +398,49 @@ OUT = __cr_json.dumps(__cr_report)
         exec.Invoke(instance, new[] { cmdData });
     }
 
-    // Current DynamoRevit keeps the state on the static RevitDynamoModel instance
-    // (State: NotStarted / StartedUIless / StartedUI); very old versions exposed a static
-    // ModelState property instead. Null when neither exists or nothing started yet.
-    // EnsureInTransaction opens a transaction that Dynamo normally commits at the end of
-    // a graph run; direct evaluation has no run lifecycle, so commit it explicitly.
-    private static void ForceCloseDynamoTransaction()
+    // Closes a RevitServices transaction the script left open via EnsureInTransaction:
+    // commit=true uses the public ForceCloseTransaction (commits, as Dynamo's own run
+    // lifecycle does); commit=false cancels via the private TransactionHandle so a crashed
+    // script's half-done work is ROLLED BACK, not persisted. No-op when nothing is open.
+    private static void CloseDynamoTransaction(bool commit)
     {
         try
         {
             var tmType = FindType("RevitServices.Transactions.TransactionManager");
             var instance = tmType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
-            instance?.GetType()
+            if (instance == null) return;
+
+            var wrapper = instance.GetType().GetProperty("TransactionWrapper")?.GetValue(instance);
+            if (wrapper?.GetType().GetProperty("TransactionActive")?.GetValue(wrapper) is not true)
+                return;
+
+            if (!commit)
+            {
+                var handle = instance.GetType()
+                    .GetField("handle", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(instance);
+                var cancel = handle?.GetType()
+                    .GetMethod("CancelTransaction", BindingFlags.Public | BindingFlags.Instance);
+                if (cancel != null)
+                {
+                    cancel.Invoke(handle, null);
+                    return;
+                }
+                // The rollback path is version-fragile (private field) — rather than leave
+                // the transaction open (it would block every later tool), fall through to
+                // the public commit and let the caller's error text stay conservative.
+            }
+
+            instance.GetType()
                 .GetMethod("ForceCloseTransaction", BindingFlags.Public | BindingFlags.Instance)
                 ?.Invoke(instance, null);
         }
         catch { /* best-effort */ }
     }
 
+    // Current DynamoRevit keeps the state on the static RevitDynamoModel instance
+    // (State: NotStarted / StartedUIless / StartedUI); very old versions exposed a static
+    // ModelState property instead. Null when neither exists or nothing started yet.
     private static string? GetDynamoState(System.Type dynamoRevit)
     {
         try
@@ -385,9 +459,7 @@ OUT = __cr_json.dumps(__cr_report)
         }
     }
 
-    // Turns the run report written by the harness into the tool result. The report file is
-    // the only reliable execution signal: DynamoRevit's own return value only says the graph
-    // was opened.
+    // Turns the run report (the harness's evaluation result) into the tool result.
     private static string BuildResponse(JsonElement report, string engine, UIApplication app)
     {
         var error = report.TryGetProperty("error", out var e) ? e.GetString() : null;
@@ -423,9 +495,9 @@ OUT = __cr_json.dumps(__cr_report)
                 ok = false,
                 engine,
                 python = pythonVersion,
-                error = "The Python script raised an exception. IMPORTANT: transactions the script " +
-                        "COMMITTED before the exception persist in the model — verify what was " +
-                        "actually changed before re-running:\n" + error,
+                error = "The Python script raised an exception. An EnsureInTransaction transaction " +
+                        "it left open was ROLLED BACK; transactions the script explicitly COMMITTED " +
+                        "before the exception persist in the model — " + VerifyGuidance + "\n" + error,
                 document = dynDocTitle,
                 warning
             });

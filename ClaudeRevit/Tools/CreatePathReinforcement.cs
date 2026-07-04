@@ -59,11 +59,15 @@ public class CreatePathReinforcement : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
-        if (host is not Wall && host is not Floor)
+        // Kind check FIRST: the generic rebar-host message suggests columns/framing, which
+        // path reinforcement can never accept — don't send the retry loop that way.
+        var rawHost = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
+            ?? throw new InvalidOperationException("Host element not found.");
+        if (rawHost is not Wall && rawHost is not Floor)
             throw new InvalidOperationException(
-                $"Element {host.Id.Value} ({host.Category?.Name}) is not a wall or floor. " +
+                $"Element {rawHost.Id.Value} ({rawHost.Category?.Name}) is not a wall or floor. " +
                 "Path reinforcement supports structural walls and floors only.");
+        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
 
         var pts = input["points"].EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), p.GetProperty("z").GetDouble()))
@@ -88,7 +92,7 @@ public class CreatePathReinforcement : IRevitTool
             ?? PathReinforcementType.CreateDefaultPathReinforcementType(doc);
         var pathTypeName = doc.GetElement(pathTypeId).Name;
 
-        bool flip = input.TryGetValue("flip", out var f) && f.ValueKind == JsonValueKind.True;
+        bool flip = ToolInput.Flag(input, "flip");
 
         var path = PathReinforcement.Create(
             doc, host, curves, flip, pathTypeId, barType.Id,
@@ -105,12 +109,12 @@ public class CreatePathReinforcement : IRevitTool
         }
 
         double? spacingResult = null;
-        if (input.TryGetValue("spacing_ft", out var sp) && sp.ValueKind == JsonValueKind.Number)
+        if (ToolInput.OptionalDouble(input, "spacing_ft") is { } spacing)
         {
             var spacingParam = path.get_Parameter(BuiltInParameter.PATH_REIN_SPACING);
             if (spacingParam is { IsReadOnly: false })
             {
-                spacingParam.Set(sp.GetDouble());
+                spacingParam.Set(spacing);
                 spacingResult = spacingParam.AsDouble();
             }
         }

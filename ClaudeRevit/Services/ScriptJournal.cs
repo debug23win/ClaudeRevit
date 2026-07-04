@@ -61,6 +61,9 @@ public static class ScriptJournal
 
     public static void Begin(string tool, string code, string? engine, string? document)
     {
+        // Single recording slot: correct because ToolDispatcher's ExternalEvent serializes
+        // tool execution — at most one tool runs at a time. If journaling is ever extended
+        // to re-entrant callers, this must become a stack.
         _tool = tool;
         _code = code;
         _engine = engine;
@@ -71,6 +74,13 @@ public static class ScriptJournal
         AddedIds.Clear();
         _deleted = 0;
         _recording = true;
+    }
+
+    // Lets the tool report the engine that ACTUALLY ran (auto-detected engines would
+    // otherwise journal as null, hiding the one variable that matters for replay).
+    public static void SetEngine(string engine)
+    {
+        if (_recording) _engine = engine;
     }
 
     public static void Complete(bool ok, string? resultOrError)
@@ -91,19 +101,33 @@ public static class ScriptJournal
                 code = Truncate(_code, 4000),
                 changes = new
                 {
-                    added_by_category = Added.Count > 0 ? Added : null,
-                    modified_by_category = Modified.Count > 0 ? Modified : null,
+                    added_by_category = Added.Count > 0 ? new Dictionary<string, int>(Added) : null,
+                    modified_by_category = Modified.Count > 0 ? new Dictionary<string, int>(Modified) : null,
                     deleted_count = _deleted,
-                    added_ids = AddedIds.Count > 0 ? AddedIds : null
+                    added_ids = AddedIds.Count > 0 ? AddedIds.ToList() : null
                 }
             });
 
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.AppendAllText(FilePath, entry + "\n");
-            TrimIfOversized();
+            // File work (append + possible 2MB trim rewrite) has no Revit dependency —
+            // keep it off the UI thread so the tool result isn't held up by bookkeeping.
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    lock (FileGate)
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                        File.AppendAllText(FilePath, entry + "\n");
+                        TrimIfOversized();
+                    }
+                }
+                catch { /* best-effort */ }
+            });
         }
         catch { /* best-effort */ }
     }
+
+    private static readonly object FileGate = new();
 
     public static List<JsonElement> ReadRecent(int limit)
     {

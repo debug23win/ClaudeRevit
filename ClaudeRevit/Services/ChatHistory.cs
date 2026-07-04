@@ -25,3 +25,15 @@ public sealed record ChatRedactedThinkingBlock(string Data) : ChatBlock;
 public sealed record ChatToolUseBlock(string Id, string Name, string InputJson) : ChatBlock;
 
 public sealed record ChatToolResultBlock(string ToolUseId, string Content, bool IsError) : ChatBlock;
+
+// One streamed assistant turn in backend-neutral form: content blocks plus token usage.
+// Both the Anthropic and the OpenAI-compatible backend produce this, so the agentic tool
+// loop in ChatService doesn't care which provider generated the turn.
+public sealed class BackendTurn
+{
+    public List<ChatBlock> Blocks { get; } = new();
+    public long InputTokens;
+    public long OutputTokens;
+    public long CacheCreationTokens;
+    public long CacheReadTokens;
+}

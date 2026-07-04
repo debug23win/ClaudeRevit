@@ -56,4 +56,43 @@ public static class ApiKeyStore
             return null;
         }
     }
+
+    // ---- Alternative-provider key (DeepSeek / Qwen / OpenRouter…), same DPAPI scheme.
+    // An empty key is a valid state: local Ollama / LM Studio need no key at all.
+
+    private static string AltFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClaudeRevit", "apikey-alt.bin");
+
+    public static void SaveAlt(string apiKey)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                if (File.Exists(AltFilePath)) File.Delete(AltFilePath);
+                return;
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(AltFilePath)!);
+            File.WriteAllBytes(AltFilePath, ProtectedData.Protect(
+                Encoding.UTF8.GetBytes(apiKey), null, DataProtectionScope.CurrentUser));
+        }
+        catch (Exception ex) { Log.Error("ApiKeyStore.SaveAlt failed", ex); }
+    }
+
+    public static string? LoadAlt()
+    {
+        try
+        {
+            if (!File.Exists(AltFilePath)) return null;
+            var decrypted = ProtectedData.Unprotect(
+                File.ReadAllBytes(AltFilePath), null, DataProtectionScope.CurrentUser);
+            var key = Encoding.UTF8.GetString(decrypted);
+            return string.IsNullOrWhiteSpace(key) ? null : key;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

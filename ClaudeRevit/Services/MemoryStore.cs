@@ -54,12 +54,26 @@ public static class MemoryStore
         try
         {
             var path = ProjectFilePath(documentTitle, documentPath ?? "");
+            MigrateLegacyProjectFile(documentTitle, path);
             return File.Exists(path) ? File.ReadAllText(path) : "";
         }
         catch
         {
             return "";
         }
+    }
+
+    // Notes saved before v1.11 lived at projects/<title>.md (no path hash). Move them to
+    // the new name on first access so upgrades don't silently orphan project standards.
+    private static void MigrateLegacyProjectFile(string documentTitle, string newPath)
+    {
+        try
+        {
+            var legacy = Path.Combine(Path.GetDirectoryName(newPath)!, Sanitize(documentTitle) + ".md");
+            if (File.Exists(legacy) && !File.Exists(newPath))
+                File.Move(legacy, newPath);
+        }
+        catch { /* best-effort */ }
     }
 
     public static void AppendProject(string documentTitle, string documentPath, string note)

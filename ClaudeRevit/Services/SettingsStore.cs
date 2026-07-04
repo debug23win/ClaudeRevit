@@ -13,7 +13,11 @@ public static class SettingsStore
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClaudeRevit", "settings.json");
 
+    // Guards _cached and file writes: reads/writes are all-thread-safe even if a future
+    // change moves usage tracking off the UI dispatcher.
+    private static readonly object Gate = new();
     private static Settings? _cached;
+    private static DateTime _lastSpendSaveUtc = DateTime.MinValue;
 
     public static bool AllowCodeExecution
     {
@@ -30,6 +34,27 @@ public static class SettingsStore
         set { Current.ConfirmOperations = value; Save(); }
     }
 
+    // Alternative OpenAI-compatible provider (DeepSeek, Qwen, OpenRouter, local Ollama…):
+    // preset id for the settings UI, endpoint base URL and model id. The key lives
+    // encrypted in ApiKeyStore. Empty = not configured.
+    public static string AltProvider
+    {
+        get => Current.AltProvider;
+        set { Current.AltProvider = value; Save(); }
+    }
+
+    public static string AltBaseUrl
+    {
+        get => Current.AltBaseUrl;
+        set { Current.AltBaseUrl = value; Save(); }
+    }
+
+    public static string AltModel
+    {
+        get => Current.AltModel;
+        set { Current.AltModel = value; Save(); }
+    }
+
     // User-entered account balance (from console.anthropic.com) and the estimated
     // spend accumulated since it was entered. The API exposes no balance endpoint,
     // so the pane shows balance − local spend estimate.
@@ -38,40 +63,57 @@ public static class SettingsStore
 
     public static void SetBalance(decimal balanceUsd)
     {
-        Current.BalanceUsd = balanceUsd;
-        Current.SpentUsd = 0;
-        Save();
+        lock (Gate)
+        {
+            Current.BalanceUsd = balanceUsd;
+            Current.SpentUsd = 0;
+            Save();
+        }
     }
 
+    // Called once per API message — debounced: the countdown is a display-only estimate,
+    // so losing ≤30s of spend on a crash beats rewriting settings.json on every turn.
     public static void AddSpend(decimal usd)
     {
         if (usd <= 0) return;
-        Current.SpentUsd += usd;
-        Save();
+        lock (Gate)
+        {
+            Current.SpentUsd += usd;
+            if ((DateTime.UtcNow - _lastSpendSaveUtc).TotalSeconds >= 30)
+                Save();
+        }
     }
 
     private static Settings Current
     {
         get
         {
-            if (_cached != null) return _cached;
-            try
+            lock (Gate)
             {
-                if (File.Exists(FilePath))
-                    _cached = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
+                if (_cached != null) return _cached;
+                try
+                {
+                    if (File.Exists(FilePath))
+                        _cached = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
+                }
+                catch { /* fall through to defaults */ }
+                return _cached ??= new Settings();
             }
-            catch { /* fall through to defaults */ }
-            return _cached ??= new Settings();
         }
     }
 
+    // Atomic write (temp + rename): a crash mid-write must never truncate settings.json —
+    // it also stores the code-execution opt-in. Callers hold Gate or don't care (setters).
     private static void Save()
     {
         try
         {
             var dir = Path.GetDirectoryName(FilePath)!;
             Directory.CreateDirectory(dir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(Current));
+            var tmp = FilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(Current));
+            File.Move(tmp, FilePath, overwrite: true);
+            _lastSpendSaveUtc = DateTime.UtcNow;
         }
         catch (Exception ex) { Log.Error("SettingsStore.Save failed", ex); }
     }
@@ -80,6 +122,9 @@ public static class SettingsStore
     {
         public bool AllowCodeExecution { get; set; } = false;
         public bool ConfirmOperations { get; set; } = false;
+        public string AltProvider { get; set; } = "";
+        public string AltBaseUrl { get; set; } = "";
+        public string AltModel { get; set; } = "";
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }

@@ -2,13 +2,17 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Claude Revit — Settings"
-        Width="520" Height="520"
+        Width="520" Height="760"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         FontFamily="Segoe UI" FontSize="13">
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -64,7 +68,58 @@
             Re-entering a value resets the counter.
         </TextBlock>
 
-        <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+        <Border Grid.Row="10" BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+
+        <TextBlock Grid.Row="11" Text="Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)"
+                   FontWeight="SemiBold" Margin="0,0,0,6" />
+        <Grid Grid.Row="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Provider:" VerticalAlignment="Center" Margin="0,0,8,6" />
+            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="AltProviderBox" Height="26" Margin="0,0,0,6"
+                      SelectionChanged="AltProviderBox_SelectionChanged">
+                <ComboBoxItem Tag="">— not used —</ComboBoxItem>
+                <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
+                <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
+                <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
+                <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>
+                <ComboBoxItem Tag="openrouter">OpenRouter (has free models)</ComboBoxItem>
+                <ComboBoxItem Tag="groq">Groq (free tier)</ComboBoxItem>
+                <ComboBoxItem Tag="ollama">Ollama (local, free)</ComboBoxItem>
+                <ComboBoxItem Tag="lmstudio">LM Studio (local, free)</ComboBoxItem>
+                <ComboBoxItem Tag="custom">Custom (any OpenAI-compatible)</ComboBoxItem>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,6" />
+            <TextBox Grid.Row="1" Grid.Column="1" x:Name="AltBaseUrlBox" Height="26" Padding="4"
+                     VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Model id:" VerticalAlignment="Center" Margin="0,0,8,6" />
+            <TextBox Grid.Row="2" Grid.Column="1" x:Name="AltModelBox" Height="26" Padding="4"
+                     VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AltKeyBox" Height="26" Padding="4"
+                         VerticalContentAlignment="Center" />
+        </Grid>
+        <TextBlock Grid.Row="13" Margin="0,6,0,0" FontSize="11" Foreground="#888"
+                   TextWrapping="Wrap">
+            Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL and a default
+            model. Local Ollama / LM Studio need no key. The model must support function calling.
+            Select “Alt” in the chat pane's model dropdown to use it. Работает с бесплатными и
+            дешёвыми моделями; ключ Anthropic при этом не обязателен.
+        </TextBlock>
+
+        <StackPanel Grid.Row="15" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="Help / Помощь" Width="110" Height="28" Margin="0,0,8,0"
                     Click="HelpButton_Click" />
             <Button Content="Cancel" Width="90" Height="28" Margin="0,0,8,0"
