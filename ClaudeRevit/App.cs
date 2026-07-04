@@ -201,6 +201,10 @@ public class App : IExternalApplication
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
         catch { /* shutting down anyway */ }
+        // Spend persistence is debounced (30s) — flush the tail so short sessions don't
+        // silently under-count and inflate the balance countdown.
+        try { SettingsStore.FlushSpend(); }
+        catch { /* shutting down anyway */ }
         return Result.Succeeded;
     }
 }

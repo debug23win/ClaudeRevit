@@ -61,13 +61,12 @@ public class CreatePathReinforcement : IRevitTool
 
         // Kind check FIRST: the generic rebar-host message suggests columns/framing, which
         // path reinforcement can never accept — don't send the retry loop that way.
-        var rawHost = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
-            ?? throw new InvalidOperationException("Host element not found.");
+        var rawHost = ReinforcementHelpers.FetchHost(doc, input);
         if (rawHost is not Wall && rawHost is not Floor)
             throw new InvalidOperationException(
                 $"Element {rawHost.Id.Value} ({rawHost.Category?.Name}) is not a wall or floor. " +
                 "Path reinforcement supports structural walls and floors only.");
-        var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
+        var host = ReinforcementHelpers.ValidateRebarHost(rawHost);
 
         var pts = input["points"].EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), p.GetProperty("z").GetDouble()))

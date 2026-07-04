@@ -125,9 +125,7 @@ public class RunDynamoPython : IRevitTool
             // case, and always reboot after a failed run: a crashed script may have left
             // engine state dirty.
             var activeDoc = app.ActiveUIDocument?.Document;
-            var docKey = activeDoc == null
-                ? null
-                : activeDoc.Title + "|" + activeDoc.PathName + "|" + activeDoc.GetHashCode();
+            var docKey = activeDoc == null ? null : DocKey.For(activeDoc);
             if (docKey == null || docKey != _lastBootDocKey || modelState != "StartedUIless")
             {
                 // Boot (or reset) the headless Dynamo model bound to the current document.
@@ -278,18 +276,18 @@ public class RunDynamoPython : IRevitTool
         {
             // Engine exists but evaluation blew up below the harness (engine init, marshal…).
             // The snippet may have partially executed — roll back anything it left open.
-            CloseDynamoTransaction(commit: false);
+            var txOutcome = CloseDynamoTransaction(commit: false);
             var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
             return Fail($"Python engine {engineName} failed to evaluate the script: {inner.Message}. " +
-                        "If the script may have started, " + VerifyGuidance);
+                        TransactionNote(txOutcome) + "If the script may have started, " + VerifyGuidance);
         }
 
         var reportJson = result?.ToString();
         if (string.IsNullOrWhiteSpace(reportJson))
         {
-            CloseDynamoTransaction(commit: false);
-            return Fail($"Python engine {engineName} returned no report. The MODEL STATE IS UNKNOWN — " +
-                        VerifyGuidance);
+            var txOutcome = CloseDynamoTransaction(commit: false);
+            return Fail($"Python engine {engineName} returned no report. " + TransactionNote(txOutcome) +
+                        "The MODEL STATE IS UNKNOWN — " + VerifyGuidance);
         }
 
         JsonElement report;
@@ -300,18 +298,18 @@ public class RunDynamoPython : IRevitTool
         }
         catch (Exception ex)
         {
-            CloseDynamoTransaction(commit: false);
+            var txOutcome = CloseDynamoTransaction(commit: false);
             return Fail($"Python engine {engineName} ran but its report could not be parsed ({ex.Message}). " +
-                        "The MODEL STATE IS UNKNOWN — " + VerifyGuidance);
+                        TransactionNote(txOutcome) + "The MODEL STATE IS UNKNOWN — " + VerifyGuidance);
         }
 
         // A script using TransactionManager.Instance.EnsureInTransaction relies on Dynamo's
         // graph-run lifecycle to close the transaction; there is no run here, so close it
         // ourselves — COMMIT only when the script finished cleanly, ROLL BACK its half-done
         // work when it raised. No-op for scripts using explicit Transactions.
-        CloseDynamoTransaction(commit: !report.TryGetProperty("error", out _));
+        var closeOutcome = CloseDynamoTransaction(commit: !report.TryGetProperty("error", out _));
 
-        return BuildResponse(report, engineName, app);
+        return BuildResponse(report, engineName, app, closeOutcome);
     }
 
     // Wraps the user's snippet so its OUT value, traceback and document identity come back
@@ -401,19 +399,23 @@ OUT = __cr_json.dumps(__cr_report)
     // Closes a RevitServices transaction the script left open via EnsureInTransaction:
     // commit=true uses the public ForceCloseTransaction (commits, as Dynamo's own run
     // lifecycle does); commit=false cancels via the private TransactionHandle so a crashed
-    // script's half-done work is ROLLED BACK, not persisted. No-op when nothing is open.
-    private static void CloseDynamoTransaction(bool commit)
+    // script's half-done work is ROLLED BACK, not persisted.
+    // Returns what ACTUALLY happened — "none" (nothing was open), "rolled_back",
+    // "committed" or "unknown" — so error messages can tell the truth: the rollback path
+    // is version-fragile (private field) and may fall back to a COMMIT rather than leave
+    // the transaction open (which would block every later tool).
+    private static string CloseDynamoTransaction(bool commit)
     {
         try
         {
             var tmType = FindType("RevitServices.Transactions.TransactionManager");
             var instance = tmType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
-            if (instance == null) return;
+            if (instance == null) return "none";
 
             var wrapper = instance.GetType().GetProperty("TransactionWrapper")?.GetValue(instance);
             if (wrapper?.GetType().GetProperty("TransactionActive")?.GetValue(wrapper) is not true)
-                return;
+                return "none";
 
             if (!commit)
             {
@@ -424,19 +426,36 @@ OUT = __cr_json.dumps(__cr_report)
                 if (cancel != null)
                 {
                     cancel.Invoke(handle, null);
-                    return;
+                    return "rolled_back";
                 }
-                // The rollback path is version-fragile (private field) — rather than leave
-                // the transaction open (it would block every later tool), fall through to
-                // the public commit and let the caller's error text stay conservative.
             }
 
-            instance.GetType()
-                .GetMethod("ForceCloseTransaction", BindingFlags.Public | BindingFlags.Instance)
-                ?.Invoke(instance, null);
+            var force = instance.GetType()
+                .GetMethod("ForceCloseTransaction", BindingFlags.Public | BindingFlags.Instance);
+            if (force == null) return "unknown";
+            force.Invoke(instance, null);
+            return "committed";
         }
-        catch { /* best-effort */ }
+        catch { return "unknown"; }
     }
+
+    // Truthful one-liner about the EnsureInTransaction cleanup for error messages. Empty
+    // when nothing was open (explicit-Transaction scripts and scripts that never touched
+    // the model).
+    private static string TransactionNote(string outcome) => outcome switch
+    {
+        "rolled_back" =>
+            "An EnsureInTransaction transaction it left open was ROLLED BACK; only changes the " +
+            "script explicitly COMMITTED before the failure persist in the model. ",
+        "committed" =>
+            "WARNING: an EnsureInTransaction transaction it left open could only be closed by " +
+            "COMMITTING it (the rollback API is unavailable in this Dynamo build) — the script's " +
+            "PARTIAL changes PERSIST in the model. Do NOT blindly re-run it. ",
+        "unknown" =>
+            "An EnsureInTransaction transaction it may have left open could NOT be closed — the " +
+            "model state is UNKNOWN and later operations may be blocked. ",
+        _ => "" // "none": nothing was open
+    };
 
     // Current DynamoRevit keeps the state on the static RevitDynamoModel instance
     // (State: NotStarted / StartedUIless / StartedUI); very old versions exposed a static
@@ -460,7 +479,7 @@ OUT = __cr_json.dumps(__cr_report)
     }
 
     // Turns the run report (the harness's evaluation result) into the tool result.
-    private static string BuildResponse(JsonElement report, string engine, UIApplication app)
+    private static string BuildResponse(JsonElement report, string engine, UIApplication app, string txOutcome)
     {
         var error = report.TryGetProperty("error", out var e) ? e.GetString() : null;
         var output = report.TryGetProperty("out", out var o) ? o.GetString() : null;
@@ -489,15 +508,18 @@ OUT = __cr_json.dumps(__cr_report)
 
         if (error != null)
         {
-            Log.Info("run_dynamo_python: script raised an exception.");
+            Log.Info($"run_dynamo_python: script raised an exception (tx: {txOutcome}).");
+            var txNote = TransactionNote(txOutcome);
+            if (txNote.Length == 0)
+                txNote = "It left no open EnsureInTransaction transaction; only what it explicitly " +
+                         "COMMITTED before the exception persists in the model. ";
             return JsonSerializer.Serialize(new
             {
                 ok = false,
                 engine,
                 python = pythonVersion,
-                error = "The Python script raised an exception. An EnsureInTransaction transaction " +
-                        "it left open was ROLLED BACK; transactions the script explicitly COMMITTED " +
-                        "before the exception persist in the model — " + VerifyGuidance + "\n" + error,
+                error = "The Python script raised an exception. " + txNote + "— " + VerifyGuidance +
+                        "\n" + error,
                 document = dynDocTitle,
                 warning
             });

@@ -31,11 +31,17 @@ internal static class ReinforcementHelpers
     }
 
     // Resolves host_id and validates the element can host rebar.
-    public static Element GetValidRebarHost(Document doc, IReadOnlyDictionary<string, JsonElement> input)
-    {
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
+    public static Element GetValidRebarHost(Document doc, IReadOnlyDictionary<string, JsonElement> input) =>
+        ValidateRebarHost(FetchHost(doc, input));
+
+    // Split out so tools with extra host-kind requirements (path reinforcement: wall/floor
+    // only) can fetch once, run their own check, then validate — no double GetElement.
+    public static Element FetchHost(Document doc, IReadOnlyDictionary<string, JsonElement> input) =>
+        doc.GetElement(new ElementId(input["host_id"].GetInt64()))
             ?? throw new InvalidOperationException("Host element not found.");
 
+    public static Element ValidateRebarHost(Element host)
+    {
         var hostData = RebarHostData.GetRebarHostData(host);
         if (hostData == null || !hostData.IsValidHost())
             throw new InvalidOperationException(

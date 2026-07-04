@@ -56,7 +56,7 @@ public class GetProjectCatalog : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var cacheKey = doc.Title + "|" + doc.PathName + "|" + doc.GetHashCode();
+        var cacheKey = DocKey.For(doc);
         bool refresh = ToolInput.Flag(input, "refresh");
 
         JsonElement catalog = default;

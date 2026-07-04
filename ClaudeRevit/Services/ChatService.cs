@@ -64,9 +64,16 @@ public class ChatService
     private const int MaxIterations = 24;
     private const int MaxOutputTokens = 8192;
 
-    // Alt providers include 64K-context models (DeepSeek), so compact much earlier there.
+    // Alt providers span 8K local models to 1M Gemini — when the user entered the model's
+    // context size in Settings, compact at ~75% of it; otherwise assume a small context.
     private const long CompactionThresholdTokens = 120_000;
     private const long AltCompactionThresholdTokens = 48_000;
+
+    private static long AltThreshold()
+    {
+        var contextK = SettingsStore.AltContextK;
+        return contextK > 0 ? contextK * 1000L * 3 / 4 : AltCompactionThresholdTokens;
+    }
     private const int CompactionKeepTailTurns = 3;
     private const string CompactionModel = "claude-haiku-4-5";
 
@@ -74,6 +81,25 @@ public class ChatService
     private readonly OpenAIBackend _openAI = new();
     private readonly List<ApiTurn> _history = HistoryStore.LoadApiHistory();
     private long _lastPromptTokens;
+
+    public ChatService()
+    {
+        // A restored long history must be eligible for compaction on the very FIRST send
+        // after a restart — otherwise an oversized persisted conversation is replayed
+        // uncompacted into a small-context alt model and every request fails.
+        long chars = 0;
+        foreach (var turn in _history)
+            foreach (var block in turn.Blocks)
+                chars += block switch
+                {
+                    ChatTextBlock b => b.Text.Length,
+                    ChatToolUseBlock b => b.InputJson.Length,
+                    ChatToolResultBlock b => b.Content.Length,
+                    ChatThinkingBlock b => b.Thinking.Length,
+                    _ => 0
+                };
+        _lastPromptTokens = chars / 4;
+    }
 
     // Set by the chat pane: asks the user to approve a tool call. Returns true to run it.
     public Func<string, string, Task<bool>>? ConfirmToolAsync;
@@ -114,6 +140,10 @@ public class ChatService
             throw new InvalidOperationException(
                 "The alternative model is not configured. Open Settings (gear icon) and fill " +
                 "in the provider's base URL and model id (DeepSeek, Qwen, OpenRouter, Ollama…).");
+        // Fail fast BEFORE the user turn is committed to _history: a missing-key error
+        // thrown mid-loop would leave the prompt dangling in the saved history, to be
+        // silently replayed (and acted on!) once a key appears.
+        if (!alt) GetClient();
 
         var lastUser = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
         if (string.IsNullOrWhiteSpace(lastUser)) return;
@@ -130,6 +160,27 @@ public class ChatService
                 ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
                 : string.Join(", ", sel.Ids);
             dynamicContext += $"\n\nCURRENT SELECTION: {sel.Description}. Element IDs: [{idList}]";
+        }
+
+        // Everything constant for the whole turn is built ONCE here, not per loop
+        // iteration: rebuilding the system blocks mid-turn would let a save_memory call
+        // invalidate the 1h prompt-cache prefix for the rest of the turn, and rebuilding
+        // the tool list would let a Settings change yank tools out from under the model
+        // mid-plan (plus ~130 tool schemas re-serialized per round for nothing).
+        var allowedTools = AllowedTools();
+        List<BetaTextBlockParam>? systemBlocks = null;
+        List<BetaToolUnion>? toolDefs = null;
+        string? altSystem = null;
+        System.Text.Json.Nodes.JsonArray? altTools = null;
+        if (alt)
+        {
+            altSystem = BuildAltSystemPrompt();
+            altTools = OpenAIBackend.BuildTools(allowedTools);
+        }
+        else
+        {
+            systemBlocks = BuildSystemBlocks();
+            toolDefs = BuildToolDefs(allowedTools);
         }
 
         _history.Add(new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } });
@@ -153,8 +204,8 @@ public class ChatService
                 }
 
                 var turn = alt
-                    ? await StreamAltTurnAsync(dynamicContext, conversation, ui, ct)
-                    : await StreamAnthropicTurnAsync(model, dynamicContext, conversation, ui, ct);
+                    ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct)
+                    : await StreamAnthropicTurnAsync(model, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
 
                 TrackUsage(alt ? "alt:" + SettingsStore.AltModel : model, turn);
 
@@ -189,7 +240,30 @@ public class ChatService
                 foreach (var use in toolUses)
                 {
                     var name = use.Name;
-                    var inp = ParseInput(use.InputJson);
+
+                    // Invalid-JSON arguments (typically an alt model whose output was cut
+                    // by the length limit mid-arguments) must NOT run the tool with an
+                    // empty input — that either errors misleadingly or executes with
+                    // defaults instead of what the model intended.
+                    var inp = TryParseInput(use.InputJson);
+                    if (inp == null)
+                    {
+                        await ui.InvokeAsync(() => conversation.Add(new ChatMessage
+                        {
+                            Role = "tool",
+                            ToolName = name,
+                            Text = "✗ arguments were not valid JSON (output truncated?) — not executed",
+                            IsError = true
+                        }));
+                        resultTurn.Blocks.Add(new ChatToolResultBlock(
+                            use.Id,
+                            "The tool-call arguments were not valid JSON — your output was probably cut " +
+                            "off by the length limit. The tool was NOT executed. Re-issue the call with " +
+                            "more compact arguments (e.g. split the work into smaller steps).",
+                            true));
+                        continue;
+                    }
+
                     var tool = ToolRegistry.Instance.Get(name);
 
                     ChatMessage toolMsg = null!;
@@ -269,6 +343,8 @@ public class ChatService
 
     private async Task<BackendTurn> StreamAnthropicTurnAsync(
         string model,
+        List<BetaTextBlockParam> systemBlocks,
+        List<BetaToolUnion> toolDefs,
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
@@ -281,8 +357,8 @@ public class ChatService
             Model = ResolveModel(model),
             MaxTokens = MaxOutputTokens,
             Messages = BuildApiMessages(dynamicContext),
-            System = BuildSystemBlocks(),
-            Tools = BuildToolDefs(),
+            System = systemBlocks,
+            Tools = toolDefs,
             OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null
         };
 
@@ -341,19 +417,18 @@ public class ChatService
     // ---- OpenAI-compatible path ---------------------------------------------------
 
     private async Task<BackendTurn> StreamAltTurnAsync(
+        string systemPrompt,
+        System.Text.Json.Nodes.JsonArray toolsJson,
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
         CancellationToken ct)
     {
-        var sys = new StringBuilder(AltPromptPrefix).Append(SystemPromptBody).Append(AltPromptSuffix);
-        var memory = MemoryStore.Load();
-        if (!string.IsNullOrWhiteSpace(memory))
-            sys.Append("\n\nWHAT YOU REMEMBER (persisted notes from earlier sessions):\n").Append(memory);
-
         ChatMessage? assistantBubble = null;
-        // Deltas arrive on the HTTP read thread; the dispatcher queue keeps them in order.
-        void OnDelta(string piece) => _ = ui.InvokeAsync(() =>
+        // Deltas arrive on the HTTP read thread; awaiting the dispatcher operation gives
+        // backpressure — a fast local provider can't flood Revit's UI thread (same
+        // discipline as the Anthropic path).
+        Task OnDelta(string piece) => ui.InvokeAsync(() =>
         {
             if (assistantBubble == null)
             {
@@ -361,10 +436,29 @@ public class ChatService
                 conversation.Add(assistantBubble);
             }
             assistantBubble.Text += piece;
-        });
+        }).Task;
 
         return await _openAI.StreamTurnAsync(
-            sys.ToString(), _history, dynamicContext, AllowedTools(), OnDelta, ct);
+            systemPrompt, _history, dynamicContext, toolsJson, OnDelta, ct);
+    }
+
+    // The alt system prompt: same body as the Anthropic one, different framing, plus the
+    // shared memory section (single-sourced in MemorySection so the two backends can't
+    // silently drift apart).
+    private static string BuildAltSystemPrompt()
+    {
+        var sys = new StringBuilder(AltPromptPrefix).Append(SystemPromptBody).Append(AltPromptSuffix);
+        if (MemorySection() is { } memory)
+            sys.Append("\n\n").Append(memory);
+        return sys.ToString();
+    }
+
+    private const string MemoryHeader = "WHAT YOU REMEMBER (persisted notes from earlier sessions):\n";
+
+    private static string? MemorySection()
+    {
+        var memory = MemoryStore.Load();
+        return string.IsNullOrWhiteSpace(memory) ? null : MemoryHeader + memory;
     }
 
     // ---- Shared helpers -----------------------------------------------------------
@@ -390,12 +484,11 @@ public class ChatService
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             }
         };
-        var memory = MemoryStore.Load();
-        if (!string.IsNullOrWhiteSpace(memory))
+        if (MemorySection() is { } memory)
         {
             blocks.Add(new BetaTextBlockParam
             {
-                Text = "WHAT YOU REMEMBER (persisted notes from earlier sessions):\n" + memory,
+                Text = memory,
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             });
         }
@@ -459,7 +552,7 @@ public class ChatService
         bool alt,
         CancellationToken ct)
     {
-        var threshold = alt ? AltCompactionThresholdTokens : CompactionThresholdTokens;
+        var threshold = alt ? AltThreshold() : CompactionThresholdTokens;
         if (_lastPromptTokens < threshold) return;
 
         var userTurns = new List<int>();
@@ -575,9 +668,8 @@ public class ChatService
         catch { /* non-fatal */ }
     }
 
-    private static List<BetaToolUnion> BuildToolDefs()
+    private static List<BetaToolUnion> BuildToolDefs(List<IRevitTool> allTools)
     {
-        var allTools = AllowedTools();
         var toolDefs = new List<BetaTool>(allTools.Count);
         for (int i = 0; i < allTools.Count; i++)
         {
@@ -595,7 +687,12 @@ public class ChatService
         return toolDefs.Select(t => (BetaToolUnion)t).ToList();
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> ParseInput(string json)
+    // Lenient parse for HISTORY REPLAY (Anthropic block params must always be buildable);
+    // execution uses TryParseInput so truncated arguments never silently run a tool.
+    private static IReadOnlyDictionary<string, JsonElement> ParseInput(string json) =>
+        TryParseInput(json) ?? new Dictionary<string, JsonElement>();
+
+    private static IReadOnlyDictionary<string, JsonElement>? TryParseInput(string json)
     {
         try
         {
@@ -604,7 +701,7 @@ public class ChatService
         }
         catch
         {
-            return new Dictionary<string, JsonElement>();
+            return null;
         }
     }
 
@@ -633,6 +730,5 @@ public class ChatService
         catch { return "(unprintable input)"; }
     }
 
-    private static string Truncate(string s, int max) =>
-        string.IsNullOrEmpty(s) || s.Length <= max ? s : s[..max] + $"… ({s.Length - max} more chars)";
+    private static string Truncate(string s, int max) => TextUtil.Truncate(s, max);
 }

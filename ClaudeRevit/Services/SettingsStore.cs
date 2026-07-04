@@ -55,6 +55,15 @@ public static class SettingsStore
         set { Current.AltModel = value; Save(); }
     }
 
+    // Context window of the alt model in thousands of tokens (0 = unknown → conservative
+    // default). Drives the history-compaction threshold: an 8K local model must compact
+    // long before a 1M Gemini.
+    public static int AltContextK
+    {
+        get => Current.AltContextK;
+        set { Current.AltContextK = value; Save(); }
+    }
+
     // User-entered account balance (from console.anthropic.com) and the estimated
     // spend accumulated since it was entered. The API exposes no balance endpoint,
     // so the pane shows balance − local spend estimate.
@@ -82,6 +91,13 @@ public static class SettingsStore
             if ((DateTime.UtcNow - _lastSpendSaveUtc).TotalSeconds >= 30)
                 Save();
         }
+    }
+
+    // The debounce needs a final flush on add-in shutdown, or the tail of every session's
+    // spend is silently dropped and the balance countdown drifts optimistic.
+    public static void FlushSpend()
+    {
+        lock (Gate) Save();
     }
 
     private static Settings Current
@@ -125,6 +141,7 @@ public static class SettingsStore
         public string AltProvider { get; set; } = "";
         public string AltBaseUrl { get; set; } = "";
         public string AltModel { get; set; } = "";
+        public int AltContextK { get; set; } = 0;
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }
