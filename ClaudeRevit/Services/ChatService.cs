@@ -46,6 +46,10 @@ public class ChatService
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
+        "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
+        "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
+        "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
+        "since, re-query the live model instead.\n\n" +
         "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
         "If a tool returns an error, read it and adjust. All edits within one user prompt are bundled into a " +
         "single undo entry, so the user can ⌃Z to revert.";
@@ -149,6 +153,13 @@ public class ChatService
         if (string.IsNullOrWhiteSpace(lastUser)) return;
 
         await CompactIfNeededAsync(conversation, ui, alt, ct);
+
+        // Tool-result aging (Headroom-style): every tool result from a PRIOR user prompt
+        // is truncated in place and its original archived (get_full_result retrieves it).
+        // Run here — before the new user turn is added — so results from the turn just
+        // finished are still full when the model consumed them, but stop being replayed
+        // verbatim from now on. This is the single biggest token sink in long sessions.
+        ToolResultAging.AgeAll(_history);
 
         // Dynamic-per-turn context (current document + selection). NOT cached — trails the prompt.
         var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);

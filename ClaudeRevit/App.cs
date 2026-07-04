@@ -152,6 +152,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new SaveProjectMemory());
             ToolRegistry.Instance.Register(new GetScriptJournal());
+            ToolRegistry.Instance.Register(new GetFullResult());
             // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
             // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
             // gone; no Dynamo dependency). RunDynamoPython remains for Python-flavoured
