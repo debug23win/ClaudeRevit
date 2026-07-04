@@ -19,6 +19,8 @@ public partial class SettingsWindow : Window
     // overwrite — e.g. swap deepseek-chat for deepseek-reasoner.
     private static (string Url, string Model) AltPreset(string tag) => tag switch
     {
+        "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
+        "openai" => ("https://api.openai.com/v1", "gpt-5-mini"),
         "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat"),
         "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
         "openrouter" => ("https://openrouter.ai/api/v1", "deepseek/deepseek-chat-v3-0324:free"),

@@ -147,6 +147,25 @@ public sealed class OpenAIBackend
 
     private static async Task<HttpResponseMessage> SendAsync(JsonObject body, CancellationToken ct)
     {
+        var (resp, error) = await PostOnceAsync(body, ct);
+        if (resp != null) return resp;
+
+        // Newer OpenAI models (gpt-5 family, o-series) dropped max_tokens in favour of
+        // max_completion_tokens — swap and retry once when the provider says exactly that.
+        if (error!.Contains("max_completion_tokens") && body.ContainsKey("max_tokens"))
+        {
+            var limit = body["max_tokens"]!.GetValue<int>();
+            body.Remove("max_tokens");
+            body["max_completion_tokens"] = limit;
+            (resp, error) = await PostOnceAsync(body, ct);
+            if (resp != null) return resp;
+        }
+        throw new InvalidOperationException(error);
+    }
+
+    private static async Task<(HttpResponseMessage? Resp, string? Error)> PostOnceAsync(
+        JsonObject body, CancellationToken ct)
+    {
         var baseUrl = SettingsStore.AltBaseUrl.TrimEnd('/');
         var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/chat/completions");
         var key = ApiKeyStore.LoadAlt();
@@ -174,11 +193,11 @@ public sealed class OpenAIBackend
             var err = await resp.Content.ReadAsStringAsync(ct);
             resp.Dispose();
             req.Dispose();
-            throw new InvalidOperationException(
+            return (null,
                 $"{(int)resp.StatusCode} from {baseUrl} (model {SettingsStore.AltModel}): " +
                 Truncate(ExtractErrorMessage(err), 600));
         }
-        return resp;
+        return (resp, null);
     }
 
     // Providers report errors mid-stream as a data chunk with an "error" object.
@@ -314,21 +333,22 @@ public sealed class OpenAIBackend
             foreach (var r in t.InputSchema.Required ?? Array.Empty<string>())
                 required.Add(r);
 
-            arr.Add(new JsonObject
+            var fn = new JsonObject
             {
-                ["type"] = "function",
-                ["function"] = new JsonObject
+                ["name"] = t.Name,
+                ["description"] = t.Description
+            };
+            // No-argument tools omit "parameters" entirely: Gemini's OpenAI-compatible
+            // layer rejects an OBJECT schema with empty properties.
+            if (props.Count > 0)
+                fn["parameters"] = new JsonObject
                 {
-                    ["name"] = t.Name,
-                    ["description"] = t.Description,
-                    ["parameters"] = new JsonObject
-                    {
-                        ["type"] = "object",
-                        ["properties"] = props,
-                        ["required"] = required
-                    }
-                }
-            });
+                    ["type"] = "object",
+                    ["properties"] = props,
+                    ["required"] = required
+                };
+
+            arr.Add(new JsonObject { ["type"] = "function", ["function"] = fn });
         }
         return arr;
     }

@@ -70,7 +70,7 @@
 
         <Border Grid.Row="10" BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
-        <TextBlock Grid.Row="11" Text="Alternative model (DeepSeek, Qwen, OpenRouter, Ollama…)"
+        <TextBlock Grid.Row="11" Text="Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)"
                    FontWeight="SemiBold" Margin="0,0,0,6" />
         <Grid Grid.Row="12">
             <Grid.ColumnDefinitions>
@@ -88,7 +88,9 @@
             <ComboBox Grid.Row="0" Grid.Column="1" x:Name="AltProviderBox" Height="26" Margin="0,0,0,6"
                       SelectionChanged="AltProviderBox_SelectionChanged">
                 <ComboBoxItem Tag="">— not used —</ComboBoxItem>
-                <ComboBoxItem Tag="deepseek">DeepSeek</ComboBoxItem>
+                <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
+                <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
+                <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
                 <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>
                 <ComboBoxItem Tag="openrouter">OpenRouter (has free models)</ComboBoxItem>
                 <ComboBoxItem Tag="groq">Groq (free tier)</ComboBoxItem>
