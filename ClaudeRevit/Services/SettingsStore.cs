@@ -34,6 +34,27 @@ public static class SettingsStore
         set { Current.ConfirmOperations = value; Save(); }
     }
 
+    // Alternative OpenAI-compatible provider (DeepSeek, Qwen, OpenRouter, local Ollama…):
+    // preset id for the settings UI, endpoint base URL and model id. The key lives
+    // encrypted in ApiKeyStore. Empty = not configured.
+    public static string AltProvider
+    {
+        get => Current.AltProvider;
+        set { Current.AltProvider = value; Save(); }
+    }
+
+    public static string AltBaseUrl
+    {
+        get => Current.AltBaseUrl;
+        set { Current.AltBaseUrl = value; Save(); }
+    }
+
+    public static string AltModel
+    {
+        get => Current.AltModel;
+        set { Current.AltModel = value; Save(); }
+    }
+
     // User-entered account balance (from console.anthropic.com) and the estimated
     // spend accumulated since it was entered. The API exposes no balance endpoint,
     // so the pane shows balance − local spend estimate.
@@ -101,6 +122,9 @@ public static class SettingsStore
     {
         public bool AllowCodeExecution { get; set; } = false;
         public bool ConfirmOperations { get; set; } = false;
+        public string AltProvider { get; set; } = "";
+        public string AltBaseUrl { get; set; } = "";
+        public string AltModel { get; set; } = "";
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }

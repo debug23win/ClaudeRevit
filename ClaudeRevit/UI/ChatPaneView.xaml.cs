@@ -15,7 +15,7 @@ public partial class ChatPaneView : UserControl
 {
     public ObservableCollection<ChatMessage> Messages { get; } = new();
 
-    private readonly AnthropicChatService _service = new();
+    private readonly ChatService _service = new();
     private CancellationTokenSource? _cts;
     private string _selectedModel = "sonnet-5";
 
@@ -35,6 +35,8 @@ public partial class ChatPaneView : UserControl
         OnSelectionChanged(SelectionService.Current);
 
         _service.ConfirmToolAsync = ConfirmToolAsync;
+
+        UpdateAltModelLabel();
 
         // Safety net: an unhandled exception on the WPF dispatcher normally takes the
         // whole Revit process down. Log every one; and if the fault originates in OUR
@@ -168,9 +170,16 @@ public partial class ChatPaneView : UserControl
         if (dlg.ShowDialog() == true)
         {
             _service.RecreateClient();
-            StatusText.Text = "API key updated.";
+            UpdateAltModelLabel();
+            StatusText.Text = "Settings saved.";
         }
     }
+
+    // The "Alt" picker entry shows which model it currently points at.
+    private void UpdateAltModelLabel() =>
+        AltModelItem.Content = SettingsStore.AltModel.Length > 0
+            ? "Alt: " + SettingsStore.AltModel
+            : "Alt model (set up in ⚙)";
 
     private void ModelPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

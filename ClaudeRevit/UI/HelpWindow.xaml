@@ -38,6 +38,14 @@
                             • В Revit 2027 используйте ElementId.Value — свойство IntegerValue удалено.
                         </TextBlock>
 
+                        <TextBlock FontWeight="SemiBold" Text="Бесплатные и дешёвые модели" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • В настройках можно подключить любую OpenAI-совместимую модель: DeepSeek, Qwen, OpenRouter (есть бесплатные), Groq, а также локальные Ollama / LM Studio — без ключа и интернета.&#10;
+                            • Выберите провайдера из списка — адрес и модель подставятся сами; затем выберите «Alt: …» в списке моделей над чатом.&#10;
+                            • Модель должна поддерживать вызов инструментов (function calling). Claude заметно надёжнее в сложных сценариях — бесплатные модели подходят для простых запросов и экспериментов.&#10;
+                            • Историю чата можно продолжать при переключении между Claude и альтернативной моделью.
+                        </TextBlock>
+
                         <TextBlock FontWeight="SemiBold" Text="Безопасность и стоимость" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             • Подтверждения операций по умолчанию выключены (всё откатывается Ctrl+Z); включить обратно можно в настройках.&#10;
@@ -75,6 +83,14 @@
                             • run_dynamo_python — Python via Dynamo's engine (PythonNet3 on Revit 2027, auto-detected). The script manages transactions: use explicit Transaction / Start / Commit.&#10;
                             • Claude keeps a journal of script runs with the actual model deltas (get_script_journal) — proven snippets get reused, recurring ones become built-in tools.&#10;
                             • On Revit 2027 use ElementId.Value — IntegerValue was removed.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Free and cheap models" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            • Settings can point to any OpenAI-compatible model: DeepSeek, Qwen, OpenRouter (has free models), Groq, or local Ollama / LM Studio — no key and no internet needed for the local ones.&#10;
+                            • Pick a provider preset — the URL and model fill in automatically; then choose “Alt: …” in the model dropdown above the chat.&#10;
+                            • The model must support function calling. Claude is noticeably more reliable on complex work — free models suit simple requests and experiments.&#10;
+                            • The chat history carries over when you switch between Claude and the alternative model.
                         </TextBlock>
 
                         <TextBlock FontWeight="SemiBold" Text="Safety and cost" Margin="0,12,0,4" />
