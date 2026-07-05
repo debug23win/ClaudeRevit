@@ -69,8 +69,17 @@ var
   VersionsPage: TWizardPage;
   ChkVer: array[0..2] of TNewCheckBox;
 
-const
-  Versions: array[0..2] of String = ('2025', '2026', '2027');
+// Inno's Pascal Script has no typed array constants, so the version list is a function.
+function VersionAt(Index: Integer): String;
+begin
+  case Index of
+    0: Result := '2025';
+    1: Result := '2026';
+    2: Result := '2027';
+  else
+    Result := '';
+  end;
+end;
 
 // A Revit version is "installed" if either its all-users add-ins folder (created by the
 // Revit installer) or its program folder exists.
@@ -123,14 +132,14 @@ begin
     ChkVer[i].Top := y;
     ChkVer[i].Left := 0;
     ChkVer[i].Width := VersionsPage.SurfaceWidth;
-    if RevitInstalled(Versions[i]) then
+    if RevitInstalled(VersionAt(i)) then
     begin
-      ChkVer[i].Caption := 'Revit ' + Versions[i] + '  (detected)';
+      ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (detected)';
       ChkVer[i].Checked := True;
       anyDetected := True;
     end
     else
-      ChkVer[i].Caption := 'Revit ' + Versions[i] + '  (not detected — tick to install anyway)';
+      ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (not detected — tick to install anyway)';
     y := y + 26;
   end;
 
@@ -145,7 +154,7 @@ var
 begin
   Result := False;
   for i := 0 to 2 do
-    if Versions[i] = Ver then
+    if VersionAt(i) = Ver then
       Result := ChkVer[i].Checked;
 end;
 
