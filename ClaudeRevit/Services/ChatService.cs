@@ -55,9 +55,13 @@ public class ChatService
         "LEARNING: Scripts that worked before are journaled on disk and survive clearing the chat. Proven patterns " +
         "may be listed below — reuse them. get_script_journal shows full past runs; generate_diagnostic_report " +
         "summarizes recurring scripts as candidates for future dedicated tools (also written automatically when " +
-        "Revit closes). When a script pattern proves itself and would be worth having as a reusable tool, call " +
-        "save_tool to compile it into a persistent, named tool available in this and all future sessions " +
-        "(delete_tool removes one). Prefer this over re-running the same execute_csharp each time.\n\n" +
+        "Revit closes). PROMOTE ON THE SECOND USE: the first time you solve something with execute_csharp, " +
+        "just run it. But when you are about to run essentially the SAME operation a second time — the same " +
+        "kind of script you already ran successfully this session, or one shown in the proven-scripts list — " +
+        "that is a reusable pattern: generalize it (turn the specific ids/sizes/names into input parameters) " +
+        "and call save_tool ONCE to compile it into a persistent named tool, then call that tool for this and " +
+        "every later use. A just-saved tool is available immediately, in the same turn. Do NOT promote a " +
+        "genuine one-off, and delete_tool removes a bad one.\n\n" +
         "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
         "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
         "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
@@ -268,6 +272,11 @@ public class ChatService
                 }
 
                 var resultTurn = new ApiTurn { Role = "user" };
+                // A successful save_tool/delete_tool changes the registered tool set; when it
+                // does we rebuild the tool list at the end of this round so a just-created
+                // tool is callable on the very next round of the SAME turn (not just the next
+                // message). Rare, so the one-off cache re-warm it costs is fine.
+                var toolSetChanged = false;
                 foreach (var use in toolUses)
                 {
                     var name = use.Name;
@@ -358,10 +367,22 @@ public class ChatService
                     }
 
                     resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, content, isError));
+                    if (!isError && (name == "save_tool" || name == "delete_tool"))
+                        toolSetChanged = true;
                 }
 
                 _history.Add(assistantTurn);
                 _history.Add(resultTurn);
+
+                // Make a freshly saved/removed tool visible to the model for the rest of this
+                // turn. Rebuild only the tool list (not the system blocks) so the memory /
+                // experience prompt cache is untouched.
+                if (toolSetChanged)
+                {
+                    allowedTools = AllowedTools();
+                    if (alt) altTools = OpenAIBackend.BuildTools(allowedTools);
+                    else toolDefs = BuildToolDefs(allowedTools);
+                }
             }
         }
         finally
