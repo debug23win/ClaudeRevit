@@ -504,7 +504,12 @@ public class ChatService
             .ToList();
     }
 
-    // System = base prompt (+ saved memory, if any). Both cached for 1h.
+    // System = base prompt + one combined block for saved memory and learned experience.
+    // The Anthropic API allows at most 4 cache_control breakpoints on a request, and we
+    // already spend two more on the tools list and the trailing history block — so memory
+    // and the experience digest MUST share a single breakpoint here (both are session-stable,
+    // so caching them together loses nothing). Emitting a breakpoint per section overflowed
+    // the limit once both existed ("maximum of 4 blocks with cache_control … Found 5").
     private static List<BetaTextBlockParam> BuildSystemBlocks()
     {
         var blocks = new List<BetaTextBlockParam>
@@ -515,21 +520,19 @@ public class ChatService
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             }
         };
-        if (MemorySection() is { } memory)
-        {
-            blocks.Add(new BetaTextBlockParam
-            {
-                Text = memory,
-                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
-            });
-        }
-        // Proven-script experience: session-stable (see ExperienceStore.Digest) so it can
-        // share the 1h prompt cache. Carries learned know-how into a fresh/cleared window.
+
+        var extras = new StringBuilder();
+        if (MemorySection() is { } memory) extras.Append(memory);
         if (ExperienceStore.Digest() is { } experience)
         {
+            if (extras.Length > 0) extras.Append("\n\n");
+            extras.Append(experience);
+        }
+        if (extras.Length > 0)
+        {
             blocks.Add(new BetaTextBlockParam
             {
-                Text = experience,
+                Text = extras.ToString(),
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             });
         }
