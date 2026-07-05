@@ -39,6 +39,11 @@ public class ChatService
         "execution is disabled. Tell the user they can enable it via the gear icon. " +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
+        "FAMILY EDITOR: when a family (.rfa) is open for editing, prefer the dedicated family tools " +
+        "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
+        "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
+        "create_linear_array) over execute_csharp — they are far faster and need no code opt-in. Family " +
+        "length values in these tools are in millimetres; formulas use Revit's own syntax.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +

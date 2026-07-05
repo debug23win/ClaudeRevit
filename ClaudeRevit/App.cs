@@ -151,6 +151,16 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetProjectCatalog());
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new SaveProjectMemory());
+            // Family Editor suite: parametric family authoring (parameters, formulas,
+            // associations, arrays) that previously had to go through execute_csharp.
+            ToolRegistry.Instance.Register(new GetFamilyParameters());
+            ToolRegistry.Instance.Register(new AddFamilyParameter());
+            ToolRegistry.Instance.Register(new RemoveFamilyParameter());
+            ToolRegistry.Instance.Register(new SetFamilyParameterFormula());
+            ToolRegistry.Instance.Register(new SetFamilyParameterValue());
+            ToolRegistry.Instance.Register(new SetFamilyParameterInstance());
+            ToolRegistry.Instance.Register(new AssociateFamilyParameter());
+            ToolRegistry.Instance.Register(new CreateLinearArray());
             ToolRegistry.Instance.Register(new GetScriptJournal());
             ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
             ToolRegistry.Instance.Register(new GetFullResult());
