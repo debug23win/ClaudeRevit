@@ -513,7 +513,7 @@ OUT = __cr_json.dumps(__cr_report)
             if (txNote.Length == 0)
                 txNote = "It left no open EnsureInTransaction transaction; only what it explicitly " +
                          "COMMITTED before the exception persists in the model. ";
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 ok = false,
                 engine,
@@ -526,7 +526,7 @@ OUT = __cr_json.dumps(__cr_report)
         }
 
         Log.Info("run_dynamo_python executed a graph.");
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             ok = true,
             engine,
@@ -539,7 +539,7 @@ OUT = __cr_json.dumps(__cr_report)
     }
 
     private static string Fail(string message) =>
-        JsonSerializer.Serialize(new { ok = false, engine = "dynamo", error = message });
+        Services.Json.Serialize(new { ok = false, engine = "dynamo", error = message });
 
     private static System.Type? FindDynamoRevitType() =>
         FindType("Dynamo.Applications.DynamoRevit");

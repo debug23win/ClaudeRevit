@@ -139,7 +139,9 @@ public class ExecuteCSharp : IRevitTool
             }
 
             // ToString() before the load context is unloaded so no live references remain.
-            return JsonSerializer.Serialize(new
+            // Relaxed encoder: script output is often Cyrillic-heavy — keep it readable and
+            // cheap in tokens instead of \uXXXX-escaping every character.
+            return Services.Json.Serialize(new
             {
                 ok = true,
                 result = result?.ToString() ?? "(no return value)"

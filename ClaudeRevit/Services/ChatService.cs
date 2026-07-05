@@ -342,7 +342,7 @@ public class ChatService
                     try
                     {
                         content = await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
-                        var display = FormatInput(inp) + "\n→ " + Truncate(content, 400);
+                        var display = FormatInput(inp) + "\n→ " + Truncate(FormatResult(content), 400);
                         await ui.InvokeAsync(() => toolMsg.Text = display);
                     }
                     catch (OperationCanceledException)
@@ -793,8 +793,36 @@ public class ChatService
     private static string FormatInput(IReadOnlyDictionary<string, JsonElement> input)
     {
         if (input.Count == 0) return "(no arguments)";
-        try { return JsonSerializer.Serialize(input, new JsonSerializerOptions { WriteIndented = false }); }
+        // Script tools carry one big 'code' blob: show it verbatim — real newlines, real
+        // characters — rather than a one-line JSON string with every quote, '>', '+' and
+        // Cyrillic letter turned into \uXXXX. Any other args print compactly above it.
+        if (input.TryGetValue("code", out var codeEl) && codeEl.ValueKind == JsonValueKind.String)
+        {
+            var extras = input.Where(kv => kv.Key != "code").ToDictionary(kv => kv.Key, kv => kv.Value);
+            var head = extras.Count > 0 ? Json.Serialize(extras) + "\n" : "";
+            return head + codeEl.GetString();
+        }
+        try { return Json.Serialize(input); }
         catch { return "(unprintable input)"; }
+    }
+
+    // Renders a tool result for the chat pane in a human-readable form: script tools wrap
+    // their output in {"ok":…,"result":"…"} — show that text directly; other JSON is
+    // re-emitted with the relaxed encoder so Cyrillic and symbols read normally; non-JSON is
+    // shown as-is. Display only — the raw content still goes to the model unchanged.
+    private static string FormatResult(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return content;
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("result", out var r) && r.ValueKind == JsonValueKind.String)
+                return r.GetString() ?? "";
+            return Json.Serialize(root);
+        }
+        catch { return content; }
     }
 
     private static string Truncate(string s, int max) => TextUtil.Truncate(s, max);
