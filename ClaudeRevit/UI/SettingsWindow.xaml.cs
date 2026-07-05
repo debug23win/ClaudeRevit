@@ -58,6 +58,7 @@ public partial class SettingsWindow : Window
             ? SettingsStore.AltContextK.ToString(CultureInfo.InvariantCulture)
             : "";
         AltKeyBox.Password = ApiKeyStore.LoadAlt() ?? "";
+        MaxRoundsBox.Text = SettingsStore.MaxToolRounds.ToString(CultureInfo.InvariantCulture);
 
         _initialBalanceText = SettingsStore.BalanceUsd > 0
             ? System.Math.Max(0, SettingsStore.BalanceUsd - SettingsStore.SpentUsd)
@@ -146,6 +147,17 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var roundsText = MaxRoundsBox.Text.Trim();
+        if (!int.TryParse(roundsText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxRounds) ||
+            maxRounds < 1 || maxRounds > 200)
+        {
+            MessageBox.Show(this,
+                "Max tool rounds must be a whole number between 1 and 200.",
+                "Claude Revit",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var balanceText = BalanceBox.Text.Trim();
         var balanceChanged = balanceText != _initialBalanceText;
         decimal balance = 0;
@@ -170,6 +182,7 @@ public partial class SettingsWindow : Window
         SettingsStore.AltBaseUrl = altUrl;
         SettingsStore.AltModel = altModel;
         SettingsStore.AltContextK = contextK;
+        SettingsStore.MaxToolRounds = maxRounds;
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
         if (balanceChanged)

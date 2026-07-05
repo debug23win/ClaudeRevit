@@ -64,6 +64,15 @@ public static class SettingsStore
         set { Current.AltContextK = value; Save(); }
     }
 
+    // Max tool-call rounds the assistant may take within a single user prompt before it
+    // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
+    // turn into thousands of API calls. Default 24.
+    public static int MaxToolRounds
+    {
+        get => Math.Clamp(Current.MaxToolRounds, 1, 200);
+        set { Current.MaxToolRounds = Math.Clamp(value, 1, 200); Save(); }
+    }
+
     // User-entered account balance (from console.anthropic.com) and the estimated
     // spend accumulated since it was entered. The API exposes no balance endpoint,
     // so the pane shows balance − local spend estimate.
@@ -142,6 +151,7 @@ public static class SettingsStore
         public string AltBaseUrl { get; set; } = "";
         public string AltModel { get; set; } = "";
         public int AltContextK { get; set; } = 0;
+        public int MaxToolRounds { get; set; } = 24;
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }

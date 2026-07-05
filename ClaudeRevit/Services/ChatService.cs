@@ -65,7 +65,8 @@ public class ChatService
         "\n\nIMPORTANT: When an action is needed, respond with a tool call whose arguments are valid JSON " +
         "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it.";
 
-    private const int MaxIterations = 24;
+    // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
+    private const int DefaultMaxIterations = 24;
     private const int MaxOutputTokens = 8192;
 
     // Alt providers span 8K local models to 1M Gemini — when the user entered the model's
@@ -198,18 +199,21 @@ public class ChatService
 
         var turnLabel = "Claude: " + Truncate(lastUser, 60);
 
+        // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
+        var maxIterations = SettingsStore.MaxToolRounds;
+
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
             for (int iter = 0; ; iter++)
             {
-                if (iter >= MaxIterations)
+                if (iter >= maxIterations)
                 {
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
                         Role = "assistant",
-                        Text = $"[Stopped after {MaxIterations} tool-call rounds in one prompt. " +
-                               "Say \"continue\" to keep going.]"
+                        Text = $"[Stopped after {maxIterations} tool-call rounds in one prompt. " +
+                               "Say \"continue\" to keep going, or raise the limit in Settings (gear icon).]"
                     }));
                     break;
                 }
