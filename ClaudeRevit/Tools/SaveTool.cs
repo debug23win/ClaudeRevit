@@ -41,7 +41,12 @@ public class SaveTool : IRevitTool
         "Set RequiresTransaction => true when the tool modifies the model (the host wraps Execute in a " +
         "managed transaction that rolls back on error and groups into one undo). Return a short JSON " +
         "string. Prefer a dedicated built-in tool when one already exists; use this to capture recurring " +
-        "execute_csharp work.";
+        "execute_csharp work.\n\n" +
+        "GENERALIZE — do NOT save a one-off snippet. Take the specific element ids, coordinates, sizes and " +
+        "names from the script you just ran and turn them into INPUT PARAMETERS of the tool (as the " +
+        "example turns the level and its new name into inputs). A tool that hardcodes '2776960' or '800mm' " +
+        "is useless the next time. If a pattern can't be parameterized into something you'd call again with " +
+        "different arguments, it isn't worth saving — keep using execute_csharp for genuine one-offs.";
 
     public InputSchema InputSchema => new()
     {
