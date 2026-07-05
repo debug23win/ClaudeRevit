@@ -42,7 +42,8 @@ public class ChatService
         "FAMILY EDITOR: when a family (.rfa) is open for editing, prefer the dedicated family tools " +
         "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
         "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
-        "create_linear_array) over execute_csharp — they are far faster and need no code opt-in. Family " +
+        "create_linear_array, create_family_dimension) over execute_csharp — they are far faster and " +
+        "need no code opt-in. get_element_locations reads positions/bboxes in mm. Family " +
         "length values in these tools are in millimetres; formulas use Revit's own syntax.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
