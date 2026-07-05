@@ -94,7 +94,7 @@ public class ExecuteCSharp : IRevitTool
             var compilation = CSharpCompilation.Create(
                 "ClaudeScript_" + Guid.NewGuid().ToString("N"),
                 [CSharpSyntaxTree.ParseText(source)],
-                RuntimeReferences(),
+                ScriptCompiler.RuntimeReferences(),
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                     optimizationLevel: OptimizationLevel.Release));
 
@@ -149,33 +149,5 @@ public class ExecuteCSharp : IRevitTool
         {
             try { alc.Unload(); } catch { }
         }
-    }
-
-    // Reference the real assemblies currently loaded in the process (not the NuGet
-    // reference-only DLLs, which can't be used to run code). Cached: reading metadata for
-    // hundreds of assemblies on Revit's UI thread per call froze Revit for seconds, and a
-    // single unreadable file (shadow-copied then deleted by another add-in) must skip that
-    // assembly, not brick the whole tool. Rebuilt when the assembly count changes.
-    private static List<MetadataReference>? _cachedReferences;
-    private static int _cachedAssemblyCount;
-
-    private static List<MetadataReference> RuntimeReferences()
-    {
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-        if (_cachedReferences != null && assemblies.Length == _cachedAssemblyCount)
-            return _cachedReferences;
-
-        var refs = new List<MetadataReference>();
-        foreach (var group in assemblies
-                     .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-                     .GroupBy(a => a.GetName().Name))
-        {
-            try { refs.Add(MetadataReference.CreateFromFile(group.First().Location)); }
-            catch { /* vanished/unreadable file — skip this assembly */ }
-        }
-
-        _cachedReferences = refs;
-        _cachedAssemblyCount = assemblies.Length;
-        return refs;
     }
 }

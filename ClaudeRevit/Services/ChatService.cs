@@ -55,7 +55,9 @@ public class ChatService
         "LEARNING: Scripts that worked before are journaled on disk and survive clearing the chat. Proven patterns " +
         "may be listed below — reuse them. get_script_journal shows full past runs; generate_diagnostic_report " +
         "summarizes recurring scripts as candidates for future dedicated tools (also written automatically when " +
-        "Revit closes).\n\n" +
+        "Revit closes). When a script pattern proves itself and would be worth having as a reusable tool, call " +
+        "save_tool to compile it into a persistent, named tool available in this and all future sessions " +
+        "(delete_tool removes one). Prefer this over re-running the same execute_csharp each time.\n\n" +
         "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
         "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
         "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
