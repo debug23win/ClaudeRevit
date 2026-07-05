@@ -2,28 +2,28 @@
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit 2027 — a dockable chat pane with **132 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, draft sketches, and more.
+Claude AI in Autodesk Revit — a dockable chat pane with **153 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
 
 ---
 
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **132 tools** spanning modeling, views, sheets, annotation, schedules, filters, families
+- **153 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **Multiple AI providers** — Claude (Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: DeepSeek, Google Gemini, ChatGPT/OpenAI, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **Single-undo per prompt** — Ctrl+Z reverts everything Claude did in one turn
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
 - **Clickable element IDs** — click any id in a tool result, Revit selects and zooms to that element
-- **Cost telemetry** with prompt caching (1h TTL on system prompt + tools = ~5-7× cheaper for long sessions)
-- **Full context persistence** — the entire API conversation (including tool calls, results and element IDs) survives Revit restarts, so Claude remembers what it built
-- **Automatic compaction** — when the conversation outgrows ~120K tokens, older turns are summarized (via Haiku) instead of overflowing the context window
-- **Conversation prompt caching** — the growing message history is cached alongside the system prompt and tools, so each turn only pays for new tokens
-- **Self-learning** — `save_memory` lets Claude persist your preferences and project standards and apply them in every future session
-- **Full Revit API escape hatch (opt-in)** — for actions no built-in tool covers, Claude can run scripts against the full Revit API: `run_dynamo_python` (preferred — runs via Dynamo, which manages its own transaction) or `execute_csharp` (Roslyn fallback). **Off by default**: enable it with a checkbox in settings; every run also asks for Allow/Deny.
-- **Confirmation for destructive ops** — deleting elements or running code requires an explicit Yes in a dialog
-- **Model picker** — Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5 (+ legacy Sonnet 4.6, Opus 4.7)
-- **Enter to send** — Enter sends the message, Shift+Enter inserts a new line
-- **In-pane API key entry** — gear icon; the key is stored encrypted with Windows DPAPI (no plain-text env var)
+- **Cost & balance telemetry** with prompt caching (1h TTL on system prompt + tools ⇒ ~5–7× cheaper for long sessions); enter your credit balance and the pane shows the remaining estimate
+- **Full context persistence** — the entire API conversation (tool calls, results, element IDs) survives Revit restarts, so Claude remembers what it built
+- **Automatic compaction** — when the conversation outgrows the model's context budget, older turns are summarized instead of overflowing the window
+- **Tool-result aging** — old tool results are truncated in place (and archived) to save tokens in long sessions; `get_full_result` retrieves an archived one on demand
+- **Local learning layer** — `save_memory` persists your preferences and project standards; every script run is journaled with the model delta it produced, proven patterns are injected into the system prompt and **survive clearing the chat**, and a diagnostic report of recurring scripts is written when Revit closes (or on demand via `generate_diagnostic_report`) so they can be promoted into dedicated tools
+- **Full Revit API escape hatch (opt-in)** — for anything no built-in tool covers, Claude can run scripts against the full Revit API: `execute_csharp` (the default — compiled C#, runs in a managed transaction) or `run_dynamo_python` (for Python snippets). **Off by default**: enable it with a checkbox in settings.
+- **Configurable tool-round limit** — cap how many tool-call rounds Claude may take per message (default 24), raise it in Settings for long automated jobs
+- **Optional confirmation for destructive / code ops** — off by default (every turn is one undo step); turn on an Allow/Deny dialog in settings
+- **In-pane API key entry** — gear icon; keys are stored encrypted with Windows DPAPI (no plain-text env var)
 
 ---
 
@@ -33,13 +33,13 @@ You need:
 
 - **Autodesk Revit 2025, 2026 or 2027** — the installer detects which of these you have and lets you tick the ones to install for
 - **Windows** (Revit is Windows-only)
-- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/settings/keys) and add credits in **Billing** — *or* a free/alternative provider (DeepSeek, Gemini, OpenRouter, local Ollama…), configured in Settings
+- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/settings/keys) and add credits in **Billing** — *or* a free/alternative provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama / LM Studio…), configured in Settings
 
 Pick whichever install path you prefer:
 
 ### Option A — Installer .exe (easiest)
 
-Download **`ClaudeRevit-Setup-vX.Y.exe`** from the [latest release](https://github.com/debug23win/ClaudeRevit/releases/latest), double-click, click Next → Install. Done.
+Download **`ClaudeRevit-Setup-vX.Y.exe`** from the [latest release](https://github.com/debug23win/ClaudeRevit/releases/latest), double-click, tick the Revit versions you want → Install. Done.
 
 > Windows SmartScreen may say "Windows protected your PC" the first time (the installer isn't code-signed yet). Click **More info → Run anyway**.
 
@@ -51,7 +51,7 @@ Open PowerShell and run:
 iwr https://raw.githubusercontent.com/debug23win/ClaudeRevit/main/install.ps1 | iex
 ```
 
-Either way: launch Revit, open any project, look for the **Claude** tab in the ribbon. Click **Chat** → the pane opens on the right. First time? Click the **⚙** icon in the pane and paste your API key.
+Either way: launch Revit, open any project, look for the **Claude** tab in the ribbon. Click **Chat** → the pane opens on the right. First time? Click the **⚙** icon in the pane and paste your API key (or configure an alternative provider).
 
 To update later, re-run the installer or the one-liner — both pick up the latest release.
 
@@ -62,8 +62,8 @@ To update later, re-run the installer or the one-liner — both pick up the late
 You need:
 
 - **Visual Studio 2026 Community** (or Rider, or VS Code with C# Dev Kit)
-- **.NET 10 SDK** ([download](https://dotnet.microsoft.com/download/dotnet/10.0))
-- **Autodesk Revit 2027** installed locally (only required for F5 debugging — compile works without it)
+- **.NET 8 SDK** and **.NET 10 SDK** — 2025/2026 target .NET 8, 2027 targets .NET 10
+- **Autodesk Revit** installed locally (only required for F5 debugging — compile works without it)
 
 Steps:
 
@@ -77,37 +77,19 @@ Steps:
 4. Set `ClaudeRevit` as the startup project.
 5. Press **F5**.
 
-The post-build target copies the DLL + addin manifest to `%AppData%\Autodesk\Revit\Addins\2027\` automatically. F5 launches Revit and attaches the debugger.
+The post-build target copies the DLL + addin manifest to `%AppData%\Autodesk\Revit\Addins\<year>\` automatically. F5 launches Revit and attaches the debugger.
 
 ### How the build works
 
 - Revit API references come from **Nice3point.Revit.Api.RevitAPI** and **Nice3point.Revit.Api.RevitAPIUI** NuGet packages — no local Revit install required to compile.
-- The post-build `DeployToRevit` target copies to `%AppData%\Autodesk\Revit\Addins\2027\`. To skip the local deploy (e.g. on CI), pass `-p:SkipDeploy=true`.
+- The post-build `DeployToRevit` target copies to `%AppData%\Autodesk\Revit\Addins\<year>\`. To skip the local deploy (e.g. on CI), pass `-p:SkipDeploy=true`.
 - A separate `PackageRelease` target stages all release artifacts under `bin\Release\release\` — used by the GitHub Actions workflow.
-
----
-
-## Releasing a new version
-
-The `.github/workflows/release.yml` workflow builds and publishes a release whenever a `v*` tag is pushed:
-
-```powershell
-git tag v1.0
-git push origin v1.0
-```
-
-GitHub Actions then:
-1. Restores + builds in Release mode (with `SkipDeploy=true`)
-2. Zips the release artifacts (`ClaudeRevit.dll`, `ClaudeRevit.addin`, `Anthropic.dll`, dependencies)
-3. Creates a GitHub Release with the zip attached and auto-generated release notes
-
-Users get the new version with the same `install.ps1` one-liner.
 
 ---
 
 ## Revit versions
 
-The installer supports **Revit 2025, 2026 and 2027** and ships a separate build for each,
+The plugin supports **Revit 2025, 2026 and 2027** and ships a separate build for each,
 because the versions run on different .NET runtimes (2025/2026 → .NET 8, 2027 → .NET 10).
 At install time, detected versions are pre-checked; tick any you want and each gets the
 matching build in its own `%AppData%\Autodesk\Revit\Addins\<year>\` folder.
@@ -119,29 +101,46 @@ dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:RevitVersion=2026
 ```
 
 The Nice3point API package (`$(RevitVersion).0.*`), the target framework, and the deploy
-folder all follow that one value. Revit 2024 and earlier run .NET Framework 4.8 and are
-out of scope for the current build.
+folder all follow that one value. Version-specific API differences are handled with
+`REVIT2025` / `REVIT2026` / `REVIT2027` compile symbols. Revit 2024 and earlier run
+.NET Framework 4.8 and are out of scope for the current build.
+
+---
+
+## Releasing a new version
+
+The `.github/workflows/release.yml` workflow builds all three Revit versions and publishes
+a release. Trigger it from the Actions tab (**Run workflow** → enter a version like `v1.30`),
+or push a `v*` tag. GitHub Actions then:
+
+1. Builds each Revit version (2025/2026/2027) in Release mode with `SkipDeploy=true`
+2. Produces a per-version zip (`ClaudeRevit-vX.Y-Revit<year>.zip`)
+3. Compiles the Inno Setup installer bundling all three, with a version-picker wizard page
+4. Creates a GitHub Release with the installer + zips and auto-generated notes
+
+Users get the new version with the same installer / `install.ps1` one-liner.
 
 ---
 
 ## Tools
 
-The plugin exposes **132 tools** to Claude across these categories:
+The plugin exposes **153 tools** to Claude across these categories:
 
-- **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings
-- **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams
-- **Reinforcement** — rebar sets (straight bars with count/spacing), area (mesh) reinforcement for walls/floors, rebar type listing and host inspection
-- **Self-learning & escape hatch** — `save_memory` (persistent notes Claude applies in every future session); `run_dynamo_python` / `execute_csharp` (full-API code for actions no tool covers — off by default, enable via a settings checkbox, Allow/Deny per run)
-- **Element ops** — move, rotate, copy, mirror, array, delete, set_parameter, pin/unpin
-- **Views** — 3D, floor plan, ceiling plan, section, elevation, callouts, duplicate, set scale, apply template
-- **Sheets** — create sheets, place views/schedules on sheets
-- **Schedules** — real Revit ViewSchedules with field selection
-- **Annotation** — dimensions, tags, text notes, detail lines, filled regions, reference planes
-- **Visibility** — hide/isolate in view, color overrides, filters
+- **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
+- **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls
+- **Reinforcement** — rebar sets (straight bars with count/spacing), area (mesh) & path reinforcement, rebar cover types, type listing and host inspection
+- **Family Editor** — author parametric families natively: list/add/remove family parameters, set formulas, set values (mm), flip instance/type, associate nested-element parameters, create linear arrays with parametric counts, create labeled dimensions between references
+- **Learning & escape hatch** — `save_memory`, `get_script_journal`, `generate_diagnostic_report`; `execute_csharp` / `run_dynamo_python` (full-API code for actions no tool covers — off by default, enable via a settings checkbox)
+- **Element ops** — move, rotate, copy, mirror, array, delete, set_parameter, pin/unpin, join/unjoin
+- **Views** — 3D, floor plan, ceiling plan, section, elevation, callouts, duplicate, dependent views, set scale, apply template, crop/section box
+- **Sheets** — create sheets, place views/schedules on sheets, move viewports
+- **Schedules** — real Revit ViewSchedules with field selection, CSV export
+- **Annotation** — dimensions, tags, text notes, detail lines, filled regions, reference planes, revisions, spot elevations/coordinates
+- **Visibility** — hide/isolate in view, color overrides, category visibility, filters
 - **Interactive** — `pick_point_in_view` for click-to-place workflows
-- **Families** — load .rfa files, list loaded families, generic instance placement
-- **Groups** — create/place model groups
-- **Export & IO** — export view image, save document
+- **Families** — load .rfa files, list loaded families, generic instance placement, duplicate/edit types
+- **Groups** — create/place/ungroup model groups
+- **Export & IO** — export view image, PDF, DWG, schedule CSV, save document
 - **Selection** — `select_similar` for "select all instances of this type"
 
 See the [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) folder for the full list — every `.cs` file there is one tool.
@@ -150,12 +149,15 @@ See the [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) folder for the full list — e
 
 ## Architecture
 
-- **`App.cs`** — `IExternalApplication` entry point; registers tools, dockable pane, ribbon button
+- **`App.cs`** — `IExternalApplication` entry point; registers tools, dockable pane, ribbon button, and the DocumentChanged learning hook
 - **`Tools/`** — every `IRevitTool` class. Add a new file + register in `App.cs` → it's available to Claude.
 - **`Tools/ToolDispatcher.cs`** — `IExternalEventHandler` that runs tool calls on Revit's API thread. Wraps each tool in a `Transaction`, wraps each turn in a `TransactionGroup` for one-undo-per-prompt.
-- **`Services/AnthropicChatService.cs`** — the agentic loop. Uses `BetaMessageContentAggregator` for streaming text + tool dispatch. Sets cache control on the system prompt and tools list so they're cached for 1 hour (prompt caching).
-- **`UI/ChatPaneView.xaml`** — WPF chat pane (RichTextBox bubbles, markdown rendering, clickable element-id links).
-- **`Services/SelectionService.cs`** — subscribes to Revit's `Idling` event to track selection changes.
+- **`Services/ChatService.cs`** — the provider-agnostic agentic loop. Streams each turn through either the Anthropic API or an OpenAI-compatible backend into a common turn model; sets cache control on the system prompt, tools and history for 1-hour prompt caching; handles compaction and tool-result aging.
+- **`Services/OpenAIBackend.cs`** — SSE streaming, function calling and usage accounting for any OpenAI-compatible endpoint (the "Alt" model).
+- **`Services/ScriptJournal.cs` / `ExperienceStore.cs`** — the learning layer: journals every script run with its model delta, builds the proven-scripts digest injected into the system prompt, and writes the diagnostic report.
+- **`Services/HistoryStore.cs` / `MemoryStore.cs` / `ApiKeyStore.cs` / `SettingsStore.cs`** — persistence: conversation history, Claude's memory, encrypted keys, and settings.
+- **`UI/ChatPaneView.xaml`** — WPF chat pane (virtualized message list, markdown rendering, clickable element-id links).
+- **`Services/SelectionService.cs`** — tracks Revit selection changes to keep Claude's context current.
 
 ---
 
