@@ -111,8 +111,14 @@ public partial class ChatPaneView : UserControl
         ScheduleScroll();
     }
 
+    // Keep the newest message visible. ScrollIntoView on the virtualizing ListBox only
+    // touches the viewport, so this stays cheap no matter how long the history is.
     private void ScheduleScroll() =>
-        Dispatcher.BeginInvoke(new Action(() => MessagesScroll.ScrollToBottom()), DispatcherPriority.Background);
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (Messages.Count > 0)
+                MessagesList.ScrollIntoView(Messages[Messages.Count - 1]);
+        }), DispatcherPriority.Background);
 
     private void UpdateUsageText() =>
         Dispatcher.BeginInvoke(new Action(() => UsageText.Text = UsageTracker.Format()));
