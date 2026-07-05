@@ -162,6 +162,8 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new AssociateFamilyParameter());
             ToolRegistry.Instance.Register(new CreateLinearArray());
             ToolRegistry.Instance.Register(new CreateFamilyDimension());
+            ToolRegistry.Instance.Register(new ListFamilyInstances());
+            ToolRegistry.Instance.Register(new ListFamilyDimensions());
             ToolRegistry.Instance.Register(new GetElementLocations());
             ToolRegistry.Instance.Register(new GetScriptJournal());
             ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
