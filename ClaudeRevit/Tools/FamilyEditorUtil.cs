@@ -105,4 +105,14 @@ internal static class FamilyEditorUtil
     {
         try { return ct.AsValueString(p); } catch { return null; }
     }
+
+    // A parameter "errors" when its value can't be evaluated under the current type — the
+    // classic sign of a broken formula or a bad constraint. This is the health check the
+    // family scripts kept running by hand ("foreach param: try AsValueString; count fails").
+    public static bool ValueErrors(FamilyManager fm, FamilyParameter p)
+    {
+        var ct = fm.CurrentType;
+        if (ct == null) return false;
+        try { ct.AsValueString(p); return false; } catch { return true; }
+    }
 }

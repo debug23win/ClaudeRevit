@@ -53,9 +53,15 @@ public class GetFamilyParameters : IRevitTool
         var formulasOnly = ToolInput.Flag(input, "formulas_only");
 
         var list = new List<object>();
+        var errored = new List<string>();
         foreach (FamilyParameter p in fm.Parameters)
         {
             var name = p.Definition.Name;
+            // Health check runs over every parameter (even filtered-out ones), so the
+            // errored count reflects the whole family, not just the shown subset.
+            var isErrored = FamilyEditorUtil.ValueErrors(fm, p);
+            if (isErrored) errored.Add(name);
+
             if (!string.IsNullOrEmpty(filter) &&
                 name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
             if (formulasOnly && !p.IsDeterminedByFormula) continue;
@@ -71,7 +77,8 @@ public class GetFamilyParameters : IRevitTool
                 formula = p.IsDeterminedByFormula ? (p.Formula ?? "") : null,
                 value_raw = raw,
                 value_mm = mm,
-                value_display = display
+                value_display = display,
+                errored = isErrored
             });
         }
 
@@ -82,6 +89,10 @@ public class GetFamilyParameters : IRevitTool
             type_count = fm.Types.Size,
             current_type = SafeCurrentTypeName(fm),
             count = list.Count,
+            // Family health: parameters whose value can't be evaluated (broken formula /
+            // constraint). errored_count == 0 means the family regenerates cleanly.
+            errored_count = errored.Count,
+            errored_parameters = errored,
             parameters = list
         });
     }

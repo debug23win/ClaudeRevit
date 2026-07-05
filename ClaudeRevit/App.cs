@@ -164,6 +164,8 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new CreateFamilyDimension());
             ToolRegistry.Instance.Register(new ListFamilyInstances());
             ToolRegistry.Instance.Register(new ListFamilyDimensions());
+            ToolRegistry.Instance.Register(new ListReferencePlanes());
+            ToolRegistry.Instance.Register(new GetDependentElements());
             ToolRegistry.Instance.Register(new GetElementLocations());
             ToolRegistry.Instance.Register(new GetScriptJournal());
             ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
