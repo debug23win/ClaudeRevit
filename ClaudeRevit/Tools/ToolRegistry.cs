@@ -10,20 +10,42 @@ public class ToolRegistry
     private static ToolRegistry? _instance;
     public static ToolRegistry Instance => _instance ??= new ToolRegistry();
 
+    // Guards the map: built-ins register on startup, but dynamic tools (DynamicToolLoader)
+    // register/unregister from the Revit API thread mid-session while ChatService reads the
+    // list from an async continuation to build the per-turn tool defs.
+    private readonly object _gate = new();
     private readonly Dictionary<string, IRevitTool> _tools = new();
 
-    public void Register(IRevitTool tool) => _tools[tool.Name] = tool;
+    public void Register(IRevitTool tool)
+    {
+        lock (_gate) _tools[tool.Name] = tool;
+    }
 
-    public IRevitTool? Get(string name) =>
-        _tools.TryGetValue(name, out var tool) ? tool : null;
+    public bool Unregister(string name)
+    {
+        lock (_gate) return _tools.Remove(name);
+    }
 
-    public IReadOnlyCollection<IRevitTool> All => _tools.Values;
+    public IRevitTool? Get(string name)
+    {
+        lock (_gate) return _tools.TryGetValue(name, out var tool) ? tool : null;
+    }
 
-    public IReadOnlyList<BetaTool> BuildToolDefinitions() =>
-        _tools.Values.Select(t => new BetaTool
-        {
-            Name = t.Name,
-            Description = t.Description,
-            InputSchema = t.InputSchema
-        }).ToList();
+    // Snapshot so callers iterate a stable list even if a dynamic tool is (un)registered
+    // concurrently.
+    public IReadOnlyCollection<IRevitTool> All
+    {
+        get { lock (_gate) return _tools.Values.ToList(); }
+    }
+
+    public IReadOnlyList<BetaTool> BuildToolDefinitions()
+    {
+        lock (_gate)
+            return _tools.Values.Select(t => new BetaTool
+            {
+                Name = t.Name,
+                Description = t.Description,
+                InputSchema = t.InputSchema
+            }).ToList();
+    }
 }

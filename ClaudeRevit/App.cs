@@ -166,6 +166,9 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetScriptJournal());
             ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
             ToolRegistry.Instance.Register(new GetFullResult());
+            // Self-extension: create/remove persistent custom tools loaded from disk.
+            ToolRegistry.Instance.Register(new SaveTool());
+            ToolRegistry.Instance.Register(new DeleteTool());
             // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
             // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
             // gone; no Dynamo dependency). RunDynamoPython remains for Python-flavoured
@@ -173,6 +176,15 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolRegistry.Instance.Register(new RunDynamoPython());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
+
+            // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
+            // tools\*.cs. Only loads when code execution is enabled (dynamic tools are
+            // arbitrary compiled code). A broken tool file is skipped, never fatal.
+            var dyn = Tools.DynamicToolLoader.LoadAll();
+            if (dyn.Loaded.Count > 0 || dyn.Errors.Count > 0)
+                Services.Log.Info(
+                    $"Dynamic tools: loaded {dyn.Loaded.Count} ({string.Join(", ", dyn.Loaded)}); " +
+                    $"errors {dyn.Errors.Count}.");
 
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
