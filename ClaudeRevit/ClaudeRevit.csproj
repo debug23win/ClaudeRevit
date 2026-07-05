@@ -51,6 +51,16 @@
     </None>
   </ItemGroup>
 
+  <!-- Embed every tool's own source so a built-in can be READ (get_tool_source) and
+       "ejected" to an editable override file at runtime (DynamicToolLoader.Eject). The .cs
+       files stay normal Compile items too; embedding is additive. Logical name is
+       toolsrc/<file>.cs so it can be found by the tool's class name. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Tools\**\*.cs">
+      <LogicalName>toolsrc/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
   <!-- After build: copy our DLL, dependency DLLs, and .addin manifest to the user's
        Revit Addins folder. Skipped when SkipDeploy=true (CI builds). -->
   <Target Name="DeployToRevit" AfterTargets="Build" Condition="'$(SkipDeploy)' != 'true'">
