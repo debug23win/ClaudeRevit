@@ -14,10 +14,11 @@ public class GetToolSource : IRevitTool
     public string Name => "get_tool_source";
 
     public string Description =>
-        "Returns the C# source of a custom tool previously created with save_tool. Use it to refine an " +
-        "existing tool: read the source, change it, then call save_tool with the SAME name to overwrite " +
-        "and reload it. Only custom tools have source (built-in tools do not). Requires the code-execution " +
-        "opt-in.";
+        "Returns the C# source of ANY tool by name — a custom tool created with save_tool, or a built-in " +
+        "(its original source is embedded in the add-in). Use it to study a tool, or to refine one: read " +
+        "the source, change it, then save_tool with the SAME name. For a built-in, eject_tool first (or " +
+        "just save_tool the same name) to install an editable override; delete_tool reverts to the " +
+        "compiled original. Requires the code-execution opt-in.";
 
     public InputSchema InputSchema => new()
     {

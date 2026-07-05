@@ -35,7 +35,18 @@ public static class DynamicToolLoader
     private static readonly Dictionary<string, LoadedFile> Loaded = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> DynamicNames = new(StringComparer.Ordinal);
 
+    // When an override file shadows a compiled built-in, we keep the original instance here so
+    // deleting the override restores the built-in exactly.
+    private static readonly Dictionary<string, IRevitTool> OverriddenBuiltins = new(StringComparer.Ordinal);
+
+    // Every dynamic/override assembly compiles under this fixed name so ClaudeRevit's
+    // [InternalsVisibleTo] grants it access to the internal helpers (ToolInput, Services.Json,
+    // FamilyEditorUtil…) that the built-in tools use — otherwise an ejected built-in couldn't
+    // recompile. ALCs keep the same-named assemblies isolated.
+    private const string DynamicAssemblyName = "ClaudeRevitDynamicTools";
+
     public static bool IsDynamic(string toolName) => DynamicNames.Contains(toolName);
+    public static bool IsOverride(string toolName) => OverriddenBuiltins.ContainsKey(toolName);
 
     public sealed class Report
     {
@@ -72,8 +83,7 @@ public static class DynamicToolLoader
     private static List<string> LoadFile(string file)
     {
         var source = File.ReadAllText(file);
-        var (bytes, error) = ScriptCompiler.CompileAssembly(
-            source, "ClaudeDynTool_" + Path.GetFileNameWithoutExtension(file) + "_" + Guid.NewGuid().ToString("N"));
+        var (bytes, error) = ScriptCompiler.CompileAssembly(source, DynamicAssemblyName);
         if (bytes == null)
             throw new InvalidOperationException("compile error:\n" + error);
 
@@ -115,15 +125,6 @@ public static class DynamicToolLoader
                 try { alc.Unload(); } catch { }
                 throw new InvalidOperationException($"{t.Name}.Name is empty.");
             }
-            // A dynamic tool must never shadow a built-in (that would let learned code hijack
-            // create_wall etc.). Replacing a prior DYNAMIC version of the same name is fine.
-            if (ToolRegistry.Instance.Get(tool.Name) is { } existing
-                && existing is not DynamicToolProxy && !DynamicNames.Contains(tool.Name))
-            {
-                try { alc.Unload(); } catch { }
-                throw new InvalidOperationException(
-                    $"a built-in tool named '{tool.Name}' already exists — choose a different name.");
-            }
             instances.Add(tool);
         }
 
@@ -132,6 +133,13 @@ public static class DynamicToolLoader
         var names = new List<string>();
         foreach (var tool in instances)
         {
+            // If this shadows a compiled built-in, remember the original so deleting the
+            // override restores it exactly. (A file that shadows another dynamic tool just
+            // replaces it.)
+            if (ToolRegistry.Instance.Get(tool.Name) is { } existing
+                && existing is not DynamicToolProxy && !OverriddenBuiltins.ContainsKey(tool.Name))
+                OverriddenBuiltins[tool.Name] = existing;
+
             ToolRegistry.Instance.Register(new DynamicToolProxy(tool));
             DynamicNames.Add(tool.Name);
             names.Add(tool.Name);
@@ -148,6 +156,12 @@ public static class DynamicToolLoader
         {
             ToolRegistry.Instance.Unregister(n);
             DynamicNames.Remove(n);
+            // If this was an override of a built-in, put the compiled built-in back.
+            if (OverriddenBuiltins.TryGetValue(n, out var original))
+            {
+                ToolRegistry.Instance.Register(original);
+                OverriddenBuiltins.Remove(n);
+            }
         }
         try { lf.Alc.Unload(); } catch { }
         Loaded.Remove(file);
@@ -228,14 +242,46 @@ public static class DynamicToolLoader
         return result;
     }
 
-    // The source of a custom tool by name — so the model can read, edit and re-save it
-    // (save_tool overwrites the same file). Falls back to the on-disk file even if the tool
-    // isn't currently loaded (e.g. code execution was off at startup).
+    // The source of a tool by name — the on-disk override/custom file if there is one, else
+    // the built-in's original source embedded in the add-in. So the model can read ANY tool
+    // (built-in included) to study or refine it.
     public static string? GetSource(string name)
     {
         var loadedFile = Loaded.FirstOrDefault(kv => kv.Value.ToolNames.Contains(name)).Key;
         var file = loadedFile ?? Path.Combine(ToolsDir, Sanitize(name) + ".cs");
-        return File.Exists(file) ? File.ReadAllText(file) : null;
+        if (File.Exists(file)) return File.ReadAllText(file);
+        return BuiltinSource(name);
+    }
+
+    // The C# source of a compiled built-in tool, read from the embedded resources shipped in
+    // the add-in (Tools/*.cs, embedded as toolsrc/<ClassName>.cs). Returns null for a custom
+    // tool (its source is on disk) or an unknown name.
+    private static string? BuiltinSource(string name)
+    {
+        var tool = ToolRegistry.Instance.Get(name);
+        if (tool == null || tool is DynamicToolProxy) return null;
+        var typeName = tool.GetType().Name;
+        var asm = typeof(DynamicToolLoader).Assembly;
+        var res = asm.GetManifestResourceNames()
+            .FirstOrDefault(r => r.EndsWith("/" + typeName + ".cs", StringComparison.Ordinal)
+                              || r.EndsWith("." + typeName + ".cs", StringComparison.Ordinal));
+        if (res == null) return null;
+        using var s = asm.GetManifestResourceStream(res);
+        if (s == null) return null;
+        using var reader = new StreamReader(s);
+        return reader.ReadToEnd();
+    }
+
+    // "Ejects" a tool to an editable override file that shadows the compiled version, so it can
+    // then be edited on the fly with save_tool (same name) and reverted with delete_tool. For
+    // a built-in this copies its embedded source out; for a tool already ejected it is a no-op
+    // re-save.
+    public static SaveResult Eject(string name)
+    {
+        var src = GetSource(name)
+            ?? throw new InvalidOperationException(
+                $"No source found for tool '{name}'. Check the exact tool name.");
+        return SaveAndLoad(name, src);
     }
 
     // Names the source file; sanitised so a tool name can't escape the tools directory.
