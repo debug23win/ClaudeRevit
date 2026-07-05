@@ -46,6 +46,10 @@ public class ChatService
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
+        "LEARNING: Scripts that worked before are journaled on disk and survive clearing the chat. Proven patterns " +
+        "may be listed below — reuse them. get_script_journal shows full past runs; generate_diagnostic_report " +
+        "summarizes recurring scripts as candidates for future dedicated tools (also written automatically when " +
+        "Revit closes).\n\n" +
         "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
         "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
         "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
@@ -113,6 +117,10 @@ public class ChatService
 
     public void ClearHistory()
     {
+        // Clears only the conversation. The learning layer (ScriptJournal, MemoryStore,
+        // ExperienceStore digest) lives in its own files under %AppData%\ClaudeRevit and is
+        // deliberately NOT touched here — accumulated experience must outlive a window clear,
+        // and the digest already sits in the (session-stable) system prompt.
         _history.Clear();
         _lastPromptTokens = 0;
         HistoryStore.Clear();
@@ -465,6 +473,8 @@ public class ChatService
         var sys = new StringBuilder(AltPromptPrefix).Append(SystemPromptBody).Append(AltPromptSuffix);
         if (MemorySection() is { } memory)
             sys.Append("\n\n").Append(memory);
+        if (ExperienceStore.Digest() is { } experience)
+            sys.Append("\n\n").Append(experience);
         return sys.ToString();
     }
 
@@ -504,6 +514,16 @@ public class ChatService
             blocks.Add(new BetaTextBlockParam
             {
                 Text = memory,
+                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
+            });
+        }
+        // Proven-script experience: session-stable (see ExperienceStore.Digest) so it can
+        // share the 1h prompt cache. Carries learned know-how into a fresh/cleared window.
+        if (ExperienceStore.Digest() is { } experience)
+        {
+            blocks.Add(new BetaTextBlockParam
+            {
+                Text = experience,
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             });
         }

@@ -152,6 +152,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new SaveProjectMemory());
             ToolRegistry.Instance.Register(new GetScriptJournal());
+            ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
             ToolRegistry.Instance.Register(new GetFullResult());
             // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
             // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
@@ -201,6 +202,10 @@ public class App : IExternalApplication
     {
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
+        catch { /* shutting down anyway */ }
+        // Post-close learning report: summarize the accumulated Dynamo/C# scripts into a
+        // developer-facing file so recurring patterns can be promoted to native tools.
+        try { ExperienceStore.WriteDiagnosticReport(); }
         catch { /* shutting down anyway */ }
         // Spend persistence is debounced (30s) — flush the tail so short sessions don't
         // silently under-count and inflate the balance countdown.
