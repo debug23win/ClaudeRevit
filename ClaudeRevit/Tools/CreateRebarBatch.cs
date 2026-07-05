@@ -87,10 +87,18 @@ public class CreateRebarBatch : IRevitTool
                 var norm = ReinforcementHelpers.PerpendicularTo(dir);
 
                 var curves = new List<Curve> { Line.CreateBound(start, end) };
+#if REVIT2025
+                // Revit 2025 predates BarTerminationsData — see CreateRebar for the rationale.
+                var rebar = Rebar.CreateFromCurves(
+                    doc, RebarStyle.Standard, barType, null, null, host, norm, curves,
+                    RebarHookOrientation.Left, RebarHookOrientation.Left,
+                    useExistingShapeIfPossible: true, createNewShape: true);
+#else
                 using var terminations = new BarTerminationsData(doc);
                 var rebar = Rebar.CreateFromCurves(
                     doc, RebarStyle.Standard, barType, host, norm, curves,
                     terminations, useExistingShapeIfPossible: true, createNewShape: true);
+#endif
 
                 created.Add(new { index, id = rebar.Id.Value, length_ft = Math.Round(start.DistanceTo(end), 3) });
             }

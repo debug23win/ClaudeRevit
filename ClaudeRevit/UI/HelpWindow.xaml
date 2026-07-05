@@ -68,7 +68,8 @@
                             • Ключи хранятся зашифрованными (Windows DPAPI) в %AppData%\ClaudeRevit.&#10;
                             • Подтверждения операций по умолчанию выключены (всё откатывается Ctrl+Z); включить обратно можно в настройках.&#10;
                             • Строка внизу панели: токены, процент кэша, стоимость сессии (только Anthropic) и остаток баланса, если вы ввели его в настройках.&#10;
-                            • История чата сжимается автоматически, а кэш запросов снижает стоимость длинных сессий — держать одну длинную сессию выгоднее, чем много коротких.
+                            • История чата сжимается автоматически, а кэш запросов снижает стоимость длинных сессий — держать одну длинную сессию выгоднее, чем много коротких.&#10;
+                            • Результаты инструментов из прошлых запросов автоматически ужимаются (полный текст сохраняется, ассистент при необходимости достаёт его через get_full_result) — это главная экономия токенов в длинных сессиях.
                         </TextBlock>
                     </StackPanel>
                 </ScrollViewer>
@@ -133,7 +134,8 @@
                             • Keys are stored encrypted (Windows DPAPI) in %AppData%\ClaudeRevit.&#10;
                             • Per-operation confirmations are off by default (everything is Ctrl+Z-able); re-enable them in Settings.&#10;
                             • The pane footer shows tokens, cache hit rate, session cost (Anthropic only) and the balance remainder if you entered one in Settings.&#10;
-                            • Chat history compacts automatically and prompt caching keeps long sessions cheap — one long session beats many short ones.
+                            • Chat history compacts automatically and prompt caching keeps long sessions cheap — one long session beats many short ones.&#10;
+                            • Tool results from earlier prompts are automatically shrunk (the full text is archived; the assistant retrieves it on demand via get_full_result) — the biggest token saving in long sessions.
                         </TextBlock>
                     </StackPanel>
                 </ScrollViewer>

@@ -8,7 +8,8 @@ public static class UsageTracker
     // Per-model accumulators
     private static readonly Dictionary<string, ModelUsage> _byModel = new();
 
-    // Base rates per million tokens
+    // Base (list) rates per million tokens, USD. Time-limited launch discounts are
+    // applied in RateFor, not baked in here, so they revert automatically when they end.
     private static readonly Dictionary<string, (decimal Input, decimal Output)> _rates = new()
     {
         ["sonnet-5"] = (3.0m, 15.0m),
@@ -18,6 +19,11 @@ public static class UsageTracker
         ["sonnet-4-6"] = (3.0m, 15.0m),
         ["opus-4-7"] = (5.0m, 25.0m)
     };
+
+    // Sonnet 5 launched with introductory pricing of $2/$10 per MTok through
+    // 2026-08-31; it reverts to the $3/$15 list rate above afterwards. Charging the
+    // list rate during the intro window overstated spend by ~50% on the default model.
+    private static readonly DateTime Sonnet5IntroEndUtc = new(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
 
     // 1-hour cache: write = 2x base input rate; read = 0.1x base input rate
     private const decimal CacheWriteMultiplier = 2.0m;
@@ -31,6 +37,11 @@ public static class UsageTracker
         if (modelTag.StartsWith("alt:", StringComparison.Ordinal))
         {
             rate = (0m, 0m);
+            return true;
+        }
+        if (modelTag == "sonnet-5" && DateTime.UtcNow < Sonnet5IntroEndUtc)
+        {
+            rate = (2.0m, 10.0m); // introductory pricing (reverts to list on 2026-09-01)
             return true;
         }
         if (_rates.TryGetValue(modelTag, out rate)) return true;

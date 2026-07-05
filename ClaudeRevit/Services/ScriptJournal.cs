@@ -110,31 +110,64 @@ public static class ScriptJournal
 
             // File work (append + possible 2MB trim rewrite) has no Revit dependency —
             // keep it off the UI thread so the tool result isn't held up by bookkeeping.
-            System.Threading.Tasks.Task.Run(() =>
+            // A serialized continuation CHAIN (not bare Task.Run): entries land in
+            // completion order, and ReadRecent can await the chain's tail for
+            // read-your-writes semantics.
+            lock (QueueGate)
             {
-                try
-                {
-                    lock (FileGate)
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                        File.AppendAllText(FilePath, entry + "\n");
-                        TrimIfOversized();
-                    }
-                }
-                catch { /* best-effort */ }
-            });
+                _writeQueue = _writeQueue.ContinueWith(
+                    _ => AppendEntry(entry),
+                    System.Threading.CancellationToken.None,
+                    System.Threading.Tasks.TaskContinuationOptions.None,
+                    System.Threading.Tasks.TaskScheduler.Default);
+            }
+        }
+        catch { /* best-effort */ }
+    }
+
+    private static void AppendEntry(string entry)
+    {
+        try
+        {
+            lock (FileGate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                File.AppendAllText(FilePath, entry + "\n");
+                TrimIfOversized();
+            }
         }
         catch { /* best-effort */ }
     }
 
     private static readonly object FileGate = new();
+    private static readonly object QueueGate = new();
+    private static System.Threading.Tasks.Task _writeQueue = System.Threading.Tasks.Task.CompletedTask;
 
     public static List<JsonElement> ReadRecent(int limit)
     {
+        // Wait for queued writes so a get_script_journal call right after a script run
+        // sees that run (appends are milliseconds; the timeout only guards a stuck disk).
+        System.Threading.Tasks.Task pending;
+        lock (QueueGate) pending = _writeQueue;
+        try { pending.Wait(TimeSpan.FromSeconds(3)); } catch { /* read what's there */ }
+
         try
         {
-            if (!File.Exists(FilePath)) return [];
-            return File.ReadAllLines(FilePath)
+            // FileGate keeps the read out of the middle of a trim rewrite.
+            lock (FileGate)
+            {
+                if (!File.Exists(FilePath)) return [];
+                return ReadEntries(limit);
+            }
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static List<JsonElement> ReadEntries(int limit) =>
+        File.ReadAllLines(FilePath)
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .Reverse()
                 .Take(limit)
@@ -146,12 +179,6 @@ public static class ScriptJournal
                 .Where(e => e != null)
                 .Select(e => e!.Value)
                 .ToList();
-        }
-        catch
-        {
-            return [];
-        }
-    }
 
     private static void TrimIfOversized()
     {
@@ -164,6 +191,5 @@ public static class ScriptJournal
         catch { /* best-effort */ }
     }
 
-    private static string? Truncate(string? s, int max) =>
-        s == null ? null : s.Length <= max ? s : s[..max] + " …(truncated)";
+    private static string? Truncate(string? s, int max) => TextUtil.TruncateOrNull(s, max);
 }

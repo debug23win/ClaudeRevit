@@ -7,14 +7,16 @@
 ;
 ; The installer:
 ;   - Targets per-user install (no admin)
-;   - Installs to %AppData%\Autodesk\Revit\Addins\2027\
+;   - Lets the user tick which installed Revit versions (2025/2026/2027) to install for;
+;     detected versions are pre-checked. The matching per-version build (net8/net10) is
+;     copied into that version's %AppData%\Autodesk\Revit\Addins\<year>\ folder.
 ;   - Detects if Revit is running, asks to close
-;   - Clean uninstall removes our files (but leaves user's history + API key)
+;   - Clean uninstall removes our files (but leaves user's history + API key in
+;     %AppData%\ClaudeRevit)
 
 #define MyAppName "Claude Revit"
 #define MyAppPublisher "roubaudal-maker"
 #define MyAppURL "https://github.com/roubaudal-maker/ClaudeRevit"
-#define RevitVersion "2027"
 
 #ifndef AppVersion
   #define AppVersion "v0.0-dev"
@@ -32,7 +34,9 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases
-DefaultDirName={userappdata}\Autodesk\Revit\Addins\{#RevitVersion}
+; {app} is only a registration anchor now — files go to each Revit version's Addins
+; folder via absolute DestDir below, so the directory page is hidden.
+DefaultDirName={userappdata}\ClaudeRevit\install
 DisableProgramGroupPage=yes
 DisableDirPage=yes
 PrivilegesRequired=lowest
@@ -42,7 +46,6 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName={#MyAppName}
-UninstallDisplayIcon={app}\ClaudeRevit.dll
 CloseApplications=yes
 CloseApplicationsFilter=*.dll
 SetupLogging=yes
@@ -50,12 +53,42 @@ SetupLogging=yes
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; Each version's payload is copied only when its checkbox is ticked (Check: WantVersion),
+; into that Revit version's per-user Addins folder.
 [Files]
-Source: "..\ClaudeRevit\bin\Release\release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "payload\2025\*"; DestDir: "{userappdata}\Autodesk\Revit\Addins\2025"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: WantVersion('2025')
+Source: "payload\2026\*"; DestDir: "{userappdata}\Autodesk\Revit\Addins\2026"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: WantVersion('2026')
+Source: "payload\2027\*"; DestDir: "{userappdata}\Autodesk\Revit\Addins\2027"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: WantVersion('2027')
+
+[Run]
+Filename: "{#MyAppURL}/blob/main/README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent unchecked
 
 [Code]
 var
   RevitWasRunning: Boolean;
+  VersionsPage: TWizardPage;
+  ChkVer: array[0..2] of TNewCheckBox;
+
+// Inno's Pascal Script has no typed array constants, so the version list is a function.
+function VersionAt(Index: Integer): String;
+begin
+  case Index of
+    0: Result := '2025';
+    1: Result := '2026';
+    2: Result := '2027';
+  else
+    Result := '';
+  end;
+end;
+
+// A Revit version is "installed" if either its all-users add-ins folder (created by the
+// Revit installer) or its program folder exists.
+function RevitInstalled(Ver: String): Boolean;
+begin
+  Result := DirExists(ExpandConstant('{commonappdata}\Autodesk\Revit\Addins\' + Ver))
+         or DirExists(ExpandConstant('{commonpf}\Autodesk\Revit ' + Ver))
+         or DirExists(ExpandConstant('{commonpf64}\Autodesk\Revit ' + Ver));
+end;
 
 function IsRevitRunning: Boolean;
 var
@@ -65,8 +98,76 @@ begin
   if Exec('powershell.exe',
           '-NoProfile -NonInteractive -Command "exit ([int](Get-Process -Name Revit -ErrorAction SilentlyContinue).Count -gt 0)"',
           '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
     Result := (ResultCode = 1);
+end;
+
+procedure InitializeWizard;
+var
+  i, y: Integer;
+  anyDetected: Boolean;
+  intro: TNewStaticText;
+begin
+  VersionsPage := CreateCustomPage(
+    wpWelcome,
+    'Choose Revit versions',
+    'Tick the Revit versions you want to install Claude for.');
+
+  intro := TNewStaticText.Create(VersionsPage);
+  intro.Parent := VersionsPage.Surface;
+  intro.Top := 0;
+  intro.Left := 0;
+  intro.Width := VersionsPage.SurfaceWidth;
+  intro.AutoSize := False;
+  intro.Height := 34;
+  intro.WordWrap := True;
+  intro.Caption := 'Installed versions are detected and pre-selected. Each version gets the '
+    + 'build that matches its .NET runtime (2025/2026 = .NET 8, 2027 = .NET 10).';
+
+  anyDetected := False;
+  y := 42;
+  for i := 0 to 2 do
+  begin
+    ChkVer[i] := TNewCheckBox.Create(VersionsPage);
+    ChkVer[i].Parent := VersionsPage.Surface;
+    ChkVer[i].Top := y;
+    ChkVer[i].Left := 0;
+    ChkVer[i].Width := VersionsPage.SurfaceWidth;
+    if RevitInstalled(VersionAt(i)) then
+    begin
+      ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (detected)';
+      ChkVer[i].Checked := True;
+      anyDetected := True;
+    end
+    else
+      ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (not detected — tick to install anyway)';
+    y := y + 26;
+  end;
+
+  // Nothing detected: default to the newest so a working install is one click away.
+  if not anyDetected then
+    ChkVer[2].Checked := True;
+end;
+
+function WantVersion(Ver: String): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  for i := 0 to 2 do
+    if VersionAt(i) = Ver then
+      Result := ChkVer[i].Checked;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = VersionsPage.ID then
+  begin
+    if not (ChkVer[0].Checked or ChkVer[1].Checked or ChkVer[2].Checked) then
+    begin
+      MsgBox('Select at least one Revit version to install for.', mbError, MB_OK);
+      Result := False;
+    end;
   end;
 end;
 
@@ -98,13 +199,3 @@ begin
         mbInformation, MB_OK);
   end;
 end;
-
-[Run]
-Filename: "{#MyAppURL}/blob/main/README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent unchecked
-
-[UninstallDelete]
-Type: files; Name: "{app}\ClaudeRevit.dll"
-Type: files; Name: "{app}\ClaudeRevit.addin"
-Type: files; Name: "{app}\Anthropic.dll"
-Type: files; Name: "{app}\Microsoft.Extensions.AI.Abstractions.dll"
-Type: files; Name: "{app}\ClaudeRevit.pdb"

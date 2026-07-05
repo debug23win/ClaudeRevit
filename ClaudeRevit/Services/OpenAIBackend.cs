@@ -29,12 +29,15 @@ public sealed class OpenAIBackend
         !string.IsNullOrWhiteSpace(SettingsStore.AltBaseUrl) &&
         !string.IsNullOrWhiteSpace(SettingsStore.AltModel);
 
+    // toolsJson comes prebuilt (see BuildTools) so the ~130-tool schema array is not
+    // re-serialized on every agentic-loop iteration; DeepClone because a JsonNode can
+    // only have one parent.
     public async Task<BackendTurn> StreamTurnAsync(
         string systemPrompt,
         IReadOnlyList<ApiTurn> history,
         string dynamicContext,
-        IReadOnlyList<IRevitTool> tools,
-        Action<string> onTextDelta,
+        JsonArray toolsJson,
+        Func<string, Task> onTextDelta,
         CancellationToken ct)
     {
         var body = new JsonObject
@@ -43,14 +46,14 @@ public sealed class OpenAIBackend
             ["messages"] = BuildMessages(systemPrompt, history, dynamicContext),
             ["stream"] = true,
             // Most compatible providers honor this and report usage in a final chunk;
-            // ones that don't just ignore it (we then estimate output tokens below).
-            ["stream_options"] = new JsonObject { ["include_usage"] = true },
-            ["max_tokens"] = MaxOutputTokens
+            // ones that don't just ignore it (we then estimate the tokens below).
+            ["stream_options"] = new JsonObject { ["include_usage"] = true }
         };
-        if (tools.Count > 0)
-            body["tools"] = BuildTools(tools);
+        if (toolsJson.Count > 0)
+            body["tools"] = toolsJson.DeepClone();
 
-        using var resp = await SendAsync(body, ct);
+        var (resp, requestChars) = await SendAsync(body, ct);
+        using var _ = resp;
 
         var turn = new BackendTurn();
         var text = new StringBuilder();
@@ -88,7 +91,9 @@ public sealed class OpenAIBackend
                 if (piece.Length > 0)
                 {
                     text.Append(piece);
-                    onTextDelta(piece);
+                    // Awaited: the UI dispatcher provides backpressure so a fast local
+                    // provider can't flood Revit's UI thread with queued closures.
+                    await onTextDelta(piece);
                 }
             }
             // delta.reasoning_content (DeepSeek R1 etc.) is intentionally dropped: it has
@@ -101,9 +106,12 @@ public sealed class OpenAIBackend
 
         if (!gotUsage)
         {
-            // Rough fallback so the token counter isn't stuck at zero on providers that
-            // ignore stream_options (≈4 chars per token).
+            // Rough fallback (≈4 chars per token) so accounting works on providers that
+            // ignore stream_options. The INPUT estimate matters most: ChatService's
+            // history-compaction trigger reads it — leaving it 0 would grow the
+            // conversation past the model's context window with no compaction ever.
             turn.OutputTokens = Math.Max(1, text.Length / 4);
+            turn.InputTokens = Math.Max(1, requestChars / 4);
         }
 
         if (text.Length > 0)
@@ -129,10 +137,10 @@ public sealed class OpenAIBackend
             {
                 new JsonObject { ["role"] = "user", ["content"] = userContent }
             },
-            ["stream"] = false,
-            ["max_tokens"] = 2000
+            ["stream"] = false
         };
-        using var resp = await SendAsync(body, ct);
+        var (resp, _) = await SendAsync(body, ct, maxTokens: 2000);
+        using var __ = resp;
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
         var root = doc.RootElement;
         ThrowOnStreamError(root);
@@ -145,35 +153,67 @@ public sealed class OpenAIBackend
         return null;
     }
 
-    private static async Task<HttpResponseMessage> SendAsync(JsonObject body, CancellationToken ct)
-    {
-        var (resp, error) = await PostOnceAsync(body, ct);
-        if (resp != null) return resp;
+    // Endpoints that rejected max_tokens once (gpt-5 family, o-series want
+    // max_completion_tokens) — remembered per base URL so every later request uses the
+    // right parameter directly instead of paying a failed round trip each call.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool>
+        NeedsMaxCompletionTokens = new();
 
-        // Newer OpenAI models (gpt-5 family, o-series) dropped max_tokens in favour of
-        // max_completion_tokens — swap and retry once when the provider says exactly that.
-        if (error!.Contains("max_completion_tokens") && body.ContainsKey("max_tokens"))
+    private static async Task<(HttpResponseMessage Resp, int RequestChars)> SendAsync(
+        JsonObject body, CancellationToken ct, int maxTokens = MaxOutputTokens)
+    {
+        var baseUrl = SettingsStore.AltBaseUrl.TrimEnd('/');
+        // The key cannot change mid-turn — read the DPAPI file once per request cycle,
+        // not once per retry.
+        var key = ApiKeyStore.LoadAlt();
+
+        var limitParam = NeedsMaxCompletionTokens.ContainsKey(baseUrl)
+            ? "max_completion_tokens" : "max_tokens";
+        body[limitParam] = maxTokens;
+
+        var (resp, error, rawError, chars) = await PostOnceAsync(baseUrl, key, body, ct);
+        if (resp != null) return (resp, chars);
+
+        if (limitParam == "max_tokens" && IsMaxTokensRejection(rawError))
         {
-            var limit = body["max_tokens"]!.GetValue<int>();
+            NeedsMaxCompletionTokens[baseUrl] = true;
             body.Remove("max_tokens");
-            body["max_completion_tokens"] = limit;
-            (resp, error) = await PostOnceAsync(body, ct);
-            if (resp != null) return resp;
+            body["max_completion_tokens"] = maxTokens;
+            (resp, error, rawError, chars) = await PostOnceAsync(baseUrl, key, body, ct);
+            if (resp != null) return (resp, chars);
         }
         throw new InvalidOperationException(error);
     }
 
-    private static async Task<(HttpResponseMessage? Resp, string? Error)> PostOnceAsync(
-        JsonObject body, CancellationToken ct)
+    // OpenAI's structured error (code=unsupported_parameter, param=max_tokens) is checked
+    // FIRST; the message-text match is the fallback for providers that only mimic the
+    // human-readable part.
+    private static bool IsMaxTokensRejection(string? rawErrorBody)
     {
-        var baseUrl = SettingsStore.AltBaseUrl.TrimEnd('/');
+        if (string.IsNullOrEmpty(rawErrorBody)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(rawErrorBody);
+            if (doc.RootElement.TryGetProperty("error", out var err) &&
+                err.ValueKind == JsonValueKind.Object &&
+                err.TryGetProperty("param", out var p) && p.ValueKind == JsonValueKind.String &&
+                p.GetString() == "max_tokens")
+                return true;
+        }
+        catch { /* not JSON — fall through to the text match */ }
+        return rawErrorBody.Contains("max_completion_tokens");
+    }
+
+    private static async Task<(HttpResponseMessage? Resp, string? Error, string? RawError, int RequestChars)>
+        PostOnceAsync(string baseUrl, string? key, JsonObject body, CancellationToken ct)
+    {
         var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/chat/completions");
-        var key = ApiKeyStore.LoadAlt();
         if (!string.IsNullOrWhiteSpace(key))
             req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + key);
         // OpenRouter attribution headers (harmless elsewhere).
         req.Headers.TryAddWithoutValidation("X-Title", "ClaudeRevit");
-        req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        var json = body.ToJsonString();
+        req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         HttpResponseMessage resp;
         try
@@ -191,13 +231,14 @@ public sealed class OpenAIBackend
         if (!resp.IsSuccessStatusCode)
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
+            var formatted =
+                $"{(int)resp.StatusCode} from {baseUrl} (model {SettingsStore.AltModel}): " +
+                TextUtil.Truncate(ExtractErrorMessage(err), 600);
             resp.Dispose();
             req.Dispose();
-            return (null,
-                $"{(int)resp.StatusCode} from {baseUrl} (model {SettingsStore.AltModel}): " +
-                Truncate(ExtractErrorMessage(err), 600));
+            return (null, formatted, err, json.Length);
         }
-        return (resp, null);
+        return (resp, null, null, json.Length);
     }
 
     // Providers report errors mid-stream as a data chunk with an "error" object.
@@ -321,7 +362,9 @@ public sealed class OpenAIBackend
         return messages;
     }
 
-    private static JsonArray BuildTools(IReadOnlyList<IRevitTool> tools)
+    // Public: ChatService builds this once per user prompt and reuses it across all
+    // agentic-loop iterations of the turn.
+    public static JsonArray BuildTools(IReadOnlyList<IRevitTool> tools)
     {
         var arr = new JsonArray();
         foreach (var t in tools)
@@ -371,8 +414,7 @@ public sealed class OpenAIBackend
         return responseBody;
     }
 
-    private static string Truncate(string s, int max) =>
-        string.IsNullOrEmpty(s) || s.Length <= max ? s : s[..max] + "…";
+    private static string Truncate(string s, int max) => TextUtil.Truncate(s, max);
 
     private sealed class ToolCallAccumulator
     {

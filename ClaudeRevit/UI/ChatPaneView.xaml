@@ -61,10 +61,40 @@
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="1" x:Name="MessagesScroll"
-                      VerticalScrollBarVisibility="Auto" Padding="8">
-            <ItemsControl x:Name="MessagesList" ItemsSource="{Binding Messages}">
-                <ItemsControl.ItemTemplate>
+        <!-- ListBox, not ItemsControl-in-a-ScrollViewer: the latter gives items infinite
+             height so WPF realizes EVERY message at once (hundreds of heavy RichTextBox
+             visual trees), which makes every Revit layout pass — even a tab switch — crawl
+             once the conversation grows. A virtualizing ListBox realizes only the visible
+             rows (recycled, pixel-scrolled), so cost is bounded by the viewport, not the
+             history length. Selection chrome is stripped so bubbles look identical and the
+             RichTextBox keeps its own text selection. -->
+        <ListBox Grid.Row="1" x:Name="MessagesList" ItemsSource="{Binding Messages}"
+                 BorderThickness="0" Background="Transparent" Padding="8"
+                 HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 VirtualizingPanel.ScrollUnit="Pixel">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <!-- Not focusable + bare template = no blue selection highlight and no
+                         focus stealing from the RichTextBox the user selects text in. -->
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="0,4" Padding="10,8" CornerRadius="6">
                             <Border.Style>
@@ -136,9 +166,8 @@
                             </StackPanel>
                         </Border>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <Border Grid.Row="2" x:Name="SelectionPillBorder"
                 Background="#E8F5E9" BorderBrush="#A5D6A7" BorderThickness="0,1,0,1"

@@ -12,22 +12,24 @@ public partial class SettingsWindow : Window
     // empty box so an untouched Save can never be mistaken for "user cleared the field".
     private readonly string _initialBalanceText;
 
-    // Suppresses the preset autofill while the ctor selects the persisted provider.
-    private bool _loadingAltPreset;
+    // The preset whose defaults currently "own" the URL/model fields — autofill only
+    // replaces values the user hasn't customized (see AltProviderBox_SelectionChanged).
+    private string _lastPresetTag = "";
 
-    // Preset → (base URL, default model). The defaults are a starting point the user can
-    // overwrite — e.g. swap deepseek-chat for deepseek-reasoner.
-    private static (string Url, string Model) AltPreset(string tag) => tag switch
+    // Preset → (base URL, default model, typical context in K tokens; 0 = unknown).
+    // The defaults are a starting point the user can overwrite — e.g. swap
+    // deepseek-chat for deepseek-reasoner.
+    private static (string Url, string Model, int ContextK) AltPreset(string tag) => tag switch
     {
-        "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
-        "openai" => ("https://api.openai.com/v1", "gpt-5-mini"),
-        "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat"),
-        "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
-        "openrouter" => ("https://openrouter.ai/api/v1", "deepseek/deepseek-chat-v3-0324:free"),
-        "groq" => ("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
-        "ollama" => ("http://localhost:11434/v1", "qwen3"),
-        "lmstudio" => ("http://localhost:1234/v1", ""),
-        _ => ("", "")
+        "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash", 1000),
+        "openai" => ("https://api.openai.com/v1", "gpt-5-mini", 400),
+        "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat", 64),
+        "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus", 128),
+        "openrouter" => ("https://openrouter.ai/api/v1", "deepseek/deepseek-chat-v3-0324:free", 64),
+        "groq" => ("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", 128),
+        "ollama" => ("http://localhost:11434/v1", "qwen3", 8),
+        "lmstudio" => ("http://localhost:1234/v1", "", 8),
+        _ => ("", "", 0)
     };
 
     public SettingsWindow()
@@ -38,7 +40,9 @@ public partial class SettingsWindow : Window
         AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
 
-        _loadingAltPreset = true;
+        // Order matters: selecting the combo fires SelectionChanged (fields are empty →
+        // preset defaults land), then the persisted values overwrite them — so the boxes
+        // always end up showing what is actually saved.
         foreach (ComboBoxItem item in AltProviderBox.Items)
             if ((string)item.Tag == SettingsStore.AltProvider)
             {
@@ -46,11 +50,15 @@ public partial class SettingsWindow : Window
                 break;
             }
         if (AltProviderBox.SelectedItem == null) AltProviderBox.SelectedIndex = 0;
-        _loadingAltPreset = false;
+        _lastPresetTag = SettingsStore.AltProvider;
 
         AltBaseUrlBox.Text = SettingsStore.AltBaseUrl;
         AltModelBox.Text = SettingsStore.AltModel;
+        AltContextBox.Text = SettingsStore.AltContextK > 0
+            ? SettingsStore.AltContextK.ToString(CultureInfo.InvariantCulture)
+            : "";
         AltKeyBox.Password = ApiKeyStore.LoadAlt() ?? "";
+        MaxRoundsBox.Text = SettingsStore.MaxToolRounds.ToString(CultureInfo.InvariantCulture);
 
         _initialBalanceText = SettingsStore.BalanceUsd > 0
             ? System.Math.Max(0, SettingsStore.BalanceUsd - SettingsStore.SpentUsd)
@@ -61,13 +69,25 @@ public partial class SettingsWindow : Window
 
     private void AltProviderBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loadingAltPreset) return;
         if (AltProviderBox.SelectedItem is not ComboBoxItem item) return;
-        var (url, model) = AltPreset((string)item.Tag);
-        // A user-picked preset overwrites the fields — that's the point of picking one.
-        // "Custom" / "not used" clear them so stale values don't linger invisibly.
-        AltBaseUrlBox.Text = url;
-        AltModelBox.Text = model;
+        var tag = (string)item.Tag;
+        var (url, model, contextK) = AltPreset(tag);
+        var (oldUrl, oldModel, oldContextK) = AltPreset(_lastPresetTag);
+        _lastPresetTag = tag;
+
+        // Autofill must never destroy a user customization: only fields that are empty
+        // or still equal to the PREVIOUS preset's defaults get replaced — merely
+        // wheel-scrolling through the combo can't clobber a hand-edited model id.
+        var curUrl = AltBaseUrlBox.Text.Trim();
+        if (curUrl.Length == 0 || curUrl == oldUrl)
+            AltBaseUrlBox.Text = url;
+        var curModel = AltModelBox.Text.Trim();
+        if (curModel.Length == 0 || curModel == oldModel)
+            AltModelBox.Text = model;
+        var curCtx = AltContextBox.Text.Trim();
+        var oldCtxText = oldContextK > 0 ? oldContextK.ToString(CultureInfo.InvariantCulture) : "";
+        if (curCtx.Length == 0 || curCtx == oldCtxText)
+            AltContextBox.Text = contextK > 0 ? contextK.ToString(CultureInfo.InvariantCulture) : "";
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -80,8 +100,8 @@ public partial class SettingsWindow : Window
         var altModel = AltModelBox.Text.Trim();
         var altConfigured = altUrl.Length > 0 && altModel.Length > 0;
 
-        // The Anthropic key is no longer mandatory: an alternative provider alone is a
-        // valid setup (free/local models). But SOME backend must be usable.
+        // The Anthropic key is not mandatory: an alternative provider alone is a valid
+        // setup (free/local models). But SOME backend must be usable.
         if (key.Length == 0 && !altConfigured)
         {
             MessageBox.Show(this,
@@ -114,6 +134,30 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var contextText = AltContextBox.Text.Trim();
+        int contextK = 0;
+        if (contextText.Length > 0 &&
+            (!int.TryParse(contextText, NumberStyles.Integer, CultureInfo.InvariantCulture, out contextK) ||
+             contextK < 0))
+        {
+            MessageBox.Show(this,
+                "Context size must be a whole number of thousands of tokens (e.g. 64), or empty.",
+                "Claude Revit",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var roundsText = MaxRoundsBox.Text.Trim();
+        if (!int.TryParse(roundsText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxRounds) ||
+            maxRounds < 1 || maxRounds > 200)
+        {
+            MessageBox.Show(this,
+                "Max tool rounds must be a whole number between 1 and 200.",
+                "Claude Revit",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var balanceText = BalanceBox.Text.Trim();
         var balanceChanged = balanceText != _initialBalanceText;
         decimal balance = 0;
@@ -128,14 +172,17 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // An intentionally blank Anthropic key with a configured alt provider keeps any
-        // previously stored key (deleting it would be surprising); it just isn't required.
-        if (key.Length > 0)
-            ApiKeyStore.Save(key);
+        // The field is pre-filled with the stored key, so a blanked field is an explicit
+        // "remove my key from this machine" — honor it (validation above already
+        // guaranteed the alt provider covers the pane).
+        if (key.Length > 0) ApiKeyStore.Save(key);
+        else ApiKeyStore.Delete();
         ApiKeyStore.SaveAlt(AltKeyBox.Password.Trim());
         SettingsStore.AltProvider = AltProviderBox.SelectedItem is ComboBoxItem sel ? (string)sel.Tag : "";
         SettingsStore.AltBaseUrl = altUrl;
         SettingsStore.AltModel = altModel;
+        SettingsStore.AltContextK = contextK;
+        SettingsStore.MaxToolRounds = maxRounds;
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
         if (balanceChanged)

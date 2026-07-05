@@ -39,6 +39,12 @@ public class ChatService
         "execution is disabled. Tell the user they can enable it via the gear icon. " +
         "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
         "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
+        "FAMILY EDITOR: when a family (.rfa) is open for editing, prefer the dedicated family tools " +
+        "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
+        "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
+        "create_linear_array, create_family_dimension) over execute_csharp — they are far faster and " +
+        "need no code opt-in. get_element_locations reads positions/bboxes in mm. Family " +
+        "length values in these tools are in millimetres; formulas use Revit's own syntax.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +
@@ -46,6 +52,14 @@ public class ChatService
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
+        "LEARNING: Scripts that worked before are journaled on disk and survive clearing the chat. Proven patterns " +
+        "may be listed below — reuse them. get_script_journal shows full past runs; generate_diagnostic_report " +
+        "summarizes recurring scripts as candidates for future dedicated tools (also written automatically when " +
+        "Revit closes).\n\n" +
+        "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
+        "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
+        "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
+        "since, re-query the live model instead.\n\n" +
         "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
         "If a tool returns an error, read it and adjust. All edits within one user prompt are bundled into a " +
         "single undo entry, so the user can ⌃Z to revert.";
@@ -61,12 +75,20 @@ public class ChatService
         "\n\nIMPORTANT: When an action is needed, respond with a tool call whose arguments are valid JSON " +
         "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it.";
 
-    private const int MaxIterations = 24;
+    // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
+    private const int DefaultMaxIterations = 24;
     private const int MaxOutputTokens = 8192;
 
-    // Alt providers include 64K-context models (DeepSeek), so compact much earlier there.
+    // Alt providers span 8K local models to 1M Gemini — when the user entered the model's
+    // context size in Settings, compact at ~75% of it; otherwise assume a small context.
     private const long CompactionThresholdTokens = 120_000;
     private const long AltCompactionThresholdTokens = 48_000;
+
+    private static long AltThreshold()
+    {
+        var contextK = SettingsStore.AltContextK;
+        return contextK > 0 ? contextK * 1000L * 3 / 4 : AltCompactionThresholdTokens;
+    }
     private const int CompactionKeepTailTurns = 3;
     private const string CompactionModel = "claude-haiku-4-5";
 
@@ -75,6 +97,25 @@ public class ChatService
     private readonly List<ApiTurn> _history = HistoryStore.LoadApiHistory();
     private long _lastPromptTokens;
 
+    public ChatService()
+    {
+        // A restored long history must be eligible for compaction on the very FIRST send
+        // after a restart — otherwise an oversized persisted conversation is replayed
+        // uncompacted into a small-context alt model and every request fails.
+        long chars = 0;
+        foreach (var turn in _history)
+            foreach (var block in turn.Blocks)
+                chars += block switch
+                {
+                    ChatTextBlock b => b.Text.Length,
+                    ChatToolUseBlock b => b.InputJson.Length,
+                    ChatToolResultBlock b => b.Content.Length,
+                    ChatThinkingBlock b => b.Thinking.Length,
+                    _ => 0
+                };
+        _lastPromptTokens = chars / 4;
+    }
+
     // Set by the chat pane: asks the user to approve a tool call. Returns true to run it.
     public Func<string, string, Task<bool>>? ConfirmToolAsync;
 
@@ -82,6 +123,10 @@ public class ChatService
 
     public void ClearHistory()
     {
+        // Clears only the conversation. The learning layer (ScriptJournal, MemoryStore,
+        // ExperienceStore digest) lives in its own files under %AppData%\ClaudeRevit and is
+        // deliberately NOT touched here — accumulated experience must outlive a window clear,
+        // and the digest already sits in the (session-stable) system prompt.
         _history.Clear();
         _lastPromptTokens = 0;
         HistoryStore.Clear();
@@ -114,11 +159,22 @@ public class ChatService
             throw new InvalidOperationException(
                 "The alternative model is not configured. Open Settings (gear icon) and fill " +
                 "in the provider's base URL and model id (DeepSeek, Qwen, OpenRouter, Ollama…).");
+        // Fail fast BEFORE the user turn is committed to _history: a missing-key error
+        // thrown mid-loop would leave the prompt dangling in the saved history, to be
+        // silently replayed (and acted on!) once a key appears.
+        if (!alt) GetClient();
 
         var lastUser = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
         if (string.IsNullOrWhiteSpace(lastUser)) return;
 
         await CompactIfNeededAsync(conversation, ui, alt, ct);
+
+        // Tool-result aging (Headroom-style): every tool result from a PRIOR user prompt
+        // is truncated in place and its original archived (get_full_result retrieves it).
+        // Run here — before the new user turn is added — so results from the turn just
+        // finished are still full when the model consumed them, but stop being replayed
+        // verbatim from now on. This is the single biggest token sink in long sessions.
+        ToolResultAging.AgeAll(_history);
 
         // Dynamic-per-turn context (current document + selection). NOT cached — trails the prompt.
         var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
@@ -132,29 +188,53 @@ public class ChatService
             dynamicContext += $"\n\nCURRENT SELECTION: {sel.Description}. Element IDs: [{idList}]";
         }
 
+        // Everything constant for the whole turn is built ONCE here, not per loop
+        // iteration: rebuilding the system blocks mid-turn would let a save_memory call
+        // invalidate the 1h prompt-cache prefix for the rest of the turn, and rebuilding
+        // the tool list would let a Settings change yank tools out from under the model
+        // mid-plan (plus ~130 tool schemas re-serialized per round for nothing).
+        var allowedTools = AllowedTools();
+        List<BetaTextBlockParam>? systemBlocks = null;
+        List<BetaToolUnion>? toolDefs = null;
+        string? altSystem = null;
+        System.Text.Json.Nodes.JsonArray? altTools = null;
+        if (alt)
+        {
+            altSystem = BuildAltSystemPrompt();
+            altTools = OpenAIBackend.BuildTools(allowedTools);
+        }
+        else
+        {
+            systemBlocks = BuildSystemBlocks();
+            toolDefs = BuildToolDefs(allowedTools);
+        }
+
         _history.Add(new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } });
 
         var turnLabel = "Claude: " + Truncate(lastUser, 60);
+
+        // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
+        var maxIterations = SettingsStore.MaxToolRounds;
 
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
             for (int iter = 0; ; iter++)
             {
-                if (iter >= MaxIterations)
+                if (iter >= maxIterations)
                 {
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
                         Role = "assistant",
-                        Text = $"[Stopped after {MaxIterations} tool-call rounds in one prompt. " +
-                               "Say \"continue\" to keep going.]"
+                        Text = $"[Stopped after {maxIterations} tool-call rounds in one prompt. " +
+                               "Say \"continue\" to keep going, or raise the limit in Settings (gear icon).]"
                     }));
                     break;
                 }
 
                 var turn = alt
-                    ? await StreamAltTurnAsync(dynamicContext, conversation, ui, ct)
-                    : await StreamAnthropicTurnAsync(model, dynamicContext, conversation, ui, ct);
+                    ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct)
+                    : await StreamAnthropicTurnAsync(model, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
 
                 TrackUsage(alt ? "alt:" + SettingsStore.AltModel : model, turn);
 
@@ -189,7 +269,30 @@ public class ChatService
                 foreach (var use in toolUses)
                 {
                     var name = use.Name;
-                    var inp = ParseInput(use.InputJson);
+
+                    // Invalid-JSON arguments (typically an alt model whose output was cut
+                    // by the length limit mid-arguments) must NOT run the tool with an
+                    // empty input — that either errors misleadingly or executes with
+                    // defaults instead of what the model intended.
+                    var inp = TryParseInput(use.InputJson);
+                    if (inp == null)
+                    {
+                        await ui.InvokeAsync(() => conversation.Add(new ChatMessage
+                        {
+                            Role = "tool",
+                            ToolName = name,
+                            Text = "✗ arguments were not valid JSON (output truncated?) — not executed",
+                            IsError = true
+                        }));
+                        resultTurn.Blocks.Add(new ChatToolResultBlock(
+                            use.Id,
+                            "The tool-call arguments were not valid JSON — your output was probably cut " +
+                            "off by the length limit. The tool was NOT executed. Re-issue the call with " +
+                            "more compact arguments (e.g. split the work into smaller steps).",
+                            true));
+                        continue;
+                    }
+
                     var tool = ToolRegistry.Instance.Get(name);
 
                     ChatMessage toolMsg = null!;
@@ -269,6 +372,8 @@ public class ChatService
 
     private async Task<BackendTurn> StreamAnthropicTurnAsync(
         string model,
+        List<BetaTextBlockParam> systemBlocks,
+        List<BetaToolUnion> toolDefs,
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
@@ -281,8 +386,8 @@ public class ChatService
             Model = ResolveModel(model),
             MaxTokens = MaxOutputTokens,
             Messages = BuildApiMessages(dynamicContext),
-            System = BuildSystemBlocks(),
-            Tools = BuildToolDefs(),
+            System = systemBlocks,
+            Tools = toolDefs,
             OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null
         };
 
@@ -341,19 +446,18 @@ public class ChatService
     // ---- OpenAI-compatible path ---------------------------------------------------
 
     private async Task<BackendTurn> StreamAltTurnAsync(
+        string systemPrompt,
+        System.Text.Json.Nodes.JsonArray toolsJson,
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
         CancellationToken ct)
     {
-        var sys = new StringBuilder(AltPromptPrefix).Append(SystemPromptBody).Append(AltPromptSuffix);
-        var memory = MemoryStore.Load();
-        if (!string.IsNullOrWhiteSpace(memory))
-            sys.Append("\n\nWHAT YOU REMEMBER (persisted notes from earlier sessions):\n").Append(memory);
-
         ChatMessage? assistantBubble = null;
-        // Deltas arrive on the HTTP read thread; the dispatcher queue keeps them in order.
-        void OnDelta(string piece) => _ = ui.InvokeAsync(() =>
+        // Deltas arrive on the HTTP read thread; awaiting the dispatcher operation gives
+        // backpressure — a fast local provider can't flood Revit's UI thread (same
+        // discipline as the Anthropic path).
+        Task OnDelta(string piece) => ui.InvokeAsync(() =>
         {
             if (assistantBubble == null)
             {
@@ -361,10 +465,31 @@ public class ChatService
                 conversation.Add(assistantBubble);
             }
             assistantBubble.Text += piece;
-        });
+        }).Task;
 
         return await _openAI.StreamTurnAsync(
-            sys.ToString(), _history, dynamicContext, AllowedTools(), OnDelta, ct);
+            systemPrompt, _history, dynamicContext, toolsJson, OnDelta, ct);
+    }
+
+    // The alt system prompt: same body as the Anthropic one, different framing, plus the
+    // shared memory section (single-sourced in MemorySection so the two backends can't
+    // silently drift apart).
+    private static string BuildAltSystemPrompt()
+    {
+        var sys = new StringBuilder(AltPromptPrefix).Append(SystemPromptBody).Append(AltPromptSuffix);
+        if (MemorySection() is { } memory)
+            sys.Append("\n\n").Append(memory);
+        if (ExperienceStore.Digest() is { } experience)
+            sys.Append("\n\n").Append(experience);
+        return sys.ToString();
+    }
+
+    private const string MemoryHeader = "WHAT YOU REMEMBER (persisted notes from earlier sessions):\n";
+
+    private static string? MemorySection()
+    {
+        var memory = MemoryStore.Load();
+        return string.IsNullOrWhiteSpace(memory) ? null : MemoryHeader + memory;
     }
 
     // ---- Shared helpers -----------------------------------------------------------
@@ -390,12 +515,21 @@ public class ChatService
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             }
         };
-        var memory = MemoryStore.Load();
-        if (!string.IsNullOrWhiteSpace(memory))
+        if (MemorySection() is { } memory)
         {
             blocks.Add(new BetaTextBlockParam
             {
-                Text = "WHAT YOU REMEMBER (persisted notes from earlier sessions):\n" + memory,
+                Text = memory,
+                CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
+            });
+        }
+        // Proven-script experience: session-stable (see ExperienceStore.Digest) so it can
+        // share the 1h prompt cache. Carries learned know-how into a fresh/cleared window.
+        if (ExperienceStore.Digest() is { } experience)
+        {
+            blocks.Add(new BetaTextBlockParam
+            {
+                Text = experience,
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             });
         }
@@ -459,7 +593,7 @@ public class ChatService
         bool alt,
         CancellationToken ct)
     {
-        var threshold = alt ? AltCompactionThresholdTokens : CompactionThresholdTokens;
+        var threshold = alt ? AltThreshold() : CompactionThresholdTokens;
         if (_lastPromptTokens < threshold) return;
 
         var userTurns = new List<int>();
@@ -575,9 +709,8 @@ public class ChatService
         catch { /* non-fatal */ }
     }
 
-    private static List<BetaToolUnion> BuildToolDefs()
+    private static List<BetaToolUnion> BuildToolDefs(List<IRevitTool> allTools)
     {
-        var allTools = AllowedTools();
         var toolDefs = new List<BetaTool>(allTools.Count);
         for (int i = 0; i < allTools.Count; i++)
         {
@@ -595,7 +728,12 @@ public class ChatService
         return toolDefs.Select(t => (BetaToolUnion)t).ToList();
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> ParseInput(string json)
+    // Lenient parse for HISTORY REPLAY (Anthropic block params must always be buildable);
+    // execution uses TryParseInput so truncated arguments never silently run a tool.
+    private static IReadOnlyDictionary<string, JsonElement> ParseInput(string json) =>
+        TryParseInput(json) ?? new Dictionary<string, JsonElement>();
+
+    private static IReadOnlyDictionary<string, JsonElement>? TryParseInput(string json)
     {
         try
         {
@@ -604,7 +742,7 @@ public class ChatService
         }
         catch
         {
-            return new Dictionary<string, JsonElement>();
+            return null;
         }
     }
 
@@ -633,6 +771,5 @@ public class ChatService
         catch { return "(unprintable input)"; }
     }
 
-    private static string Truncate(string s, int max) =>
-        string.IsNullOrEmpty(s) || s.Length <= max ? s : s[..max] + $"… ({s.Length - max} more chars)";
+    private static string Truncate(string s, int max) => TextUtil.Truncate(s, max);
 }

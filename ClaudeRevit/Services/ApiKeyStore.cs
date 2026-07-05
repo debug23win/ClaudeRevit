@@ -5,27 +5,32 @@ using System.Text;
 
 namespace ClaudeRevit.Services;
 
-// Stores the Anthropic API key encrypted with DPAPI (CurrentUser scope) instead of a
-// plain-text environment variable. Keys encrypted on this machine can only be
-// decrypted by the same Windows user.
+// Stores API keys encrypted with DPAPI (CurrentUser scope) instead of plain-text
+// environment variables. Keys encrypted on this machine can only be decrypted by the
+// same Windows user. Two slots: the Anthropic key and the alternative-provider key.
 public static class ApiKeyStore
 {
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClaudeRevit", "apikey.bin");
 
-    public static void Save(string apiKey)
+    private static string AltFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClaudeRevit", "apikey-alt.bin");
+
+    public static void Save(string apiKey) => SaveTo(FilePath, apiKey);
+
+    // Clearing the key field in Settings must actually remove the stored key —
+    // there is no other UI way to revoke a rotated/leaked key from this machine.
+    public static void Delete()
     {
-        var dir = Path.GetDirectoryName(FilePath)!;
-        Directory.CreateDirectory(dir);
-        var encrypted = ProtectedData.Protect(
-            Encoding.UTF8.GetBytes(apiKey), null, DataProtectionScope.CurrentUser);
-        File.WriteAllBytes(FilePath, encrypted);
+        try { if (File.Exists(FilePath)) File.Delete(FilePath); }
+        catch (Exception ex) { Log.Error("ApiKeyStore.Delete failed", ex); }
     }
 
     public static string? Load()
     {
-        var stored = LoadEncrypted();
+        var stored = LoadFrom(FilePath);
         if (stored != null) return stored;
 
         // Migrate from the legacy plain-text environment variable: re-save encrypted
@@ -41,28 +46,8 @@ public static class ApiKeyStore
         return legacy;
     }
 
-    private static string? LoadEncrypted()
-    {
-        try
-        {
-            if (!File.Exists(FilePath)) return null;
-            var decrypted = ProtectedData.Unprotect(
-                File.ReadAllBytes(FilePath), null, DataProtectionScope.CurrentUser);
-            var key = Encoding.UTF8.GetString(decrypted);
-            return string.IsNullOrWhiteSpace(key) ? null : key;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    // ---- Alternative-provider key (DeepSeek / Qwen / OpenRouter…), same DPAPI scheme.
-    // An empty key is a valid state: local Ollama / LM Studio need no key at all.
-
-    private static string AltFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClaudeRevit", "apikey-alt.bin");
+    // ---- Alternative-provider key (DeepSeek / Qwen / OpenRouter…). An empty key is a
+    // valid state: local Ollama / LM Studio need no key at all.
 
     public static void SaveAlt(string apiKey)
     {
@@ -73,20 +58,29 @@ public static class ApiKeyStore
                 if (File.Exists(AltFilePath)) File.Delete(AltFilePath);
                 return;
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(AltFilePath)!);
-            File.WriteAllBytes(AltFilePath, ProtectedData.Protect(
-                Encoding.UTF8.GetBytes(apiKey), null, DataProtectionScope.CurrentUser));
+            SaveTo(AltFilePath, apiKey);
         }
         catch (Exception ex) { Log.Error("ApiKeyStore.SaveAlt failed", ex); }
     }
 
-    public static string? LoadAlt()
+    public static string? LoadAlt() => LoadFrom(AltFilePath);
+
+    // ---- The one DPAPI scheme both slots share.
+
+    private static void SaveTo(string path, string apiKey)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, ProtectedData.Protect(
+            Encoding.UTF8.GetBytes(apiKey), null, DataProtectionScope.CurrentUser));
+    }
+
+    private static string? LoadFrom(string path)
     {
         try
         {
-            if (!File.Exists(AltFilePath)) return null;
+            if (!File.Exists(path)) return null;
             var decrypted = ProtectedData.Unprotect(
-                File.ReadAllBytes(AltFilePath), null, DataProtectionScope.CurrentUser);
+                File.ReadAllBytes(path), null, DataProtectionScope.CurrentUser);
             var key = Encoding.UTF8.GetString(decrypted);
             return string.IsNullOrWhiteSpace(key) ? null : key;
         }

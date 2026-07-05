@@ -151,7 +151,21 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetProjectCatalog());
             ToolRegistry.Instance.Register(new SaveMemory());
             ToolRegistry.Instance.Register(new SaveProjectMemory());
+            // Family Editor suite: parametric family authoring (parameters, formulas,
+            // associations, arrays) that previously had to go through execute_csharp.
+            ToolRegistry.Instance.Register(new GetFamilyParameters());
+            ToolRegistry.Instance.Register(new AddFamilyParameter());
+            ToolRegistry.Instance.Register(new RemoveFamilyParameter());
+            ToolRegistry.Instance.Register(new SetFamilyParameterFormula());
+            ToolRegistry.Instance.Register(new SetFamilyParameterValue());
+            ToolRegistry.Instance.Register(new SetFamilyParameterInstance());
+            ToolRegistry.Instance.Register(new AssociateFamilyParameter());
+            ToolRegistry.Instance.Register(new CreateLinearArray());
+            ToolRegistry.Instance.Register(new CreateFamilyDimension());
+            ToolRegistry.Instance.Register(new GetElementLocations());
             ToolRegistry.Instance.Register(new GetScriptJournal());
+            ToolRegistry.Instance.Register(new GenerateDiagnosticReport());
+            ToolRegistry.Instance.Register(new GetFullResult());
             // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
             // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
             // gone; no Dynamo dependency). RunDynamoPython remains for Python-flavoured
@@ -200,6 +214,14 @@ public class App : IExternalApplication
     {
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
+        catch { /* shutting down anyway */ }
+        // Post-close learning report: summarize the accumulated Dynamo/C# scripts into a
+        // developer-facing file so recurring patterns can be promoted to native tools.
+        try { ExperienceStore.WriteDiagnosticReport(); }
+        catch { /* shutting down anyway */ }
+        // Spend persistence is debounced (30s) — flush the tail so short sessions don't
+        // silently under-count and inflate the balance countdown.
+        try { SettingsStore.FlushSpend(); }
         catch { /* shutting down anyway */ }
         return Result.Succeeded;
     }
