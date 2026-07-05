@@ -169,6 +169,8 @@ public class App : IExternalApplication
             // Self-extension: create/remove persistent custom tools loaded from disk.
             ToolRegistry.Instance.Register(new SaveTool());
             ToolRegistry.Instance.Register(new DeleteTool());
+            ToolRegistry.Instance.Register(new ListCustomTools());
+            ToolRegistry.Instance.Register(new GetToolSource());
             // ExecuteCSharp is the DEFAULT escape hatch (compiled synchronously via
             // CSharpCompilation.Emit — the old CSharpScript sync-over-async deadlock is
             // gone; no Dynamo dependency). RunDynamoPython remains for Python-flavoured

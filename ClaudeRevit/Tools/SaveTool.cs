@@ -19,7 +19,10 @@ public class SaveTool : IRevitTool
         "first-class tool you can call by name in this and all future sessions (no add-in rebuild). The " +
         "source must be a complete C# file defining a public class implementing " +
         "ClaudeRevit.Tools.IRevitTool. It is compiled and validated immediately; on failure nothing is " +
-        "installed and the compiler errors are returned. Requires the code-execution opt-in. TEMPLATE:\n" +
+        "installed and the compiler errors are returned. To EDIT an existing custom tool, first read it " +
+        "with get_tool_source, change the source, then call save_tool with the SAME name to overwrite and " +
+        "reload it (refine a tool rather than create near-duplicates). Requires the code-execution opt-in. " +
+        "TEMPLATE:\n" +
         "```\n" +
         "using System; using System.Collections.Generic; using System.Text.Json;\n" +
         "using Anthropic.Models.Beta.Messages; using Autodesk.Revit.DB; using Autodesk.Revit.UI;\n" +

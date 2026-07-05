@@ -217,6 +217,27 @@ public static class DynamicToolLoader
         return true;
     }
 
+    // The custom tools currently loaded, as (tool name, source file). Lets the model see
+    // what it has already built so it can refine one instead of starting over.
+    public static IReadOnlyList<(string Name, string File)> ListCustom()
+    {
+        var result = new List<(string, string)>();
+        foreach (var kv in Loaded)
+            foreach (var n in kv.Value.ToolNames)
+                result.Add((n, kv.Key));
+        return result;
+    }
+
+    // The source of a custom tool by name — so the model can read, edit and re-save it
+    // (save_tool overwrites the same file). Falls back to the on-disk file even if the tool
+    // isn't currently loaded (e.g. code execution was off at startup).
+    public static string? GetSource(string name)
+    {
+        var loadedFile = Loaded.FirstOrDefault(kv => kv.Value.ToolNames.Contains(name)).Key;
+        var file = loadedFile ?? Path.Combine(ToolsDir, Sanitize(name) + ".cs");
+        return File.Exists(file) ? File.ReadAllText(file) : null;
+    }
+
     // Names the source file; sanitised so a tool name can't escape the tools directory.
     private static string Sanitize(string name)
     {
