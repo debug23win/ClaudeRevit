@@ -5,6 +5,11 @@ obj/
 *.suo
 .vs/
 
+# Installer build artifacts (CI stages per-version payloads + output here)
+installer/payload/
+installer/output/
+ClaudeRevit-*.zip
+
 # Rider/VS Code
 .idea/
 .vscode/

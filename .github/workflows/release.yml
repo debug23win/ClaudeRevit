@@ -21,16 +21,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 10
+      # Revit 2025/2026 target net8.0-windows, 2027 targets net10.0-windows — both SDKs
+      # (and their Windows Desktop targeting packs) must be present.
+      - name: Setup .NET 8 + 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore ClaudeRevit\ClaudeRevit.csproj
-
-      - name: Build Release
-        run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true --no-restore
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Determine version
         id: vars
@@ -39,6 +37,29 @@ jobs:
           $tag = "${{ github.event.inputs.version || github.ref_name }}"
           if (-not $tag.StartsWith("v")) { $tag = "v$tag" }
           "version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # One add-in DLL cannot load into every Revit: 2025/2026 host .NET 8, 2027 hosts
+      # .NET 10. Build each supported version against its matching Revit API reference
+      # package and stage it under installer\payload\<year>\ for the installer to bundle,
+      # plus a per-version zip for the install.ps1 path.
+      - name: Build all Revit versions
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.vars.outputs.version }}"
+          foreach ($rv in '2025','2026','2027') {
+            Write-Host "=== Building for Revit $rv ==="
+            # Clean between versions: 2025/2026 (net8) and 2027 (net10) share bin/obj.
+            Remove-Item ClaudeRevit\bin, ClaudeRevit\obj -Recurse -Force -ErrorAction SilentlyContinue
+            dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:RevitVersion=$rv -p:SkipDeploy=true
+            if ($LASTEXITCODE -ne 0) { throw "Build failed for Revit $rv" }
+            $src = "ClaudeRevit\bin\Release\release"
+            if (-not (Test-Path $src)) { throw "Staging folder not found for Revit $rv at $src" }
+            $dst = "installer\payload\$rv"
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            Copy-Item "$src\*" $dst -Recurse -Force
+            Compress-Archive -Path "$dst\*" -DestinationPath "ClaudeRevit-$ver-Revit$rv.zip" -Force
+          }
+          Get-ChildItem "ClaudeRevit-$ver-Revit*.zip" | Format-List Name, Length
 
       # Refuse to silently move a published release tag: a manual dispatch may only (re)tag
       # a version that doesn't exist yet, or one that already points at this very commit.
@@ -51,15 +72,6 @@ jobs:
           if ($existing -and $existing -ne "${{ github.sha }}") {
             throw "Tag $tag already exists at $existing. Refusing to move a published tag — pick a new version or delete the tag/release deliberately first."
           }
-
-      - name: Zip release artifacts
-        shell: pwsh
-        run: |
-          $src = "ClaudeRevit\bin\Release\release"
-          if (-not (Test-Path $src)) { throw "Staging folder not found at $src" }
-          $zipPath = "ClaudeRevit-${{ steps.vars.outputs.version }}.zip"
-          Compress-Archive -Path "$src\*" -DestinationPath $zipPath -Force
-          Get-Item $zipPath | Format-List Name, Length
 
       - name: Compile installer with Inno Setup
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -84,7 +96,9 @@ jobs:
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: |
-            ClaudeRevit-${{ steps.vars.outputs.version }}.zip
+            ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2025.zip
+            ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2026.zip
+            ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2027.zip
             ${{ steps.installer.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

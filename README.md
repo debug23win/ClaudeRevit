@@ -31,9 +31,9 @@ Claude AI in Autodesk Revit 2027 — a dockable chat pane with **132 tools** tha
 
 You need:
 
-- **Autodesk Revit 2027**
+- **Autodesk Revit 2025, 2026 or 2027** — the installer detects which of these you have and lets you tick the ones to install for
 - **Windows** (Revit is Windows-only)
-- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/settings/keys) and add credits in **Billing**
+- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/settings/keys) and add credits in **Billing** — *or* a free/alternative provider (DeepSeek, Gemini, OpenRouter, local Ollama…), configured in Settings
 
 Pick whichever install path you prefer:
 
@@ -105,11 +105,22 @@ Users get the new version with the same `install.ps1` one-liner.
 
 ---
 
-## Targeting a different Revit version
+## Revit versions
 
-Change `<RevitVersion>2027</RevitVersion>` in `ClaudeRevit/ClaudeRevit.csproj` to your version (e.g. `2028`). The Nice3point packages use a wildcard (`$(RevitVersion).0.*`) so it'll pick up the matching API package automatically — as long as one exists for that Revit version.
+The installer supports **Revit 2025, 2026 and 2027** and ships a separate build for each,
+because the versions run on different .NET runtimes (2025/2026 → .NET 8, 2027 → .NET 10).
+At install time, detected versions are pre-checked; tick any you want and each gets the
+matching build in its own `%AppData%\Autodesk\Revit\Addins\<year>\` folder.
 
-The deploy target also follows the version, copying to `%AppData%\Autodesk\Revit\Addins\<version>\`.
+To build locally for a specific version, pass `RevitVersion`:
+
+```powershell
+dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:RevitVersion=2026
+```
+
+The Nice3point API package (`$(RevitVersion).0.*`), the target framework, and the deploy
+folder all follow that one value. Revit 2024 and earlier run .NET Framework 4.8 and are
+out of scope for the current build.
 
 ---
 

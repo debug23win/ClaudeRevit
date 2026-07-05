@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -10,9 +9,26 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-    <!-- Revit version. Change to retarget. The Nice3point packages below must match. -->
-    <RevitVersion>2027</RevitVersion>
+    <!-- Revit version to build for. Override on the command line / CI matrix:
+           dotnet build -p:RevitVersion=2026
+         The Nice3point package version ($(RevitVersion).0.*) and the .NET runtime that
+         hosts that Revit are both derived from this single value. -->
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2027</RevitVersion>
+
+    <!-- Each Revit year hosts a specific .NET runtime; the add-in DLL must target it.
+         2025/2026 → .NET 8, 2027 → .NET 10. (Revit 2024 and earlier run .NET
+         Framework 4.8 and are intentionally out of scope for this build.) -->
+    <TargetFramework Condition="'$(RevitVersion)' == '2027'">net10.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(RevitVersion)' == '2026'">net8.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(RevitVersion)' == '2025'">net8.0-windows</TargetFramework>
+    <!-- Fail loudly instead of producing a mystery build for an unmapped version. -->
+    <TargetFramework Condition="'$(TargetFramework)' == ''">UNSUPPORTED_REVIT_VERSION_$(RevitVersion)</TargetFramework>
+
     <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)\</RevitAddinsDir>
+
+    <!-- Per-version compile symbols for the handful of API differences (e.g. rebar's
+         BarTerminationsData, added in 2026). Gives REVIT2025 / REVIT2026 / REVIT2027. -->
+    <DefineConstants>$(DefineConstants);REVIT$(RevitVersion)</DefineConstants>
 
     <!-- Set SkipDeploy=true on CI to avoid the post-build copy to AppData -->
     <SkipDeploy Condition="'$(SkipDeploy)' == ''">false</SkipDeploy>

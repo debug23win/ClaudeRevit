@@ -116,11 +116,20 @@ public class CreateRebar : IRevitTool
         else
         {
             var curves = new List<Curve> { Line.CreateBound(start, end) };
-            // Default BarTerminationsData = straight bar, no hooks (Revit 2027 API)
+#if REVIT2025
+            // Revit 2025 predates BarTerminationsData — use the hook-type overload with no
+            // hooks (null start/end) for a straight bar; the orientations are ignored then.
+            rebar = Rebar.CreateFromCurves(
+                doc, RebarStyle.Standard, barType, null, null, host, norm, curves,
+                RebarHookOrientation.Left, RebarHookOrientation.Left,
+                useExistingShapeIfPossible: true, createNewShape: true);
+#else
+            // Default BarTerminationsData = straight bar, no hooks (Revit 2026+ API)
             using var terminations = new BarTerminationsData(doc);
             rebar = Rebar.CreateFromCurves(
                 doc, RebarStyle.Standard, barType, host, norm, curves,
                 terminations, useExistingShapeIfPossible: true, createNewShape: true);
+#endif
         }
 
         // Shape dimension parameters (A, B, hook lengths…) live on the instance once a

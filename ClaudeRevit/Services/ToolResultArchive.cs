@@ -52,8 +52,10 @@ public static class ToolResultArchive
                 if (Memory.TryGetValue(id, out var hit)) return hit;
 
                 // Cold lookup after a restart: scan the file newest-first.
+                // Enumerable.Reverse (not the array's .Reverse()) — overload resolution
+                // on a bare string[].Reverse() differs between .NET 8 and .NET 10.
                 if (!File.Exists(FilePath)) return null;
-                foreach (var line in File.ReadAllLines(FilePath).Reverse())
+                foreach (var line in Enumerable.Reverse(File.ReadAllLines(FilePath)))
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     try

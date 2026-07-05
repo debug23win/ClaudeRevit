@@ -33,9 +33,15 @@ if ([string]::IsNullOrEmpty($Version)) {
     Write-Host "Querying release '$Version'..." -ForegroundColor DarkGray
     $release = Invoke-RestMethod "$apiBase/releases/tags/$Version"
 }
-$asset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+# Releases from v1.25 ship one zip per Revit version (…-Revit2026.zip). Pick the one
+# matching $RevitVersion; fall back to a legacy single zip for older releases.
+$asset = $release.assets | Where-Object { $_.name -like "*Revit$RevitVersion*.zip" } | Select-Object -First 1
 if (-not $asset) {
-    throw "No .zip asset found in release '$($release.tag_name)'"
+    $asset = $release.assets | Where-Object { $_.name -like "*.zip" -and $_.name -notmatch 'Revit20' } | Select-Object -First 1
+}
+if (-not $asset) {
+    $available = ($release.assets | Where-Object { $_.name -like "*.zip" } | ForEach-Object { $_.name }) -join ", "
+    throw "No matching .zip for Revit $RevitVersion in release '$($release.tag_name)'. Available: $available"
 }
 
 Write-Host "Found $($asset.name) ($([math]::Round($asset.size / 1KB, 1)) KB)" -ForegroundColor Green
