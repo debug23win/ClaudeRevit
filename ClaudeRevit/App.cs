@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
+using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.UI.Events;
 using ClaudeRevit.Services;
 using ClaudeRevit.Tools;
 using ClaudeRevit.UI;
@@ -202,6 +204,13 @@ public class App : IExternalApplication
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
 
+            // Auto-dismiss Revit's modal warning/task dialogs WHILE ClaudeRevit is driving (a chat
+            // turn or a benchmark) — otherwise an unattended run stalls on the first warning (e.g.
+            // "elements joined but do not intersect" from an execute_csharp join). Gated by
+            // ToolDispatcher.Suppressing so a user's own manual edits still get their warnings.
+            application.ControlledApplication.FailuresProcessing += OnFailuresProcessing;
+            application.DialogBoxShowing += OnDialogBoxShowing;
+
             // Fold the (rolling) journal into the durable pattern archive, so proven patterns from
             // months/years ago survive even after their raw journal lines have rolled off. Runs
             // before the experience digest is first built. Idempotent (timestamp watermark).
@@ -241,10 +250,43 @@ public class App : IExternalApplication
         }
     }
 
+    // While ClaudeRevit is driving, silently clear warnings so a commit never blocks on a modal
+    // failure dialog (e.g. a non-intersecting join). Errors are left alone — they roll the
+    // transaction back as usual. No-op when a user is doing their own editing.
+    private static void OnFailuresProcessing(object? sender, FailuresProcessingEventArgs e)
+    {
+        if (!ToolDispatcher.Suppressing) return;
+        try
+        {
+            var acc = e.GetFailuresAccessor();
+            var msgs = acc.GetFailureMessages();
+            if (msgs.Count == 0) return;
+            var deleted = false;
+            foreach (var m in msgs)
+                if (m.GetSeverity() == Autodesk.Revit.DB.FailureSeverity.Warning)
+                { acc.DeleteWarning(m); deleted = true; }
+            if (deleted) e.SetProcessingResult(Autodesk.Revit.DB.FailureProcessingResult.ProceedWithCommit);
+        }
+        catch { /* never let dialog suppression itself throw into Revit */ }
+    }
+
+    // Auto-dismiss task/message dialogs (family prompts, "unresolved references", etc.) during
+    // automation so an unattended benchmark or long build doesn't stall. Result 1 = OK/Close.
+    private static void OnDialogBoxShowing(object? sender, DialogBoxShowingEventArgs e)
+    {
+        if (!ToolDispatcher.Suppressing) return;
+        try { e.OverrideResult(1); }
+        catch { /* some dialogs can't be overridden — let them show rather than crash */ }
+    }
+
     public Result OnShutdown(UIControlledApplication application)
     {
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
+        catch { /* shutting down anyway */ }
+        try { application.ControlledApplication.FailuresProcessing -= OnFailuresProcessing; }
+        catch { /* shutting down anyway */ }
+        try { application.DialogBoxShowing -= OnDialogBoxShowing; }
         catch { /* shutting down anyway */ }
         // Post-close learning report: summarize the accumulated Dynamo/C# scripts into a
         // developer-facing file so recurring patterns can be promoted to native tools.

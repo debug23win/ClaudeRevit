@@ -29,6 +29,19 @@ public class ToolDispatcher : IExternalEventHandler
     private readonly ConcurrentQueue<Job> _queue = new();
     private TransactionGroup? _activeGroup;
 
+    // Dialog/failure suppression. Revit shows modal warning dialogs (and task dialogs) on
+    // transaction commit — fine when a user is present, but they STALL unattended automation
+    // (the benchmark) and interrupt long chat builds. The App-level FailuresProcessing and
+    // DialogBoxShowing handlers auto-resolve them, but ONLY while ClaudeRevit is driving — this
+    // flag gates that so a user's own manual edits still get their normal warnings.
+    //   _suppressTurn — set for the span of a chat/benchmark turn (covers execute_csharp, which
+    //                   runs its own transaction with no per-tool failure preprocessor).
+    //   ForceSuppress — held true by the benchmark across the whole run (covers the gaps between
+    //                   turns, e.g. the reset-between-tasks deletions).
+    private static volatile bool _suppressTurn;
+    public static volatile bool ForceSuppress;
+    public static bool Suppressing => _suppressTurn || ForceSuppress;
+
     private ToolDispatcher(ToolRegistry registry) => _registry = registry;
 
     public Task BeginTurnAsync(string label, CancellationToken ct = default)
@@ -140,6 +153,7 @@ public class ToolDispatcher : IExternalEventHandler
     {
         try
         {
+            _suppressTurn = true;
             var doc = app.ActiveUIDocument?.Document;
             if (doc != null && _activeGroup == null)
             {
@@ -162,6 +176,7 @@ public class ToolDispatcher : IExternalEventHandler
                 _activeGroup.Dispose();
                 _activeGroup = null;
             }
+            _suppressTurn = false;
             job.Tcs.TrySetResult(true);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
