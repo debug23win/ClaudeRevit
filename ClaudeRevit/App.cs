@@ -13,6 +13,7 @@ public class App : IExternalApplication
     {
         try
         {
+            ToolRegistry.Instance.Register(new FindTools());
             ToolRegistry.Instance.Register(new GetActiveViewInfo());
             ToolRegistry.Instance.Register(new GetLevels());
             ToolRegistry.Instance.Register(new GetSelection());

@@ -87,6 +87,7 @@
                             • Подтверждения операций по умолчанию выключены (всё откатывается Ctrl+Z); включить обратно можно в настройках.&#10;
                             • Строка внизу панели: токены, процент кэша, стоимость сессии (только Anthropic) и остаток баланса, если вы ввели его в настройках.&#10;
                             • История чата сжимается автоматически, а кэш запросов снижает стоимость длинных сессий — держать одну длинную сессию выгоднее, чем много коротких.&#10;
+                            • Инструменты подгружаются по мере надобности: в каждом запросе едет только базовый набор, а специализированные (арматура, инженерка, спецификации, листы, аннотации, разрезы, редактор семейств, экспорт) загружаются по требованию — это сокращает «налог на каталог инструментов» примерно на две трети, особенно заметно на альтернативных моделях без кэша.&#10;
                             • Результаты инструментов из прошлых запросов автоматически ужимаются (полный текст сохраняется, ассистент при необходимости достаёт его через get_full_result) — это главная экономия токенов в длинных сессиях.
                         </TextBlock>
                     </StackPanel>
@@ -171,6 +172,7 @@
                             • Per-operation confirmations are off by default (everything is Ctrl+Z-able); re-enable them in Settings.&#10;
                             • The pane footer shows tokens, cache hit rate, session cost (Anthropic only) and the balance remainder if you entered one in Settings.&#10;
                             • Chat history compacts automatically and prompt caching keeps long sessions cheap — one long session beats many short ones.&#10;
+                            • Tools are lazy-loaded: only a core set is sent each request; specialised tools (rebar, MEP, schedules, sheets, annotation, sections, family editing, export) load on demand, cutting the per-request tool cost by roughly two thirds — a big saving on alternative models, which don't cache.&#10;
                             • Tool results from earlier prompts are automatically shrunk (the full text is archived; the assistant retrieves it on demand via get_full_result) — the biggest token saving in long sessions.
                         </TextBlock>
                     </StackPanel>
