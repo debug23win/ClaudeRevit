@@ -166,6 +166,22 @@ public partial class ChatPaneView : UserControl
         InputBox.Focus();
     }
 
+    private void RunToolButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!SettingsStore.AllowCodeExecution)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                "Custom tools run arbitrary code — enable 'Allow Claude to run code' in Settings (⚙) first.",
+                "Claude Revit", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dlg = new RunToolWindow();
+        var owner = Window.GetWindow(this);
+        if (owner != null) dlg.Owner = owner;
+        else dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        dlg.ShowDialog();
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new SettingsWindow();
