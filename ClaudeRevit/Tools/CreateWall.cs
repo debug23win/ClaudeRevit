@@ -57,11 +57,7 @@ public class CreateWall : IRevitTool
         if (input.TryGetValue("wall_type_name", out var wt) && wt.ValueKind == JsonValueKind.String)
         {
             var wtName = wt.GetString();
-            wallType = new FilteredElementCollector(doc)
-                .OfClass(typeof(WallType))
-                .Cast<WallType>()
-                .FirstOrDefault(t => t.Name == wtName)
-                ?? throw new InvalidOperationException($"Wall type '{wtName}' not found.");
+            wallType = NameResolve.ByName<WallType>(doc, wtName, "Wall type");
         }
         else
         {

@@ -77,11 +77,7 @@ public class CreateFloor : IRevitTool
         if (input.TryGetValue("floor_type_name", out var ft) && ft.ValueKind == JsonValueKind.String)
         {
             var ftName = ft.GetString();
-            floorType = new FilteredElementCollector(doc)
-                .OfClass(typeof(FloorType))
-                .Cast<FloorType>()
-                .FirstOrDefault(t => t.Name == ftName)
-                ?? throw new InvalidOperationException($"Floor type '{ftName}' not found.");
+            floorType = NameResolve.ByName<FloorType>(doc, ftName, "Floor type");
         }
         else
         {
