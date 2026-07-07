@@ -35,8 +35,9 @@ public class ExecuteCSharp : IRevitTool
     public string Description =>
         "The DEFAULT code escape hatch: runs a C# snippet directly against the full Revit API — " +
         "no Dynamo required, fastest and most reliable. Use for operations no dedicated tool " +
-        "covers. Available variables: 'uiapp' (UIApplication) and " +
-        "'doc' (active Document). Write STATEMENTS (the snippet becomes a method body — no " +
+        "covers. These variables are ALREADY defined — use them directly, do NOT re-declare " +
+        "them and do NOT use uidoc.Document/__revit__ to fetch them: 'uiapp' (UIApplication), " +
+        "'uidoc' (UIDocument) and 'doc' (active Document). Write STATEMENTS (the snippet becomes a method body — no " +
         "top-level classes, no bare trailing expressions) and end with 'return <expr>;' to " +
         "report a result (it is ToString()'d); 'return doc.Title;' is a good smoke test. " +
         "The snippet already runs inside a transaction that rolls back if it throws — do NOT " +
@@ -73,8 +74,18 @@ public class ExecuteCSharp : IRevitTool
         "#pragma warning disable CS0162\n" +
         "public static class __ClaudeScript\n" +
         "{\n" +
-        "    public static object Run(UIApplication uiapp, Document doc)\n" +
+        "    public static object Run(UIApplication uiapp, UIDocument uidoc, Document doc)\n" +
         "    {\n";
+
+    // Models habitually start a snippet by re-bootstrapping the context
+    // (`var doc = uidoc.Document;`, `var doc = __revit__.ActiveUIDocument.Document;`), which
+    // collides with the doc/uidoc/uiapp we already provide and fails to compile. Blank those
+    // lines out (keeping the line count so error line numbers stay accurate) so the snippet
+    // just uses the supplied variables.
+    private static readonly System.Text.RegularExpressions.Regex BootstrapLine = new(
+        @"(?m)^[ \t]*(?:var|Document|UIDocument|UIApplication|Autodesk\.Revit\.[\w.]+)\s+" +
+        @"(?:doc|uidoc|uiapp)\s*=[^;\n]*;[ \t]*$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -82,9 +93,11 @@ public class ExecuteCSharp : IRevitTool
         if (string.IsNullOrWhiteSpace(code))
             throw new InvalidOperationException("code is empty.");
 
-        var doc = app.ActiveUIDocument?.Document
+        var uidoc = app.ActiveUIDocument
             ?? throw new InvalidOperationException("No document is open.");
+        var doc = uidoc.Document;
 
+        code = BootstrapLine.Replace(code, "");
         var source = Prelude + code + "\nreturn null;\n    }\n}\n";
         var preludeLines = Prelude.Count(c => c == '\n');
 
@@ -129,7 +142,7 @@ public class ExecuteCSharp : IRevitTool
             object? result;
             try
             {
-                result = run.Invoke(null, [app, doc]);
+                result = run.Invoke(null, [app, uidoc, doc]);
             }
             catch (TargetInvocationException tie)
             {
