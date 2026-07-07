@@ -35,7 +35,7 @@ public static class ToolSearchLogic
         // Code / learning / self-extension
         "execute_csharp", "run_dynamo_python", "save_tool", "delete_tool", "list_custom_tools",
         "get_tool_source", "get_script_journal", "get_full_result", "save_memory",
-        "save_project_memory", "generate_diagnostic_report", "find_tools",
+        "save_project_memory", "generate_diagnostic_report", "find_tools", "run_batch",
     };
 
     // Keywords (EN + RU) that pre-load a whole deferred group when they appear in the user's
