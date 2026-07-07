@@ -41,6 +41,13 @@ the user doesn't have to think about it. Premature now (we have dozens); impleme
   (Sonnet 5 / Haiku 4.5) and advisor (Opus 4.8 / Fable 5) are selectable in Settings. Per-task
   diagnostics (time/tokens/rounds) added alongside. Benchmark mode (v1.71) compares models on
   graded tasks with an impartial Opus judge.
+- ~~**Subscription-backed use.**~~ SHIPPED (v1.83) as the experimental MCP server. Direct
+  subscription OAuth in a third-party API call is banned by Anthropic and blocked server-side, so
+  the in-Revit pane stays on a pay-per-token API key; the MCP server lets Claude Code / Desktop
+  (subscription-authed) drive Revit instead, putting cost on the flat subscription. Tradeoff: the
+  client runs the loop, so our token machinery + pane don't apply in that mode. Needs field
+  validation (HttpListener URL-ACL on Windows; client handshake).
+
 - **Auto-update after Revit closes.** A background updater launched on shutdown: check GitHub
   releases, silently install a newer version, and pull the latest knowledge base (tools + patterns).
   Loaded DLLs can't self-update while Revit runs. Requires user opt-in + a signed installer.
