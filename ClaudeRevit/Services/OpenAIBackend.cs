@@ -38,11 +38,12 @@ public sealed class OpenAIBackend
         string dynamicContext,
         JsonArray toolsJson,
         Func<string, Task> onTextDelta,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? modelOverride = null)
     {
         var body = new JsonObject
         {
-            ["model"] = SettingsStore.AltModel,
+            ["model"] = string.IsNullOrWhiteSpace(modelOverride) ? SettingsStore.AltModel : modelOverride,
             ["messages"] = BuildMessages(systemPrompt, history, dynamicContext),
             ["stream"] = true,
             // Most compatible providers honor this and report usage in a final chunk;

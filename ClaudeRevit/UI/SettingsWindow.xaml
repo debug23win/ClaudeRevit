@@ -73,6 +73,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock x:Name="ProviderLabel" Grid.Row="0" Grid.Column="0" Text="Provider:" VerticalAlignment="Center" Margin="0,0,8,6" />
@@ -103,10 +104,16 @@
                     <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AltKeyBox" Height="26" Padding="4"
                                  VerticalContentAlignment="Center" Margin="0,0,0,6" />
 
-                    <TextBlock x:Name="ContextLabel" Grid.Row="4" Grid.Column="0" Text="Context, K:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock x:Name="ContextLabel" Grid.Row="4" Grid.Column="0" Text="Context, K:" VerticalAlignment="Center" Margin="0,0,8,6" />
                     <TextBox Grid.Row="4" Grid.Column="1" x:Name="AltContextBox" Width="80" Height="26" Padding="4"
-                             HorizontalAlignment="Left" VerticalContentAlignment="Center" />
+                             HorizontalAlignment="Left" VerticalContentAlignment="Center" Margin="0,0,0,6" />
+
+                    <TextBlock x:Name="ReasoningLabel" Grid.Row="5" Grid.Column="0" Text="Reasoning model:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Row="5" Grid.Column="1" x:Name="AltReasoningBox" Height="26" Padding="4"
+                             VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="12" />
                 </Grid>
+                <TextBlock x:Name="ReasoningNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                           Text="Optional. A stronger reasoning model (e.g. grok-4.20-0309-reasoning). When set, the fast model above is used for routine work and this one kicks in automatically on complex tasks, errors or long multi-step jobs. Leave empty to always use the model above." />
                 <TextBlock x:Name="AltNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
                            Text="Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL, a default model and its typical context size. Local Ollama / LM Studio need no key. The model must support function calling. Select “Alt” in the chat pane's model dropdown to use it." />
 
