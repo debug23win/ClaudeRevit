@@ -41,6 +41,7 @@ public static class BenchmarkRunner
         IReadOnlyList<BenchmarkTask> tasks,
         string judgeModel,
         string runStamp,
+        bool resetBetweenTasks,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
     {
@@ -50,6 +51,10 @@ public static class BenchmarkRunner
 
             var chat = new ChatService(ephemeral: true);
             var conv = new ObservableCollection<ChatMessage>();
+            // Baseline snapshot so we can delete exactly what this task adds (clean isolation).
+            var baselineIds = resetBetweenTasks
+                ? new HashSet<long>(await ToolDispatcher.Instance.AllElementIdsAsync(ct))
+                : new HashSet<long>();
             var before = await StatsAsync(ct);
 
             string finalText = "";
@@ -70,6 +75,11 @@ public static class BenchmarkRunner
                 ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
                 : await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
 
+            // Reset the model to baseline AFTER grading (grading needs the elements to exist),
+            // so the next task starts clean and can't be contaminated by this one's output.
+            if (resetBetweenTasks)
+                await ResetAsync(baselineIds, ct);
+
             var result = new BenchmarkResult
             {
                 TaskId = task.Id,
@@ -86,6 +96,25 @@ public static class BenchmarkRunner
             Append(result, modelTag, runStamp, m);
             onResult(result);
         }
+    }
+
+    // Delete everything the task added (ids not present at baseline). Best-effort: Revit cascades
+    // dependent deletions, and some elements (e.g. the last level) may refuse — those are left.
+    private static async Task ResetAsync(HashSet<long> baselineIds, CancellationToken ct)
+    {
+        try
+        {
+            var now = await ToolDispatcher.Instance.AllElementIdsAsync(ct);
+            var added = now.Where(id => !baselineIds.Contains(id)).ToArray();
+            if (added.Length == 0) return;
+            var input = new Dictionary<string, JsonElement>
+            {
+                ["element_ids"] = JsonSerializer.SerializeToElement(added)
+            };
+            await ToolDispatcher.Instance.ExecuteAsync("delete_elements", input, ct);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { Log.Error("Benchmark reset failed", ex); }
     }
 
     private static async Task<string> StatsAsync(CancellationToken ct)

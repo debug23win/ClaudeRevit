@@ -39,6 +39,7 @@ public partial class BenchmarkWindow : Window
         {
             await BenchmarkRunner.RunAsync(
                 model, BenchmarkTasks.All, judgeModel: "opus-4-8", runStamp: stamp,
+                resetBetweenTasks: ResetBox.IsChecked == true,
                 onResult: r =>
                 {
                     _results.Add(r);

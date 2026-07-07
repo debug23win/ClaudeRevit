@@ -23,6 +23,9 @@
                     Click="RunButton_Click" />
             <Button x:Name="CancelButton" Content="Stop" Width="70" Height="26" Margin="8,0,0,0"
                     Click="CancelButton_Click" IsEnabled="False" />
+            <CheckBox x:Name="ResetBox" Content="Reset model between tasks" IsChecked="True"
+                      VerticalAlignment="Center" Margin="16,0,0,0"
+                      ToolTip="Delete each task's elements after grading, so every task starts from the same clean baseline (fair comparison). Uncheck to keep everything and inspect the result." />
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"

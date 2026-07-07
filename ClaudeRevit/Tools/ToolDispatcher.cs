@@ -79,6 +79,18 @@ public class ToolDispatcher : IExternalEventHandler
         return tcs.Task;
     }
 
+    // Snapshot of every non-type element id in the active document. Used by the benchmark to
+    // reset the model to a baseline between tasks (delete whatever a task added), so each task
+    // starts from the same clean state and can't contaminate the next.
+    public Task<List<long>> AllElementIdsAsync(CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<List<long>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.Register(() => tcs.TrySetCanceled(ct));
+        _queue.Enqueue(new AllIdsJob(tcs));
+        _event.Raise();
+        return tcs.Task;
+    }
+
     public void Execute(UIApplication app)
     {
         while (_queue.TryDequeue(out var job))
@@ -90,8 +102,22 @@ public class ToolDispatcher : IExternalEventHandler
                 case ToolJob t: HandleTool(app, t); break;
                 case GetContextJob g: HandleGetContext(app, g); break;
                 case FocusElementJob f: HandleFocusElement(app, f); break;
+                case AllIdsJob a: HandleAllIds(app, a); break;
             }
         }
+    }
+
+    private void HandleAllIds(UIApplication app, AllIdsJob job)
+    {
+        try
+        {
+            var doc = app.ActiveUIDocument?.Document;
+            if (doc == null) { job.Tcs.TrySetResult(new List<long>()); return; }
+            var ids = new FilteredElementCollector(doc).WhereElementIsNotElementType()
+                .ToElementIds().Select(id => id.Value).ToList();
+            job.Tcs.TrySetResult(ids);
+        }
+        catch (Exception ex) { job.Tcs.TrySetException(ex); }
     }
 
     private void HandleFocusElement(UIApplication app, FocusElementJob job)
@@ -316,6 +342,7 @@ public class ToolDispatcher : IExternalEventHandler
         TaskCompletionSource<string> Tcs) : Job;
     private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
+    private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;
 
     // Collects the text of Revit's failure messages during a transaction commit so they can
     // be reported to the model, and lets Revit resolve them non-interactively (no modal

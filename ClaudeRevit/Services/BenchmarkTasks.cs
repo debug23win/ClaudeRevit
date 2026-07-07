@@ -33,11 +33,12 @@ public static class BenchmarkTasks
             "levels/elevations are wrong."),
 
         new BenchmarkTask("L3", "Query→filter→act (accuracy)",
-            "Find every wall longer than 6 m in the model, change its type to a 300 mm generic wall, and " +
-            "tell me the total length of the walls you changed.",
-            "PASS only if EXACTLY the walls longer than 6 m were retyped (none ≤6 m touched) and the " +
-            "reported total length matches the actual sum of the changed walls. This tests precision and " +
-            "honest reporting — over-acting or a wrong total is a FAIL."),
+            "First create four straight walls on Level 1 with lengths 8 m, 7 m, 5 m and 4 m. Then find " +
+            "every wall longer than 6 m, change its type to a 300 mm generic wall, and tell me the total " +
+            "length of the walls you changed.",
+            "The setup makes exactly two walls (8 m and 7 m) longer than 6 m. PASS only if those two were " +
+            "retyped and the 5 m and 4 m walls were left untouched, and the reported total is 15 m. This " +
+            "tests precision and honest reporting — over-acting or a wrong total is a FAIL."),
 
         new BenchmarkTask("L4", "Barrel-vault mesh (freeform, no freeze)",
             "Model a barrel-vault roof over a 20×10 m hall: a half-cylinder shell, radius 5 m, its axis " +
@@ -55,8 +56,9 @@ public static class BenchmarkTasks
             "FAIL if no Rebar elements were created or they are outside the host."),
 
         new BenchmarkTask("R2", "Rebar — complex form",
-            "Reinforce a 6×4 m structural concrete slab: add area (mesh) reinforcement across it, and add " +
-            "path reinforcement along its edges. Use the appropriate dedicated tools for each.",
+            "Create a 6×4 m structural concrete slab (floor) on Level 1, then reinforce it: add area (mesh) " +
+            "reinforcement across it, and add path reinforcement along its edges. Use the appropriate " +
+            "dedicated tools for each.",
             "PASS if both area reinforcement AND path reinforcement elements were created in the slab, " +
             "using the correct distinct tools. Partial credit context: note which of the two succeeded. " +
             "FAIL if neither was created or they are not associated with the slab."),
