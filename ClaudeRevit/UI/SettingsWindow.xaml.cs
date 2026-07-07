@@ -50,6 +50,7 @@ public partial class SettingsWindow : Window
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
         AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
+        AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
         // Order matters: selecting the combo fires SelectionChanged (fields are empty →
         // preset defaults land), then the persisted values overwrite them — so the boxes
@@ -300,6 +301,7 @@ public partial class SettingsWindow : Window
 
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
+        SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;
         if (balanceChanged)
             SettingsStore.SetBalance(balanceText.Length == 0 ? 0 : balance);

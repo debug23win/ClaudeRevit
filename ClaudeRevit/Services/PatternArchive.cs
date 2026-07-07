@@ -18,7 +18,10 @@ namespace ClaudeRevit.Services;
 // evicted from the journal without first being archived).
 public static class PatternArchive
 {
-    private static string FilePath => Path.Combine(
+    // Overridable so tests can point the archive at a temp file. Null → the real %AppData% path.
+    internal static string? FilePathOverride;
+
+    private static string FilePath => FilePathOverride ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClaudeRevit", "experience_archive.json");
 
