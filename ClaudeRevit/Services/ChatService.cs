@@ -526,9 +526,18 @@ public class ChatService
         // Code-execution tools are hidden from the model entirely unless the user opted
         // in, so they can't be invoked (or even suggested) by accident.
         var allowCode = SettingsStore.AllowCodeExecution;
-        return ToolRegistry.Instance.All
+        var disabledGroups = new HashSet<string>(SettingsStore.DisabledToolGroups, StringComparer.OrdinalIgnoreCase);
+
+        var tools = ToolRegistry.Instance.All
             .Where(t => allowCode || !t.RequiresCodeExecutionOptIn)
+            .Where(t => disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)))
             .ToList();
+
+        // Never send an empty tool list (a mis-set filter that disables everything would
+        // leave the model unable to act) — fall back to the code-gated full set.
+        if (tools.Count == 0)
+            tools = ToolRegistry.Instance.All.Where(t => allowCode || !t.RequiresCodeExecutionOptIn).ToList();
+        return tools;
     }
 
     // System = base prompt + one combined block for saved memory and learned experience.

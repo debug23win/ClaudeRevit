@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using ClaudeRevit.Services;
+using ClaudeRevit.Tools;
 
 namespace ClaudeRevit.UI;
 
@@ -65,6 +67,27 @@ public partial class SettingsWindow : Window
                 .ToString("F2", CultureInfo.InvariantCulture)
             : "";
         BalanceBox.Text = _initialBalanceText;
+
+        PopulateToolGroups();
+    }
+
+    // One checkbox per tool group (with its tool count). Unchecking a group drops those tools
+    // from every request — the token-budget lever for rate-limited / free providers.
+    private void PopulateToolGroups()
+    {
+        var disabled = new HashSet<string>(SettingsStore.DisabledToolGroups,
+            System.StringComparer.OrdinalIgnoreCase);
+        foreach (var (category, count) in ToolCatalog.Summarize(ToolRegistry.Instance.All))
+        {
+            ToolGroupsPanel.Children.Add(new CheckBox
+            {
+                Content = $"{category} ({count})",
+                Tag = category,
+                IsChecked = !disabled.Contains(category),
+                Width = 165,
+                Margin = new Thickness(0, 2, 8, 2)
+            });
+        }
     }
 
     private void AltProviderBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -183,6 +206,13 @@ public partial class SettingsWindow : Window
         SettingsStore.AltModel = altModel;
         SettingsStore.AltContextK = contextK;
         SettingsStore.MaxToolRounds = maxRounds;
+
+        var disabledGroups = new List<string>();
+        foreach (var child in ToolGroupsPanel.Children)
+            if (child is CheckBox cb && cb.IsChecked == false && cb.Tag is string cat)
+                disabledGroups.Add(cat);
+        SettingsStore.DisabledToolGroups = disabledGroups;
+
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
         if (balanceChanged)

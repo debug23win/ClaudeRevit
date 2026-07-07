@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Text.Json;
 
@@ -71,6 +73,14 @@ public static class SettingsStore
     {
         get => Math.Clamp(Current.MaxToolRounds, 1, 200);
         set { Current.MaxToolRounds = Math.Clamp(value, 1, 200); Save(); }
+    }
+
+    // Tool groups (see ToolCatalog) the user switched OFF to shrink each request's token
+    // cost. Empty = every group on (the default; no behaviour change).
+    public static IReadOnlyList<string> DisabledToolGroups
+    {
+        get => Current.DisabledToolGroups;
+        set { Current.DisabledToolGroups = value?.ToList() ?? new List<string>(); Save(); }
     }
 
     // User-entered account balance (from console.anthropic.com) and the estimated
@@ -152,6 +162,7 @@ public static class SettingsStore
         public string AltModel { get; set; } = "";
         public int AltContextK { get; set; } = 0;
         public int MaxToolRounds { get; set; } = 24;
+        public List<string> DisabledToolGroups { get; set; } = new();
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }
