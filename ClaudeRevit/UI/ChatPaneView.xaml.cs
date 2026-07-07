@@ -236,6 +236,7 @@ public partial class ChatPaneView : UserControl
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        var codeWasOn = SettingsStore.AllowCodeExecution;
         var dlg = new SettingsWindow();
         var owner = Window.GetWindow(this);
         if (owner != null) dlg.Owner = owner;
@@ -245,6 +246,15 @@ public partial class ChatPaneView : UserControl
             _service.RecreateClient();
             UpdateAltModelLabel();
             UpdateAssistantLabel();
+
+            // Turning code execution on now loads any previously-saved custom tools without a
+            // Revit restart (LoadAll otherwise only runs at startup, so saved tools would stay
+            // invisible until relaunch).
+            if (!codeWasOn && SettingsStore.AllowCodeExecution)
+            {
+                try { Tools.DynamicToolLoader.LoadAll(); } catch (Exception ex) { Log.Error("Reload custom tools failed", ex); }
+            }
+
             StatusText.Text = "Settings saved.";
         }
     }
