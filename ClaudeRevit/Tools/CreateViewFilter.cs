@@ -47,10 +47,11 @@ public class CreateViewFilter : IRevitTool
         var unknown = new List<string>();
         foreach (var c in categoryNames)
         {
-            if (Enum.TryParse<BuiltInCategory>($"OST_{c}", true, out var bic))
-                catIds.Add(new ElementId(bic));
-            else
-                unknown.Add(c);
+            // CategoryResolve tolerates spaces ("Structural Columns") and synonyms — the bare
+            // Enum.TryParse("OST_" + name) used here before silently dropped every multi-word
+            // category because the enum members have no spaces.
+            try { catIds.Add(new ElementId(CategoryResolve.Parse(c))); }
+            catch { unknown.Add(c); }
         }
 
         if (catIds.Count == 0)

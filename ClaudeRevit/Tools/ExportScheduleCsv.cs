@@ -47,7 +47,14 @@ public class ExportScheduleCsv : IRevitTool
             outPath = Path.Combine(docs, $"Revit_{safe}_{DateTime.Now:yyyyMMdd-HHmmss}.csv");
         }
 
-        var dir = Path.GetDirectoryName(outPath)!;
+        // A bare filename yields an empty directory string, and Directory.CreateDirectory("")
+        // throws — default to the Documents folder in that case.
+        var dir = Path.GetDirectoryName(outPath);
+        if (string.IsNullOrEmpty(dir))
+        {
+            dir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            outPath = Path.Combine(dir, Path.GetFileName(outPath));
+        }
         Directory.CreateDirectory(dir);
         var name = Path.GetFileName(outPath);
 

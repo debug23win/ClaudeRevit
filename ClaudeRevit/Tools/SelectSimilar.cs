@@ -44,9 +44,15 @@ public class SelectSimilar : IRevitTool
             ?? throw new InvalidOperationException("Template element has no category.");
 
         var visibleOnly = input.TryGetValue("visible_only", out var vo) && vo.ValueKind == JsonValueKind.True;
-        var collector = visibleOnly
-            ? new FilteredElementCollector(doc, doc.ActiveView.Id)
-            : new FilteredElementCollector(doc);
+        FilteredElementCollector collector;
+        if (visibleOnly)
+        {
+            var active = doc.ActiveView
+                ?? throw new InvalidOperationException(
+                    "visible_only is set but there is no active graphical view.");
+            collector = new FilteredElementCollector(doc, active.Id);
+        }
+        else collector = new FilteredElementCollector(doc);
 
         var matches = collector
             .OfCategoryId(catId)

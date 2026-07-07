@@ -51,15 +51,12 @@ public class PlaceWindow : IRevitTool
             ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
 
         FamilySymbol symbol;
-        if (input.TryGetValue("window_type_name", out var wt) && wt.ValueKind == JsonValueKind.String)
+        if (input.TryGetValue("window_type_name", out var wt) && wt.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(wt.GetString()))
         {
-            var name = wt.GetString();
-            symbol = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Windows)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Name == name)
-                ?? throw new InvalidOperationException($"Window type '{name}' not found.");
+            // NameResolve lists the available window types (and a "did you mean") on a miss.
+            symbol = NameResolve.ByName<FamilySymbol>(doc, wt.GetString(), "Window type",
+                c => c.OfCategory(BuiltInCategory.OST_Windows).Cast<FamilySymbol>());
         }
         else
         {
@@ -67,10 +64,14 @@ public class PlaceWindow : IRevitTool
                 .OfCategory(BuiltInCategory.OST_Windows)
                 .OfClass(typeof(FamilySymbol))
                 .Cast<FamilySymbol>()
-                .First();
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    "No window types are loaded in this project. Load a window family first.");
         }
 
-        if (!symbol.IsActive) symbol.Activate();
+        // Activate then regenerate before placing (the documented pattern; PlaceSymbol does the
+        // same). Activating without regenerating could leave the first-ever placement failing.
+        if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
         var instance = doc.Create.NewFamilyInstance(
             new XYZ(x, y, 0), symbol, host, level, StructuralType.NonStructural);

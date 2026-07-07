@@ -52,15 +52,13 @@ public class PlaceDoor : IRevitTool
             ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
 
         FamilySymbol symbol;
-        if (input.TryGetValue("door_type_name", out var dt) && dt.ValueKind == JsonValueKind.String)
+        if (input.TryGetValue("door_type_name", out var dt) && dt.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(dt.GetString()))
         {
-            var name = dt.GetString();
-            symbol = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Doors)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Name == name)
-                ?? throw new InvalidOperationException($"Door type '{name}' not found.");
+            // NameResolve lists the available door types (and a "did you mean") on a miss, so a
+            // wrong name self-corrects instead of coming back as a bare "not found".
+            symbol = NameResolve.ByName<FamilySymbol>(doc, dt.GetString(), "Door type",
+                c => c.OfCategory(BuiltInCategory.OST_Doors).Cast<FamilySymbol>());
         }
         else
         {
@@ -68,10 +66,14 @@ public class PlaceDoor : IRevitTool
                 .OfCategory(BuiltInCategory.OST_Doors)
                 .OfClass(typeof(FamilySymbol))
                 .Cast<FamilySymbol>()
-                .First();
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    "No door types are loaded in this project. Load a door family first.");
         }
 
-        if (!symbol.IsActive) symbol.Activate();
+        // Activate then regenerate before placing: a type never used this session isn't ready
+        // until the activation is regenerated (the documented pattern; PlaceSymbol does the same).
+        if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
         var instance = doc.Create.NewFamilyInstance(
             new XYZ(x, y, 0), symbol, host, level, StructuralType.NonStructural);

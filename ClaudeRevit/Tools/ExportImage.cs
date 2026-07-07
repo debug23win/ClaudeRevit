@@ -56,7 +56,15 @@ public class ExportImage : IRevitTool
             outPath = Path.Combine(pictures, $"Revit_{safe}_{DateTime.Now:yyyyMMdd-HHmmss}.png");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+        // A bare filename yields an empty directory string, and Directory.CreateDirectory("")
+        // throws — default to the Pictures folder in that case.
+        var outDir = Path.GetDirectoryName(outPath);
+        if (string.IsNullOrEmpty(outDir))
+        {
+            outDir = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            outPath = Path.Combine(outDir, Path.GetFileName(outPath));
+        }
+        Directory.CreateDirectory(outDir);
 
         var options = new ImageExportOptions
         {
