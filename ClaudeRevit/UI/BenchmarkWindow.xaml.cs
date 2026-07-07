@@ -40,10 +40,27 @@ public partial class BenchmarkWindow : Window
 
     private void RenderStatus() => NowText.Text = $"{_status}  ·  {_phase.Elapsed.TotalSeconds:0}s";
 
+    // The task subset to run — pick fewer to save tokens; you rarely need all 14 every time.
+    private System.Collections.Generic.IReadOnlyList<BenchmarkTask> SelectedTasks()
+    {
+        var tag = (TaskSetBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
+        return tag switch
+        {
+            "basic" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("B")).ToList(),
+            "composite" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("L")).ToList(),
+            "domain" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("R") || t.Id.StartsWith("S")).ToList(),
+            "hard" => BenchmarkTasks.All.Where(t => t.Id is "L3" or "L4"
+                        || t.Id.StartsWith("R") || t.Id.StartsWith("S")).ToList(),
+            _ => BenchmarkTasks.All
+        };
+    }
+
     private async void RunButton_Click(object sender, RoutedEventArgs e)
     {
         if (_cts != null) return;
         var model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "auto";
+        var tasks = SelectedTasks();
+        if (tasks.Count == 0) return;
 
         _results.Clear();
         SummaryText.Text = "Running…";
@@ -65,7 +82,7 @@ public partial class BenchmarkWindow : Window
         try
         {
             await BenchmarkRunner.RunAsync(
-                model, BenchmarkTasks.All, judgeModel: "opus-4-8", runStamp: stamp,
+                model, tasks, judgeModel: "opus-4-8", runStamp: stamp,
                 resetBetweenTasks: ResetBox.IsChecked == true,
                 maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds,
                 onStatus: SetStatus,
@@ -77,7 +94,7 @@ public partial class BenchmarkWindow : Window
                     if (r.Verdict != "?") graded++;
                     if (r.Verdict == "✓") passes++;
                     SummaryText.Text =
-                        $"{_results.Count}/{BenchmarkTasks.All.Count} tasks · " +
+                        $"{_results.Count}/{tasks.Count} tasks · " +
                         $"{passes} passed{(graded < _results.Count ? $" ({_results.Count - graded} ungraded)" : "")} · " +
                         $"{tokens:N0} tokens · {seconds:0.0}s total";
                 },

@@ -10,14 +10,23 @@
     <DockPanel Margin="14">
 
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Text="Model under test:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox x:Name="ModelBox" Width="200" Height="26" VerticalContentAlignment="Center">
+            <TextBlock Text="Model:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="ModelBox" Width="150" Height="26" VerticalContentAlignment="Center">
                 <ComboBoxItem Tag="auto" IsSelected="True">Auto (as configured)</ComboBoxItem>
                 <ComboBoxItem Tag="sonnet-5">Sonnet 5</ComboBoxItem>
                 <ComboBoxItem Tag="opus-4-8">Opus 4.8</ComboBoxItem>
                 <ComboBoxItem Tag="fable-5">Fable 5</ComboBoxItem>
                 <ComboBoxItem Tag="haiku-4-5">Haiku 4.5</ComboBoxItem>
                 <ComboBoxItem Tag="alt">Alt model</ComboBoxItem>
+            </ComboBox>
+            <TextBlock Text="Tasks:" VerticalAlignment="Center" Margin="12,0,8,0" />
+            <ComboBox x:Name="TaskSetBox" Width="150" Height="26" VerticalContentAlignment="Center"
+                      ToolTip="Run a subset to save tokens — you rarely need all 14 every time.">
+                <ComboBoxItem Tag="all" IsSelected="True">All (14)</ComboBoxItem>
+                <ComboBoxItem Tag="basic">Basics only (7)</ComboBoxItem>
+                <ComboBoxItem Tag="composite">Composite L1–L4</ComboBoxItem>
+                <ComboBoxItem Tag="domain">Domain: rebar &amp; steel</ComboBoxItem>
+                <ComboBoxItem Tag="hard">Hard discriminators (L3,L4,R,S)</ComboBoxItem>
             </ComboBox>
             <Button x:Name="RunButton" Content="Run benchmark" Width="120" Height="26" Margin="16,0,0,0"
                     Click="RunButton_Click" />
