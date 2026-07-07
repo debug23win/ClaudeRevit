@@ -50,6 +50,7 @@ public partial class SettingsWindow : Window
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
         AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
+        AutoAdvisorBox.IsChecked = SettingsStore.AutoUseAdvisor;
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
         // Order matters: selecting the combo fires SelectionChanged (fields are empty →
@@ -125,6 +126,13 @@ public partial class SettingsWindow : Window
         ConfirmOpsNote.Text = L(
             "Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z.",
             "По умолчанию выключено: диалог «Разрешить/Запретить» перед удалением и запуском скриптов. Всё равно отменяется через Ctrl+Z.");
+
+        AutoAdvisorBox.Content = L(
+            "Auto mode: consult Opus via the advisor tool (recommended)",
+            "Режим Auto: советоваться с Opus через advisor tool (рекомендуется)");
+        AutoAdvisorNote.Text = L(
+            "Applies to the “Auto” model. On (recommended): Sonnet 5 runs the whole turn and consults Opus 4.8 only when it needs a plan — Sonnet's cache stays warm all session and Opus is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache).",
+            "Относится к модели «Auto». Вкл (рекомендуется): Sonnet 5 ведёт весь ход и советуется с Opus 4.8 только когда нужен план — кэш Sonnet остаётся горячим всю сессию, а Opus оплачивается лишь за короткий совет. Выкл: прежнее поведение — весь ход переключается на Opus на сложной задаче, ошибке или длинном цикле (дороже, сбрасывает кэш).");
 
         BalanceLabel.Text = L("Account balance, USD:", "Баланс счёта, USD:");
         BalanceNote.Text = L(
@@ -301,6 +309,7 @@ public partial class SettingsWindow : Window
 
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
+        SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;
         if (balanceChanged)

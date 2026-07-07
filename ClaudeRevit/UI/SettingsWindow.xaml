@@ -58,6 +58,11 @@
                 <TextBlock x:Name="BalanceNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
                            Text="Optional. Enter your current credit balance from console.anthropic.com — the chat pane will show it minus the estimated local spend (the API has no balance endpoint). Re-entering a value resets the counter." />
 
+                <CheckBox x:Name="AutoAdvisorBox" Margin="0,14,0,0"
+                          Content="Auto mode: consult Opus via the advisor tool (recommended)" FontWeight="SemiBold" />
+                <TextBlock x:Name="AutoAdvisorNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                           Text="Applies to the “Auto” model. On (recommended): Sonnet 5 runs the whole turn and consults Opus 4.8 only when it needs a plan — Sonnet's cache stays warm all session and Opus is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache)." />
+
                 <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
                 <TextBlock x:Name="AltHeader" Text="Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)"

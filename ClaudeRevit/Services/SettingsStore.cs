@@ -84,6 +84,19 @@ public static class SettingsStore
         set { Current.AltCompactTools = value; Save(); }
     }
 
+    // "Auto" model mode: how it reaches for Opus-level intelligence.
+    //   true  (default) — advisor tool: Sonnet 5 runs the whole turn and consults Opus 4.8
+    //                     mid-generation only when it needs a plan. Keeps Sonnet's prompt cache
+    //                     warm all session; Opus billed only for the short advice sub-inference.
+    //   false           — legacy model-switch: run Sonnet 5, switch the whole turn to Opus 4.8 on
+    //                     a hard task / error / deep loop (invalidates the cache, bills Opus for
+    //                     every remaining round). Kept as an alternative.
+    public static bool AutoUseAdvisor
+    {
+        get => Current.AutoUseAdvisor;
+        set { Current.AutoUseAdvisor = value; Save(); }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -199,6 +212,7 @@ public static class SettingsStore
         public string AltReasoningModel { get; set; } = "";
         public int AltContextK { get; set; } = 0;
         public bool AltCompactTools { get; set; } = true;
+        public bool AutoUseAdvisor { get; set; } = true;
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";
