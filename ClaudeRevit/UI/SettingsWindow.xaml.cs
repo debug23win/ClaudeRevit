@@ -14,9 +14,10 @@ public partial class SettingsWindow : Window
     // empty box so an untouched Save can never be mistaken for "user cleared the field".
     private readonly string _initialBalanceText;
 
-    // The preset whose defaults currently "own" the URL/model fields — autofill only
-    // replaces values the user hasn't customized (see AltProviderBox_SelectionChanged).
-    private string _lastPresetTag = "";
+    // True only while the constructor is loading saved values. Selecting the provider combo
+    // during load must NOT autofill preset defaults (the ctor restores the saved URL/model
+    // itself); only a real user pick should.
+    private bool _initializing = true;
 
     // Preset → (base URL, default model, typical context in K tokens; 0 = unknown).
     // The defaults are a starting point the user can overwrite — e.g. swap
@@ -25,7 +26,7 @@ public partial class SettingsWindow : Window
     {
         "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash", 1000),
         "openai" => ("https://api.openai.com/v1", "gpt-5-mini", 400),
-        "grok" => ("https://api.x.ai/v1", "grok-4", 256),
+        "grok" => ("https://api.x.ai/v1", "grok-4.3", 256),
         "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat", 64),
         "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus", 128),
         "openrouter" => ("https://openrouter.ai/api/v1", "deepseek/deepseek-chat-v3-0324:free", 64),
@@ -53,7 +54,6 @@ public partial class SettingsWindow : Window
                 break;
             }
         if (AltProviderBox.SelectedItem == null) AltProviderBox.SelectedIndex = 0;
-        _lastPresetTag = SettingsStore.AltProvider;
 
         AltBaseUrlBox.Text = SettingsStore.AltBaseUrl;
         AltModelBox.Text = SettingsStore.AltModel;
@@ -70,6 +70,81 @@ public partial class SettingsWindow : Window
         BalanceBox.Text = _initialBalanceText;
 
         PopulateToolGroups();
+
+        // Setting the selected item fires LanguageBox_SelectionChanged, which localizes the
+        // whole window. All named elements already exist (post-InitializeComponent).
+        foreach (ComboBoxItem it in LanguageBox.Items)
+            if ((string)it.Tag == SettingsStore.UiLanguage) { LanguageBox.SelectedItem = it; break; }
+        if (LanguageBox.SelectedItem == null) LanguageBox.SelectedIndex = 0;
+
+        // Loading is done — from now on a provider pick autofills its preset.
+        _initializing = false;
+    }
+
+    // Current UI language ("en"/"ru") reflected by the LanguageBox; persisted on Save.
+    private string _lang = "en";
+
+    private string L(string en, string ru) => _lang == "ru" ? ru : en;
+
+    private void LanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LanguageBox.SelectedItem is ComboBoxItem it && it.Tag is string tag)
+        {
+            _lang = tag;
+            ApplyLanguage();
+        }
+    }
+
+    // Every user-facing string is set here so the language can flip live. Tool-group names and
+    // provider proper-nouns stay as-is (short technical labels).
+    private void ApplyLanguage()
+    {
+        Title = L("Claude Revit — Settings", "Claude Revit — Настройки");
+        LangLabel.Text = L("Interface language:", "Язык интерфейса:");
+
+        ApiKeyHeader.Text = L("Anthropic API key", "API-ключ Anthropic");
+        ApiKeyNote.Text = L(
+            "Stored encrypted (Windows DPAPI, current user) in %AppData%\\ClaudeRevit. Get a key at console.anthropic.com → Settings → API Keys.",
+            "Хранится зашифрованным (Windows DPAPI, текущий пользователь) в %AppData%\\ClaudeRevit. Ключ — на console.anthropic.com → Settings → API Keys.");
+
+        AllowCodeBox.Content = L("Allow Claude to run code (C# / Dynamo Python)", "Разрешить выполнение кода (C# / Dynamo Python)");
+        AllowCodeNote.Text = L(
+            "Off by default. When enabled, Claude may run scripts against the full Revit API for actions no built-in tool covers. Leave this off unless you need it; arbitrary code can modify or delete anything in the model. Every turn is one undo step (Ctrl+Z).",
+            "По умолчанию выключено. Включив, вы разрешаете выполнять скрипты со всем Revit API для действий, не покрытых готовыми инструментами. Не включайте без необходимости — произвольный код может изменить или удалить что угодно в модели. Каждый ход — один шаг отмены (Ctrl+Z).");
+
+        ConfirmOpsBox.Content = L("Ask for confirmation before destructive / code operations", "Спрашивать подтверждение перед опасными операциями / кодом");
+        ConfirmOpsNote.Text = L(
+            "Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z.",
+            "По умолчанию выключено: диалог «Разрешить/Запретить» перед удалением и запуском скриптов. Всё равно отменяется через Ctrl+Z.");
+
+        BalanceLabel.Text = L("Account balance, USD:", "Баланс счёта, USD:");
+        BalanceNote.Text = L(
+            "Optional. Enter your current credit balance from console.anthropic.com — the chat pane shows it minus the estimated local spend (the API has no balance endpoint). Re-entering a value resets the counter.",
+            "Необязательно. Введите текущий баланс с console.anthropic.com — панель чата покажет его за вычетом оценки локального расхода (у API нет запроса баланса). Повторный ввод сбрасывает счётчик.");
+
+        AltHeader.Text = L("Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)", "Альтернативная модель (Gemini, ChatGPT, DeepSeek, Ollama…)");
+        ProviderLabel.Text = L("Provider:", "Провайдер:");
+        BaseUrlLabel.Text = L("Base URL:", "Base URL:");
+        ModelLabel.Text = L("Model id:", "ID модели:");
+        AltKeyLabel.Text = L("API key:", "API-ключ:");
+        ContextLabel.Text = L("Context, K:", "Контекст, K:");
+        AltNote.Text = L(
+            "Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL, a default model and its typical context size. Local Ollama / LM Studio need no key. The model must support function calling. Select “Alt” in the chat pane's model dropdown to use it.",
+            "Необязательно. Любой OpenAI-совместимый эндпоинт; выбор пресета подставит URL, модель по умолчанию и типичный размер контекста. Локальным Ollama / LM Studio ключ не нужен. Модель должна поддерживать вызов функций. Чтобы использовать — выберите «Alt» в списке моделей панели чата.");
+
+        MaxRoundsLabel.Text = L("Max tool rounds per message:", "Макс. раундов инструментов на сообщение:");
+        MaxRoundsNote.Text = L(
+            "How many tool-call rounds Claude may take answering one message before it pauses and asks to continue. Default 24; raise it for long automated jobs. Range 1–200.",
+            "Сколько раундов вызовов инструментов Claude может сделать на одно сообщение, прежде чем остановиться и спросить о продолжении. По умолчанию 24; поднимите для длинных автоматических задач. Диапазон 1–200.");
+
+        ToolGroupsHeader.Text = L("Active tool groups (fewer = fewer tokens per request)", "Активные группы инструментов (меньше = меньше токенов на запрос)");
+        ToolGroupsNote.Text = L(
+            "Uncheck groups you don't need — each request gets smaller in tokens. Helps free / rate-limited providers (e.g. Gemini's free tier, where one request can hit the limit). All on by default.",
+            "Снимите галочки с ненужных групп — каждый запрос станет меньше по токенам. Полезно для бесплатных / лимитированных провайдеров (напр. бесплатный тир Gemini, где одного запроса хватает до лимита). По умолчанию включены все.");
+
+        HelpButton.Content = L("Help / Помощь", "Помощь / Help");
+        CancelButton.Content = L("Cancel", "Отмена");
+        SaveButton.Content = L("Save", "Сохранить");
     }
 
     // One checkbox per tool group (with its tool count). Unchecking a group drops those tools
@@ -93,25 +168,20 @@ public partial class SettingsWindow : Window
 
     private void AltProviderBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // During load the constructor restores the saved URL/model itself.
+        if (_initializing) return;
         if (AltProviderBox.SelectedItem is not ComboBoxItem item) return;
+
         var tag = (string)item.Tag;
         var (url, model, contextK) = AltPreset(tag);
-        var (oldUrl, oldModel, oldContextK) = AltPreset(_lastPresetTag);
-        _lastPresetTag = tag;
 
-        // Autofill must never destroy a user customization: only fields that are empty
-        // or still equal to the PREVIOUS preset's defaults get replaced — merely
-        // wheel-scrolling through the combo can't clobber a hand-edited model id.
-        var curUrl = AltBaseUrlBox.Text.Trim();
-        if (curUrl.Length == 0 || curUrl == oldUrl)
-            AltBaseUrlBox.Text = url;
-        var curModel = AltModelBox.Text.Trim();
-        if (curModel.Length == 0 || curModel == oldModel)
-            AltModelBox.Text = model;
-        var curCtx = AltContextBox.Text.Trim();
-        var oldCtxText = oldContextK > 0 ? oldContextK.ToString(CultureInfo.InvariantCulture) : "";
-        if (curCtx.Length == 0 || curCtx == oldCtxText)
-            AltContextBox.Text = contextK > 0 ? contextK.ToString(CultureInfo.InvariantCulture) : "";
+        // Picking a known provider fills in its endpoint, default model and typical context —
+        // that is the whole point of the preset. "custom" / "— not used —" have no preset, so
+        // leave whatever the user typed. The user can still edit any field afterwards.
+        if (url.Length == 0) return;
+        AltBaseUrlBox.Text = url;
+        AltModelBox.Text = model;
+        AltContextBox.Text = contextK > 0 ? contextK.ToString(CultureInfo.InvariantCulture) : "";
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -216,6 +286,7 @@ public partial class SettingsWindow : Window
 
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
+        SettingsStore.UiLanguage = _lang;
         if (balanceChanged)
             SettingsStore.SetBalance(balanceText.Length == 0 ? 0 : balance);
 
