@@ -113,8 +113,18 @@ public static class McpServer
 
             if (ctx.Request.HttpMethod == "GET")
             {
-                // We don't push server-initiated messages; a request/response POST is all that's used.
-                Write(ctx, 405, "{\"error\":\"use POST\"}");
+                // Unauthenticated health check — lets the user verify with a browser/curl that the
+                // server actually came up (the usual failure is a Windows URL-ACL, silent otherwise).
+                // The MCP protocol itself (POST) still requires the bearer token.
+                var toolCount = ToolRegistry.Instance.All.Count(t =>
+                    !t.RequiresCodeExecutionOptIn || SettingsStore.AllowCodeExecution);
+                Write(ctx, 200, new JsonObject
+                {
+                    ["status"] = "ok",
+                    ["server"] = "ClaudeRevit MCP",
+                    ["tools"] = toolCount,
+                    ["code_execution"] = SettingsStore.AllowCodeExecution
+                }.ToJsonString());
                 return;
             }
 
