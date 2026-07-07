@@ -19,7 +19,9 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new QueryElements());
             ToolRegistry.Instance.Register(new AnalyzeWarnings());
             ToolRegistry.Instance.Register(new CreateWall());
+            ToolRegistry.Instance.Register(new CreateWallType());
             ToolRegistry.Instance.Register(new CreateFloor());
+            ToolRegistry.Instance.Register(new CreateFloorType());
             ToolRegistry.Instance.Register(new CreateLevel());
             ToolRegistry.Instance.Register(new CreateGrid());
             ToolRegistry.Instance.Register(new CreateRoof());
