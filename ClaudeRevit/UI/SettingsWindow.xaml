@@ -61,7 +61,34 @@
                 <CheckBox x:Name="AutoAdvisorBox" Margin="0,14,0,0"
                           Content="Auto mode: consult Opus via the advisor tool (recommended)" FontWeight="SemiBold" />
                 <TextBlock x:Name="AutoAdvisorNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Applies to the “Auto” model. On (recommended): Sonnet 5 runs the whole turn and consults Opus 4.8 only when it needs a plan — Sonnet's cache stays warm all session and Opus is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache)." />
+                           Text="Applies to the “Auto” model. On (recommended): the executor below runs the whole turn and consults the advisor only when it needs a plan — the executor's cache stays warm all session and the advisor is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache)." />
+
+                <Grid Margin="20,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="AutoExecLabel" Grid.Row="0" Grid.Column="0" Text="Executor:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                    <ComboBox x:Name="AutoExecBox" Grid.Row="0" Grid.Column="1" Height="26" Margin="0,0,0,4">
+                        <ComboBoxItem Tag="sonnet-5">Sonnet 5 (balanced)</ComboBoxItem>
+                        <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (cheapest)</ComboBoxItem>
+                    </ComboBox>
+                    <TextBlock x:Name="AutoAdvLabel" Grid.Row="1" Grid.Column="0" Text="Advisor:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="AutoAdvBox" Grid.Row="1" Grid.Column="1" Height="26">
+                        <ComboBoxItem Tag="opus-4-8">Opus 4.8 (default)</ComboBoxItem>
+                        <ComboBoxItem Tag="fable-5">Fable 5 (hardest tasks)</ComboBoxItem>
+                    </ComboBox>
+                </Grid>
+
+                <CheckBox x:Name="TaskDiagBox" Margin="0,12,0,0"
+                          Content="Show per-task diagnostics (time, tokens, rounds)" />
+                <TextBlock x:Name="TaskDiagNote" Margin="20,2,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                           Text="After each answer, print a line with the model(s) used, tool rounds, tokens (in/out) and wall-clock time — to compare how efficiently different models solve the same task." />
 
                 <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 

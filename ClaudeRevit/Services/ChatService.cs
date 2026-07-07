@@ -293,10 +293,11 @@ public class ChatService
         // Assembles the Claude tool list, appending the advisor tool while Auto is in advisor mode
         // and the per-turn backstop hasn't been hit. Used for the initial build AND every rebuild
         // (a find_tools reveal or a save_tool) so the advisor tool isn't dropped mid-turn.
+        var advisorModelId = ResolveModel(SettingsStore.AutoAdvisorModel);
         List<BetaToolUnion> ClaudeTools()
         {
             var defs = BuildToolDefs(allowedTools);
-            if (advisorMode && advisorConsults < MaxAdvisorPerTurn) defs.Add(AdvisorTool());
+            if (advisorMode && advisorConsults < MaxAdvisorPerTurn) defs.Add(AdvisorTool(advisorModelId));
             return defs;
         }
 
@@ -357,6 +358,13 @@ public class ChatService
         var autoContinues = 0;
         const int MaxAutoContinues = 4;
 
+        // Per-task diagnostics: wall-clock + token totals across the whole answer, shown as a
+        // trailing line when enabled, so different models can be compared on the same task.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        long taskInTok = 0, taskOutTok = 0;
+        var taskRounds = 0;
+        var modelsUsed = new HashSet<string>(StringComparer.Ordinal);
+
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
@@ -380,10 +388,11 @@ public class ChatService
                 }
 
                 var altModelForTurn = escalate ? reasoningModel : null;
-                // Claude Auto: in advisor mode the executor is always Sonnet (Opus is reached via
-                // the advisor tool, not by switching); in legacy mode Sonnet until escalated.
+                // Claude Auto: in advisor mode the executor is the configured cheap/fast model
+                // (Sonnet 5 default, or Haiku 4.5 for the cheapest tier); the advisor is reached
+                // via the tool, not by switching. In legacy mode: Sonnet until escalated to Opus.
                 var claudeModelForTurn = advisorMode
-                    ? "sonnet-5"
+                    ? SettingsStore.AutoExecutorModel
                     : (claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model);
                 var turn = alt
                     ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
@@ -402,6 +411,17 @@ public class ChatService
                     // Crossing the cap drops the advisor tool for the rest of the turn.
                     if (wasUnder && advisorConsults >= MaxAdvisorPerTurn) toolDefs = ClaudeTools();
                 }
+
+                // Per-task diagnostics accumulation (executor + advisor tokens).
+                taskRounds++;
+                taskInTok += turn.InputTokens + turn.CacheReadTokens + turn.CacheCreationTokens;
+                taskOutTok += turn.OutputTokens;
+                foreach (var au in turn.AdvisorUsages)
+                {
+                    taskInTok += au.InputTokens + au.CacheReadTokens + au.CacheCreationTokens;
+                    taskOutTok += au.OutputTokens;
+                }
+                modelsUsed.Add(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn);
 
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
@@ -694,6 +714,18 @@ public class ChatService
         finally
         {
             await ToolDispatcher.Instance.EndTurnAsync(CancellationToken.None);
+
+            if (SettingsStore.ShowTaskDiagnostics && taskRounds > 0)
+            {
+                sw.Stop();
+                var advisorNote = advisorConsults > 0
+                    ? $" · advisor {SettingsStore.AutoAdvisorModel}×{advisorConsults}" : "";
+                var mdl = string.Join("+", modelsUsed);
+                var line = $"{mdl}{advisorNote} · {taskRounds} rounds · " +
+                           $"{taskInTok + taskOutTok:N0} tokens (in {taskInTok:N0} / out {taskOutTok:N0}) · " +
+                           $"{sw.Elapsed.TotalSeconds:0.0}s";
+                await ui.InvokeAsync(() => conversation.Add(new ChatMessage { Role = "diag", Text = line }));
+            }
         }
     }
 
@@ -861,12 +893,13 @@ public class ChatService
         return "opus-4-8";
     }
 
-    // The advisor tool definition for Auto mode: Sonnet consults Opus 4.8, at most once per
-    // request (a per-turn total cap is enforced by the caller), with the advisor's own transcript
-    // cached for an hour so repeated consults in a session don't re-bill the whole prefix.
-    private static BetaToolUnion AdvisorTool() => new BetaAdvisorTool20260301
+    // The advisor tool definition for Auto mode: the executor consults the advisor model at most
+    // once per request (a per-turn total cap is enforced by the caller), with the advisor's own
+    // transcript cached for an hour so repeated consults in a session don't re-bill the whole
+    // prefix. Advisor model is user-configurable (Opus 4.8 default, or Fable 5 for hardest tasks).
+    private static BetaToolUnion AdvisorTool(string advisorModelId) => new BetaAdvisorTool20260301
     {
-        Model = "claude-opus-4-8",
+        Model = advisorModelId,
         MaxUses = 1,
         Caching = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
     };
