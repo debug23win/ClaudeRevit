@@ -59,7 +59,9 @@ public class ChatService
         "clone a high-poly reference mesh; use a low grid resolution (e.g. 12×8 per patch) and only refine if needed. " +
         "CRITICAL: never ElementTransformUtils.Rotate/Move/scale a heavy mesh after creating it — SetShape is cheap " +
         "but transforming re-processes every face and freezes Revit (this is exactly what hung it). Instead bake the " +
-        "rotation/scale/offset into the VERTICES as you compute them, then create the shape already in place.\n\n" +
+        "rotation/scale/offset into the VERTICES as you compute them, then create the shape already in place. To reuse " +
+        "an EXISTING mesh (e.g. an imported reference model) in a different orientation, use clone_element_geometry " +
+        "(it bakes the rotation/scale/move into the copied vertices safely) — never rotate the original or a copy of it.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +
