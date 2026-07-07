@@ -22,6 +22,7 @@ public class ChatMessage : INotifyPropertyChanged
         "user" => "You",
         "assistant" => AssistantLabel,
         "tool" => $"🔧 {ToolName}",
+        "diag" => "⏱ diagnostics",
         _ => Role
     };
 

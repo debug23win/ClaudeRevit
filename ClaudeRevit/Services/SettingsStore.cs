@@ -97,6 +97,32 @@ public static class SettingsStore
         set { Current.AutoUseAdvisor = value; Save(); }
     }
 
+    // "Auto" executor model: the cheap/fast model that runs every round.
+    //   "sonnet-5" (default) — best balance.  "haiku-4-5" — cheapest/fastest, pairs with an
+    // advisor for the hard moments (Haiku executor + Opus/Fable advisor is a valid pattern).
+    public static string AutoExecutorModel
+    {
+        get => string.IsNullOrWhiteSpace(Current.AutoExecutorModel) ? "sonnet-5" : Current.AutoExecutorModel;
+        set { Current.AutoExecutorModel = value; Save(); }
+    }
+
+    // "Auto" advisor model consulted mid-turn.
+    //   "opus-4-8" (default).  "fable-5" — Anthropic's most capable, for the hardest tasks
+    // (2x Opus's price, but only the short advice sub-inference is billed at that rate).
+    public static string AutoAdvisorModel
+    {
+        get => string.IsNullOrWhiteSpace(Current.AutoAdvisorModel) ? "opus-4-8" : Current.AutoAdvisorModel;
+        set { Current.AutoAdvisorModel = value; Save(); }
+    }
+
+    // Show a per-task diagnostics line (elapsed time, tokens, rounds) after each answer, to
+    // compare how efficiently different models solve the same task. On by default.
+    public static bool ShowTaskDiagnostics
+    {
+        get => Current.ShowTaskDiagnostics;
+        set { Current.ShowTaskDiagnostics = value; Save(); }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -213,6 +239,9 @@ public static class SettingsStore
         public int AltContextK { get; set; } = 0;
         public bool AltCompactTools { get; set; } = true;
         public bool AutoUseAdvisor { get; set; } = true;
+        public string AutoExecutorModel { get; set; } = "sonnet-5";
+        public string AutoAdvisorModel { get; set; } = "opus-4-8";
+        public bool ShowTaskDiagnostics { get; set; } = true;
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";
