@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
 
 namespace ClaudeRevit.Tools;
@@ -104,6 +105,20 @@ public class ToolDispatcher : IExternalEventHandler
         return tcs.Task;
     }
 
+    // A precise objective snapshot for the benchmark judge — element counts by the categories the
+    // tasks actually care about (walls + their lengths, floors + areas, levels + elevations, grids,
+    // columns, beams, rebar / area-rebar / path-rebar, doors, DirectShapes + their bounding boxes,
+    // structural connections, materials). Far more discriminating than get_model_statistics, which
+    // can't see rebar, DirectShapes or connections — the reason those tasks were mis-graded.
+    public Task<string> BenchmarkProbeAsync(CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.Register(() => tcs.TrySetCanceled(ct));
+        _queue.Enqueue(new ProbeJob(tcs));
+        _event.Raise();
+        return tcs.Task;
+    }
+
     public void Execute(UIApplication app)
     {
         while (_queue.TryDequeue(out var job))
@@ -116,8 +131,105 @@ public class ToolDispatcher : IExternalEventHandler
                 case GetContextJob g: HandleGetContext(app, g); break;
                 case FocusElementJob f: HandleFocusElement(app, f); break;
                 case AllIdsJob a: HandleAllIds(app, a); break;
+                case ProbeJob p: HandleProbe(app, p); break;
             }
         }
+    }
+
+    private void HandleProbe(UIApplication app, ProbeJob job)
+    {
+        try
+        {
+            var doc = app.ActiveUIDocument?.Document;
+            if (doc == null) { job.Tcs.TrySetResult("{\"no_document\":true}"); return; }
+
+            const double ftToM = 0.3048;
+            int CountClass(Type t)
+            {
+                try { return new FilteredElementCollector(doc).OfClass(t).WhereElementIsNotElementType().GetElementCount(); }
+                catch { return -1; }
+            }
+            int CountCat(BuiltInCategory c)
+            {
+                try { return new FilteredElementCollector(doc).OfCategory(c).WhereElementIsNotElementType().GetElementCount(); }
+                catch { return -1; }
+            }
+
+            var wallLens = new List<double>();
+            try
+            {
+                foreach (var w in new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>())
+                    if (w.Location is LocationCurve lc) wallLens.Add(Math.Round(lc.Curve.Length * ftToM, 2));
+            }
+            catch { }
+
+            var levelEls = new List<double>();
+            try
+            {
+                foreach (var l in new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>())
+                    levelEls.Add(Math.Round(l.Elevation * ftToM, 2));
+            }
+            catch { }
+
+            var floorAreas = new List<double>();
+            try
+            {
+                foreach (var f in new FilteredElementCollector(doc).OfClass(typeof(Floor)).Cast<Element>())
+                {
+                    var a = f.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED)?.AsDouble() ?? 0;
+                    if (a > 0) floorAreas.Add(Math.Round(a * ftToM * ftToM, 1));
+                }
+            }
+            catch { }
+
+            // DirectShapes with bounding-box sizes (m) — lets the judge verify the barrel-vault etc.
+            var directShapes = new List<object>();
+            try
+            {
+                foreach (var ds in new FilteredElementCollector(doc).OfClass(typeof(DirectShape)).Cast<Element>())
+                {
+                    var bb = ds.get_BoundingBox(null);
+                    if (bb == null) { directShapes.Add(new { size_m = (object?)null }); continue; }
+                    directShapes.Add(new
+                    {
+                        size_m = new[]
+                        {
+                            Math.Round((bb.Max.X - bb.Min.X) * ftToM, 1),
+                            Math.Round((bb.Max.Y - bb.Min.Y) * ftToM, 1),
+                            Math.Round((bb.Max.Z - bb.Min.Z) * ftToM, 1)
+                        },
+                        min_z_m = Math.Round(bb.Min.Z * ftToM, 1)
+                    });
+                }
+            }
+            catch { }
+
+            var probe = new
+            {
+                total = new FilteredElementCollector(doc).WhereElementIsNotElementType().GetElementCount(),
+                walls = wallLens.Count,
+                wall_lengths_m = wallLens,
+                floors = floorAreas.Count,
+                floor_areas_m2 = floorAreas,
+                levels = levelEls.Count,
+                level_elevations_m = levelEls,
+                grids = CountClass(typeof(Grid)),
+                structural_columns = CountCat(BuiltInCategory.OST_StructuralColumns),
+                structural_framing = CountCat(BuiltInCategory.OST_StructuralFraming),
+                rebar = CountClass(typeof(Rebar)),
+                area_reinforcement = CountClass(typeof(AreaReinforcement)),
+                path_reinforcement = CountClass(typeof(PathReinforcement)),
+                structural_connections = CountClass(typeof(StructuralConnectionHandler)),
+                doors = CountCat(BuiltInCategory.OST_Doors),
+                windows = CountCat(BuiltInCategory.OST_Windows),
+                direct_shape_count = directShapes.Count,
+                direct_shapes = directShapes,
+                materials = CountClass(typeof(Material)),
+                generic_models = CountCat(BuiltInCategory.OST_GenericModel)
+            };
+            job.Tcs.TrySetResult(JsonSerializer.Serialize(probe));
+        }
+        catch (Exception ex) { job.Tcs.TrySetResult("{\"probe_error\":\"" + ex.Message + "\"}"); }
     }
 
     private void HandleAllIds(UIApplication app, AllIdsJob job)
@@ -358,6 +470,7 @@ public class ToolDispatcher : IExternalEventHandler
     private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;
+    private sealed record ProbeJob(TaskCompletionSource<string> Tcs) : Job;
 
     // Collects the text of Revit's failure messages during a transaction commit so they can
     // be reported to the model, and lets Revit resolve them non-interactively (no modal

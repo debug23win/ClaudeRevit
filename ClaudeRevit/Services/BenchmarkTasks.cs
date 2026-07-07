@@ -13,11 +13,38 @@ public static class BenchmarkTasks
 {
     public static readonly IReadOnlyList<BenchmarkTask> All = new[]
     {
-        new BenchmarkTask("L0", "Level (unit conversion)",
-            "Create a level named \"Bench L0\" at elevation 3500 mm.",
-            "PASS if exactly one new Level exists at elevation ≈ 3500 mm (≈11.48 ft, ±10 mm). " +
-            "Unit conversion mm→ft must be correct. FAIL if placed at 3500 ft or wrong elevation."),
+        // --- Basics: one core tool each, verifiable straight from the probe delta. ---
+        new BenchmarkTask("B0", "Level (unit conversion)",
+            "Create a level named \"Bench B0\" at elevation 3500 mm.",
+            "PASS if levels increased by 1 and a new entry near 3.5 m appears in level_elevations_m. " +
+            "Unit conversion mm→m must be correct — FAIL if it lands near 3500 m (wrong conversion)."),
 
+        new BenchmarkTask("B1", "Wall",
+            "Create one straight wall exactly 5 m long on Level 1.",
+            "PASS if walls increased by 1 and wall_lengths_m gained a value ≈ 5 (±0.1)."),
+
+        new BenchmarkTask("B2", "Floor",
+            "Create one rectangular floor 4 m × 3 m on Level 1.",
+            "PASS if floors increased by 1 and floor_areas_m2 gained a value ≈ 12 (±1)."),
+
+        new BenchmarkTask("B3", "Grid",
+            "Create one straight grid line 10 m long.",
+            "PASS if grids increased by 1."),
+
+        new BenchmarkTask("B4", "Structural column",
+            "Place one 400×400 mm structural column on Level 1 (create/load a suitable type if needed).",
+            "PASS if structural_columns increased by 1."),
+
+        new BenchmarkTask("B5", "Material",
+            "Create a new material named \"Bench Concrete\" with a grey colour.",
+            "PASS if materials increased by 1."),
+
+        new BenchmarkTask("B6", "DirectShape box",
+            "Create a DirectShape box 2 m × 2 m × 2 m near the origin (a coarse mesh).",
+            "PASS if direct_shape_count increased by 1 and its size_m is ≈ [2,2,2] (±0.3). This checks " +
+            "the DirectShape tool works and the probe can see it."),
+
+        // --- Composite / non-standard tasks. ---
         new BenchmarkTask("L1", "Basic room (multi-tool)",
             "On Level 1, build a rectangular room 8000×5000 mm: four walls forming a closed loop, " +
             "a floor over it, a flat roof, and a door in one wall.",
