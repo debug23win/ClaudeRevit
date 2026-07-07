@@ -265,6 +265,14 @@ public class ChatService
         const int SoftNudgeAt = 2;   // start telling it to change approach here
         const int MaxSameError = 4;  // give up (hard-stop) here
 
+        // Auto-continue guard: models frequently end a turn with a "next step: …" narration and
+        // NO tool call — the loop then breaks and waits for the user, so a long build stalls
+        // halfway (one uploaded session stopped like this 11 times). When the final text clearly
+        // announces more work rather than finishing or asking a question, we inject a "do it now"
+        // nudge and keep going instead of stopping. Bounded so pure narration can't loop forever.
+        var autoContinues = 0;
+        const int MaxAutoContinues = 4;
+
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
@@ -317,6 +325,30 @@ public class ChatService
                             Text = "[The model returned no text — possibly a safety refusal. " +
                                    "Try rephrasing or switching the model.]"
                         }));
+                        break;
+                    }
+
+                    // The model produced text but no tool call. If that text announces more work
+                    // ("next step…", "продолжаю", "сейчас создам") rather than finishing or asking
+                    // the user something, don't stop — nudge it to actually perform the step. This
+                    // is added to the API history only (not shown as a fake user chat message).
+                    var finalText = string.Concat(turn.Blocks.OfType<ChatTextBlock>().Select(b => b.Text));
+                    if (autoContinues < MaxAutoContinues && LooksUnfinished(finalText))
+                    {
+                        autoContinues++;
+                        _history.Add(new ApiTurn
+                        {
+                            Role = "user",
+                            Blocks =
+                            {
+                                new ChatTextBlock(
+                                    "Continue now: actually perform the next step you just described by CALLING " +
+                                    "the appropriate tools — do not restate the plan, apologize, or wait for me. " +
+                                    "Keep going until the whole task is done. Only stop if the task is genuinely " +
+                                    "complete or you truly need a decision from me (then ask one concrete question).")
+                            }
+                        });
+                        continue;
                     }
                     break;
                 }
@@ -534,6 +566,38 @@ public class ChatService
         if (prompt.Length > 400) return true; // long, detailed asks tend to be multi-step
         var p = prompt.ToLowerInvariant();
         return ComplexHints.Any(h => p.Contains(h));
+    }
+
+    // Phrases that mean "I'm about to keep working" — a turn ending on one of these with NO tool
+    // call is a premature stop, not a finished answer. EN + RU.
+    private static readonly string[] ContinueCues =
+    {
+        // en
+        "next step", "next, ", "let me ", "i'll now", "i will now", "now i'll", "now let me",
+        "continuing", "proceeding", "i'll continue", "i will continue", "let's start", "let's begin",
+        "moving on", "then i'll", "after that i'll",
+        // ru
+        "следующий шаг", "следующий этап", "далее", "продолжаю", "продолжу", "сейчас созда",
+        "сейчас сдела", "сейчас постро", "начинаю", "приступа", "буду использовать", "давай начн",
+        "давайте начн", "теперь созда", "теперь сдела", "далее созда", "затем"
+    };
+
+    // True when the final turn text announces more work AND isn't a question to the user or a
+    // clear completion — the signal to auto-continue instead of stopping.
+    private static bool LooksUnfinished(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var t = text.TrimEnd();
+        // A question means it's waiting on the user's decision — respect that and stop.
+        if (t.EndsWith("?")) return false;
+        var lower = t.ToLowerInvariant();
+        // A clear "all done" at the END shouldn't be overridden. Check only the tail so an
+        // "step 1 completed. Next step: …" message still counts as unfinished.
+        var tail = lower.Length > 120 ? lower[^120..] : lower;
+        if (tail.Contains("готово") || tail.Contains("завершен") || tail.Contains("сделал")
+            || tail.Contains("all done") || tail.Contains("completed") || tail.Contains("finished"))
+            return false;
+        return ContinueCues.Any(c => lower.Contains(c));
     }
 
     // ---- Anthropic path -----------------------------------------------------------
