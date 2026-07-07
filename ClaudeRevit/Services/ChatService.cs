@@ -271,6 +271,12 @@ public class ChatService
         const int SoftNudgeAt = 2;   // start telling it to change approach here
         const int MaxSameError = 4;  // give up (hard-stop) here
 
+        // Spin guard: the same tool called with the SAME arguments repeatedly makes no progress
+        // even when each call "succeeds" (a weaker model re-created the same floor type and
+        // material 6× each, getting created:false every time, and never moved on). The error
+        // guard above can't catch this because the calls aren't errors. Keyed by tool+arguments.
+        var callStreak = new Dictionary<string, int>();
+
         // Auto-continue guard: models frequently end a turn with a "next step: …" narration and
         // NO tool call — the loop then breaks and waits for the user, so a long build stalls
         // halfway (one uploaded session stopped like this 11 times). When the final text clearly
@@ -534,14 +540,40 @@ public class ChatService
                         };
                     }
                 }
+                // Spin guard: same tool + same arguments repeated across rounds (progress-free
+                // even when it "succeeds"). Nudge to move on, then hard-stop. Counted once per
+                // round per signature so a legitimate batch in one round doesn't trip it.
+                var callSigsThisRound = new HashSet<string>();
+                foreach (var use in toolUses)
+                {
+                    var csig = use.Name + "|" + Truncate(use.InputJson, 400);
+                    if (!callSigsThisRound.Add(csig)) continue;
+                    var n = callStreak[csig] = callStreak.GetValueOrDefault(csig) + 1;
+                    if (n >= MaxSameError) { stuck = true; }
+                    else if (n >= SoftNudgeAt)
+                    {
+                        var idx = resultTurn.Blocks.FindIndex(
+                            x => x is ChatToolResultBlock r && r.ToolUseId == use.Id);
+                        if (idx >= 0 && resultTurn.Blocks[idx] is ChatToolResultBlock rb)
+                            resultTurn.Blocks[idx] = rb with
+                            {
+                                Content = rb.Content +
+                                    "\n\n[SYSTEM: you have now made this EXACT same call (" + use.Name +
+                                    ") " + n + " times. It is already done — repeating it changes nothing. " +
+                                    "Do NOT call it again; move on to the NEXT distinct step. If every step is " +
+                                    "done, verify with get_model_statistics and finish; if you are stuck, say so.]"
+                            };
+                    }
+                }
+
                 if (stuck)
                 {
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
                         Role = "assistant",
-                        Text = "[Stopped: the same tool error came back " + MaxSameError + " times — retrying " +
-                               "it won't help. Check the inputs (e.g. an exact type/level/family name from a " +
-                               "list_* tool) or take a different approach.]"
+                        Text = "[Stopped: the same tool call kept repeating with no progress. Either the task " +
+                               "is already done, or the approach isn't working — check the model and take a " +
+                               "different step, or switch to Claude for this one (it handles long builds better).]"
                     }));
                     break;
                 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Anthropic.Models.Beta.Messages;
 using Autodesk.Revit.DB;
@@ -36,9 +37,20 @@ public class CreateMaterial : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var name = input["name"].GetString()!;
-        var matId = Material.Create(doc, name);
-        var material = doc.GetElement(matId) as Material
-            ?? throw new InvalidOperationException("Material.Create returned null.");
+
+        // Idempotent: Material.Create throws if the name is taken, which sent weaker models into
+        // a retry loop (the field log had create_material called 6× with the same name, erroring
+        // every time). Reuse an existing material of that name and just update its colour instead.
+        var material = new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>()
+            .FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        var created = material == null;
+        if (material == null)
+        {
+            var newId = Material.Create(doc, name);
+            material = doc.GetElement(newId) as Material
+                ?? throw new InvalidOperationException("Material.Create returned null.");
+        }
+        var matId = material.Id;
 
         var hasR = input.TryGetValue("r", out var rEl);
         var hasG = input.TryGetValue("g", out var gEl);
@@ -57,6 +69,8 @@ public class CreateMaterial : IRevitTool
         {
             id = matId.Value,
             name = material.Name,
+            created,
+            note = created ? null : "A material with this name already existed; reused and updated it.",
             color = (hasR && hasG && hasB) ? new { r = rEl.GetInt32(), g = gEl.GetInt32(), b = bEl.GetInt32() } : null,
             transparency = material.Transparency
         });
