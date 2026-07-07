@@ -68,6 +68,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new SetViewScale());
             ToolRegistry.Instance.Register(new PlaceFamilyInstance());
             ToolRegistry.Instance.Register(new LoadFamily());
+            ToolRegistry.Instance.Register(new ReloadFamilyIntoDocument());
             ToolRegistry.Instance.Register(new ListLoadedFamilies());
             ToolRegistry.Instance.Register(new CreateStructuralColumn());
             ToolRegistry.Instance.Register(new CreateBeam());
