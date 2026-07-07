@@ -48,7 +48,7 @@
                         <TextBlock FontWeight="SemiBold" Text="Рекомендуемые модели" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             <Bold>Что выбрать под задачу:</Bold>&#10;
-                            • По умолчанию → <Bold>Auto (Sonnet→Opus)</Bold> — экономит деньги: рутинные шаги идут на дешёвом Sonnet 5 ($3/$15 за 1M), а на сложных задачах, ошибках или длинных многошаговых циклах автоматически подключается Opus 4.8 ($5/$25). Платите за Opus только когда он реально нужен.&#10;
+                            • По умолчанию → <Bold>Auto</Bold> — экономит деньги: весь ход ведёт дешёвый Sonnet 5 ($3/$15 за 1M) и советуется с Opus 4.8 ($5/$25) только когда нужен план (через advisor tool). Кэш Sonnet остаётся горячим всю сессию, а Opus оплачивается лишь за короткий совет. В настройках advisor можно выключить — тогда на сложной задаче на Opus переключается весь ход (прежнее поведение, дороже).&#10;
                             • Повседневная работа с моделью → <Bold>Claude Sonnet 5</Bold> — лучший баланс качества, цены и кэширования.&#10;
                             • Простые вопросы и массовые операции, экономия → <Bold>Claude Haiku 4.5</Bold> или <Bold>DeepSeek</Bold>.&#10;
                             • Самое сложное (длинное многошаговое рассуждение) → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; из альтернатив — <Bold>grok-4.20-0309-reasoning</Bold>.&#10;
@@ -133,7 +133,7 @@
                         <TextBlock FontWeight="SemiBold" Text="Recommended models" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             <Bold>What to pick per task:</Bold>&#10;
-                            • Default → <Bold>Auto (Sonnet→Opus)</Bold> — saves money: routine steps run on the cheaper Sonnet 5 ($3/$15 per 1M) and Opus 4.8 ($5/$25) kicks in automatically on complex tasks, errors or long multi-step loops. You only pay Opus rates when it's actually needed.&#10;
+                            • Default → <Bold>Auto</Bold> — saves money: the cheaper Sonnet 5 ($3/$15 per 1M) runs the whole turn and consults Opus 4.8 ($5/$25) only when it needs a plan (via the advisor tool). Sonnet's cache stays warm all session and Opus is billed only for the short advice. You can turn the advisor off in Settings — then the whole turn switches to Opus on a hard task (the older behaviour, costs more).&#10;
                             • Everyday model work → <Bold>Claude Sonnet 5</Bold> — the best balance of quality, price and caching.&#10;
                             • Simple questions and bulk operations, saving money → <Bold>Claude Haiku 4.5</Bold> or <Bold>DeepSeek</Bold>.&#10;
                             • The hardest, long multi-step reasoning → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; among alternatives, <Bold>grok-4.20-0309-reasoning</Bold>.&#10;

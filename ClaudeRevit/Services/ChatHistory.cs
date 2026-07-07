@@ -40,4 +40,13 @@ public sealed class BackendTurn
     public long OutputTokens;
     public long CacheCreationTokens;
     public long CacheReadTokens;
+
+    // Advisor tool (Auto mode): how many times the executor consulted the advisor this response,
+    // and the advisor sub-inference token usage (one entry per consult) so it can be billed at the
+    // advisor model's own rate. Empty on every non-advisor turn.
+    public int AdvisorConsults;
+    public List<AdvisorUsage> AdvisorUsages { get; } = new();
 }
+
+public readonly record struct AdvisorUsage(
+    string ModelTag, long InputTokens, long OutputTokens, long CacheCreationTokens, long CacheReadTokens);

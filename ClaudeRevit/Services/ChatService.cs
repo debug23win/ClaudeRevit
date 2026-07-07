@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using Anthropic;
 using Anthropic.Core;
 using Anthropic.Helpers;
+using Anthropic.Models.Beta;
 using Anthropic.Models.Beta.Messages;
 using ClaudeRevit.Tools;
 using ClaudeRevit.UI;
@@ -273,11 +274,32 @@ public class ChatService
         // invalidate the 1h prompt-cache prefix for the rest of the turn, and rebuilding
         // the tool list would let a Settings change yank tools out from under the model
         // mid-plan (plus ~130 tool schemas re-serialized per round for nothing).
+        // "Auto" model mode. DEFAULT (advisorMode): Sonnet 5 runs every round and consults Opus
+        // 4.8 via the advisor tool only when it needs a plan — Sonnet's prompt cache stays warm
+        // all session, Opus is billed only for the short advice sub-inference. The legacy
+        // alternative (Settings → AutoUseAdvisor off) switches the whole turn to Opus on a hard
+        // task/error/deep-loop; see the escalation vars below.
+        var claudeAuto = !alt && model == "auto";
+        var advisorMode = claudeAuto && SettingsStore.AutoUseAdvisor;
+        var advisorConsults = 0;             // total consults across the turn (cost backstop)
+        const int MaxAdvisorPerTurn = 4;     // stop offering the advisor once this many have run
+
         var allowedTools = AllowedTools();
         List<BetaTextBlockParam>? systemBlocks = null;
         List<BetaToolUnion>? toolDefs = null;
         string? altSystem = null;
         System.Text.Json.Nodes.JsonArray? altTools = null;
+
+        // Assembles the Claude tool list, appending the advisor tool while Auto is in advisor mode
+        // and the per-turn backstop hasn't been hit. Used for the initial build AND every rebuild
+        // (a find_tools reveal or a save_tool) so the advisor tool isn't dropped mid-turn.
+        List<BetaToolUnion> ClaudeTools()
+        {
+            var defs = BuildToolDefs(allowedTools);
+            if (advisorMode && advisorConsults < MaxAdvisorPerTurn) defs.Add(AdvisorTool());
+            return defs;
+        }
+
         if (alt)
         {
             altSystem = BuildAltSystemPrompt();
@@ -286,7 +308,7 @@ public class ChatService
         else
         {
             systemBlocks = BuildSystemBlocks();
-            toolDefs = BuildToolDefs(allowedTools);
+            toolDefs = ClaudeTools();
         }
 
         var userTurn = new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } };
@@ -306,9 +328,9 @@ public class ChatService
         //   • Claude "Auto" — Sonnet 5 (cheap) → Opus 4.8 (strong). This is the big cost lever:
         //     Sonnet is $3/$15 vs Opus $5/$25 per 1M, so routine turns run at ~60% of the price
         //     and Opus is reserved for the turns that actually need it.
-        var claudeAuto = !alt && model == "auto";
+        // Legacy model-switch path (alt reasoning model, or Auto with the advisor turned off).
         var reasoningModel = alt ? SettingsStore.AltReasoningModel : "";
-        var canEscalate = alt ? !string.IsNullOrWhiteSpace(reasoningModel) : claudeAuto;
+        var canEscalate = alt ? !string.IsNullOrWhiteSpace(reasoningModel) : (claudeAuto && !advisorMode);
         var escalate = canEscalate && LooksComplex(lastUser);
         const int EscalateAfterRounds = 6;
 
@@ -358,13 +380,28 @@ public class ChatService
                 }
 
                 var altModelForTurn = escalate ? reasoningModel : null;
-                // Claude Auto: pick the cheap model until we've escalated, then Opus for the rest.
-                var claudeModelForTurn = claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model;
+                // Claude Auto: in advisor mode the executor is always Sonnet (Opus is reached via
+                // the advisor tool, not by switching); in legacy mode Sonnet until escalated.
+                var claudeModelForTurn = advisorMode
+                    ? "sonnet-5"
+                    : (claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model);
                 var turn = alt
                     ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
-                    : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
+                    : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct, advisorMode);
 
                 TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn, turn);
+
+                // Advisor sub-inference: bill each consult at the advisor model's own rate, and
+                // count consults so the per-turn backstop can retire the advisor tool once hit.
+                foreach (var au in turn.AdvisorUsages)
+                    TrackUsage(au.ModelTag, au.InputTokens, au.OutputTokens, au.CacheCreationTokens, au.CacheReadTokens);
+                if (advisorMode && turn.AdvisorConsults > 0)
+                {
+                    var wasUnder = advisorConsults < MaxAdvisorPerTurn;
+                    advisorConsults += turn.AdvisorConsults;
+                    // Crossing the cap drops the advisor tool for the rest of the turn.
+                    if (wasUnder && advisorConsults >= MaxAdvisorPerTurn) toolDefs = ClaudeTools();
+                }
 
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
@@ -572,7 +609,7 @@ public class ChatService
                 {
                     allowedTools = AllowedTools();
                     if (alt) altTools = OpenAIBackend.BuildTools(allowedTools);
-                    else toolDefs = BuildToolDefs(allowedTools);
+                    else toolDefs = ClaudeTools();
                 }
 
                 var erroredThisRound = resultTurn.Blocks.OfType<ChatToolResultBlock>()
@@ -715,6 +752,9 @@ public class ChatService
 
     // ---- Anthropic path -----------------------------------------------------------
 
+    // advisor-tool beta header — enabled only when the tool list actually carries the advisor.
+    private const string AdvisorBeta = "advisor-tool-2026-03-01";
+
     private async Task<BackendTurn> StreamAnthropicTurnAsync(
         string model,
         List<BetaTextBlockParam> systemBlocks,
@@ -722,7 +762,8 @@ public class ChatService
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool useAdvisorBeta = false)
     {
         var client = GetClient();
         var effort = EffortFor(model);
@@ -733,7 +774,8 @@ public class ChatService
             Messages = BuildApiMessages(dynamicContext),
             System = systemBlocks,
             Tools = toolDefs,
-            OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null
+            OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null,
+            Betas = useAdvisorBeta ? new List<ApiEnum<string, AnthropicBeta>> { AdvisorBeta } : null
         };
 
         var aggregator = new BetaMessageContentAggregator();
@@ -775,6 +817,11 @@ public class ChatService
                 turn.Blocks.Add(new ChatRedactedThinkingBlock(rt.Data ?? ""));
             else if (block.TryPickToolUse(out var tu))
                 turn.Blocks.Add(new ChatToolUseBlock(tu.ID, tu.Name, JsonSerializer.Serialize(tu.Input)));
+            // Advisor consult: count it. The server_tool_use / advisor_tool_result pair is NOT
+            // added to turn.Blocks — dropping both keeps history valid on replay; the advice has
+            // already shaped this response's own text/tool_use, which we do keep.
+            else if (block.TryPickAdvisorToolResult(out _))
+                turn.AdvisorConsults++;
         }
         try
         {
@@ -783,10 +830,46 @@ public class ChatService
             turn.OutputTokens = u.OutputTokens;
             try { turn.CacheReadTokens = u.CacheReadInputTokens ?? 0; } catch { }
             try { turn.CacheCreationTokens = u.CacheCreationInputTokens ?? 0; } catch { }
+            // Advisor sub-inferences are reported as separate usage "iterations", each tagged with
+            // the advisor model — capture them so the caller bills each at that model's rate.
+            try
+            {
+                foreach (var iter in u.Iterations ?? Enumerable.Empty<BetaIterationsUsageItems>())
+                    if (iter.TryPickAdvisorMessageIterationUsage(out var adv))
+                        turn.AdvisorUsages.Add(new AdvisorUsage(
+                            TagFromModel(adv.Model.ToString() ?? ""),
+                            adv.InputTokens, adv.OutputTokens,
+                            adv.CacheCreationInputTokens, adv.CacheReadInputTokens));
+            }
+            catch { /* usage iterations are best-effort */ }
         }
         catch { /* non-fatal */ }
         return turn;
     }
+
+    // Normalise an advisor/iteration model id (either "claude-opus-4-8" or an enum form like
+    // "ClaudeOpus4_8") to our internal UsageTracker rate tag. Defaults to opus-4-8, the advisor.
+    private static string TagFromModel(string s)
+    {
+        s = s.ToLowerInvariant().Replace("_", "-");
+        if (s.Contains("opus") && s.Contains("4-7")) return "opus-4-7";
+        if (s.Contains("opus")) return "opus-4-8";
+        if (s.Contains("sonnet") && s.Contains("4-6")) return "sonnet-4-6";
+        if (s.Contains("sonnet")) return "sonnet-5";
+        if (s.Contains("haiku")) return "haiku-4-5";
+        if (s.Contains("fable")) return "fable-5";
+        return "opus-4-8";
+    }
+
+    // The advisor tool definition for Auto mode: Sonnet consults Opus 4.8, at most once per
+    // request (a per-turn total cap is enforced by the caller), with the advisor's own transcript
+    // cached for an hour so repeated consults in a session don't re-bill the whole prefix.
+    private static BetaToolUnion AdvisorTool() => new BetaAdvisorTool20260301
+    {
+        Model = "claude-opus-4-8",
+        MaxUses = 1,
+        Caching = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
+    };
 
     // ---- OpenAI-compatible path ---------------------------------------------------
 
@@ -1097,6 +1180,14 @@ public class ChatService
                 turn.CacheCreationTokens, turn.CacheReadTokens);
             _lastPromptTokens = turn.InputTokens + turn.CacheReadTokens + turn.CacheCreationTokens;
         }
+        catch { /* non-fatal */ }
+    }
+
+    // Raw overload for advisor sub-inference usage (billed at the advisor model's own rate).
+    // Does NOT touch _lastPromptTokens — that tracks the executor's prompt size, not the advisor's.
+    private void TrackUsage(string modelTag, long input, long output, long cacheCreate, long cacheRead)
+    {
+        try { UsageTracker.Add(modelTag, input, output, cacheCreate, cacheRead); }
         catch { /* non-fatal */ }
     }
 
