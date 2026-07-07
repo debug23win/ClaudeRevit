@@ -264,11 +264,13 @@ public static class ClaudeCodeBackend
             // npm global (default prefix)
             Env("APPDATA") is { } ad ? Path.Combine(ad, "npm", exe + ".cmd") : null,
             Env("APPDATA") is { } ad2 ? Path.Combine(ad2, "npm", exe + ".ps1") : null,
-            // native installer / local install
+            // native installer (irm https://claude.ai/install.ps1 | iex) → %USERPROFILE%\.local\bin\claude.exe
+            Env("USERPROFILE") is { } upn ? Path.Combine(upn, ".local", "bin", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up3 ? Path.Combine(up3, ".local", "bin", exe) : null,
+            // other local installs
             Env("LOCALAPPDATA") is { } la ? Path.Combine(la, "Programs", "claude", exe + ".exe") : null,
             Env("USERPROFILE") is { } up ? Path.Combine(up, ".claude", "local", exe + ".exe") : null,
             Env("USERPROFILE") is { } up2 ? Path.Combine(up2, ".claude", "local", exe) : null,
-            Env("USERPROFILE") is { } up3 ? Path.Combine(up3, ".local", "bin", exe) : null,
             // unix-y (in case Revit ever runs elsewhere)
             "/usr/local/bin/" + exe,
             "/usr/bin/" + exe,
