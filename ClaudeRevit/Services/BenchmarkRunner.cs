@@ -44,7 +44,6 @@ public static class BenchmarkRunner
         bool resetBetweenTasks,
         int maxRoundsPerTask,
         int maxSecondsPerTask,
-        int maxRetries,
         Action<string> onStatus,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
@@ -59,81 +58,58 @@ public static class BenchmarkRunner
             ct.ThrowIfCancellationRequested();
 
             onStatus($"{task.Id} · {task.Title} · starting…");
-            // One chat across all attempts — so on a failed grade the model gets the feedback AND
-            // keeps the full context of what it already did, exactly like a real corrective turn.
             var chat = new ChatService(ephemeral: true);
             var conv = new ObservableCollection<ChatMessage>();
 
-            // Baseline snapshot so we can delete exactly what this task adds (across all attempts).
+            // Per-task budget: stop a task that drags on (rounds or wall-time) and grade whatever it
+            // built. Cancelling this linked source stops only this task; the user's Stop cancels ct.
+            using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
+            chat.OnRound = (r, max) =>
+            {
+                onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
+                if (maxRoundsPerTask > 0 && r > maxRoundsPerTask)
+                    try { taskCts.Cancel(); } catch { }
+            };
+
             var baselineIds = resetBetweenTasks
                 ? new HashSet<long>(await ToolDispatcher.Instance.AllElementIdsAsync(ct))
                 : new HashSet<long>();
             var before = await StatsAsync(ct);
 
-            long totIn = 0, totOut = 0; int totRounds = 0; double totSec = 0;
-            var after = before;
-            var verdict = new Verdict(false, 0, "not run", true);
-            var attemptsMade = 0;
+            // The model runs the task ONCE and recovers from any errors on its own (tool failures
+            // come back to it as tool results — no hints from the judge). The judge only grades the
+            // final state, when the model considers itself done or the budget cuts it short.
+            string finalText = "";
+            string? error = null;
             var budgetStopped = false;
-
-            // Attempt 0 = the task; then up to maxRetries corrective attempts on a failed grade —
-            // a chance to self-fix, as in real use, but bounded.
-            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            try
             {
-                attemptsMade++;
-                using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
-                var label = attempt == 0 ? task.Title : $"{task.Title} · fix {attempt}";
-                chat.OnRound = (r, max) =>
-                {
-                    onStatus($"{task.Id} · {label} · round {r}/{max}");
-                    if (maxRoundsPerTask > 0 && r > maxRoundsPerTask)
-                        try { taskCts.Cancel(); } catch { }
-                };
-
-                var prompt = attempt == 0
-                    ? task.Prompt
-                    : "That did not fully meet the goal. Grader feedback: " + verdict.Reason +
-                      " Fix it now — correct or add what's missing; don't redo what already works.";
-
-                string finalText = "";
-                budgetStopped = false;
-                try
-                {
-                    conv.Add(new ChatMessage { Role = "user", Text = prompt });
-                    await chat.SendAsync(conv, modelTag, taskCts.Token);
-                    finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
-                }
-                catch (OperationCanceledException)
-                {
-                    if (ct.IsCancellationRequested) throw;   // user Stop → abort the whole run
-                    budgetStopped = true;
-                    finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Benchmark task {task.Id} attempt {attempt} threw", ex);
-                    verdict = new Verdict(false, 0, "Run error: " + Truncate(ex.Message, 180), true);
-                    break; // hard failure (e.g. no key / billing) — retrying won't help
-                }
-
-                var m0 = chat.LastTask;
-                totRounds += m0?.Rounds ?? 0;
-                totIn += m0?.InputTokens ?? 0;
-                totOut += m0?.OutputTokens ?? 0;
-                totSec += m0?.Seconds ?? 0;
-
-                after = await StatsAsync(ct);
-                onStatus($"{task.Id} · {label} · grading…");
-                verdict = await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
-                if (verdict.Pass) break;                  // solved — no need to retry
-                if (attempt < maxRetries)
-                    onStatus($"{task.Id} · {task.Title} · retrying ({attempt + 1}/{maxRetries})…");
+                conv.Add(new ChatMessage { Role = "user", Text = task.Prompt });
+                await chat.SendAsync(conv, modelTag, taskCts.Token);
+                finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+            }
+            catch (OperationCanceledException)
+            {
+                if (ct.IsCancellationRequested) throw;   // user Stop → abort the whole run
+                budgetStopped = true;                     // budget → grade the partial result
+                finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                Log.Error($"Benchmark task {task.Id} threw", ex);
             }
 
+            var after = await StatsAsync(ct);
+            var m = chat.LastTask;
+
+            onStatus($"{task.Id} · {task.Title} · grading…");
+            var verdict = error != null
+                ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
+                : await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
             if (budgetStopped)
                 verdict = verdict with { Reason = "[stopped — task budget hit] " + verdict.Reason };
-            var attemptNote = attemptsMade > 1 ? $"[{attemptsMade} attempts] " : "";
 
             // Reset to baseline AFTER grading (grading needs the elements) so the next task is clean.
             if (resetBetweenTasks)
@@ -143,16 +119,17 @@ public static class BenchmarkRunner
             {
                 TaskId = task.Id,
                 Title = task.Title,
-                Model = chat.LastTask?.Model ?? modelTag,
+                Model = m?.Model ?? modelTag,
                 Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗",
                 Score = verdict.Score,
-                Rounds = totRounds,
-                Tokens = totIn + totOut,
-                Time = $"{totSec:0.0}s",
-                Reason = attemptNote + verdict.Reason
+                Rounds = m?.Rounds ?? 0,
+                Tokens = (m?.InputTokens ?? 0) + (m?.OutputTokens ?? 0),
+                Time = m != null ? $"{m.Seconds:0.0}s" : "—",
+                Reason = verdict.Reason
             };
 
-            Append(result, modelTag, runStamp, verdict.Pass, attemptsMade, totIn, totOut, totRounds, totSec);
+            Append(result, modelTag, runStamp, verdict.Pass,
+                m?.InputTokens ?? 0, m?.OutputTokens ?? 0, m?.Rounds ?? 0, m?.Seconds ?? 0);
             onResult(result);
         }
         }
@@ -235,7 +212,7 @@ public static class BenchmarkRunner
     }
 
     private static void Append(BenchmarkResult r, string modelTag, string runStamp,
-        bool pass, int attempts, long inTok, long outTok, int rounds, double seconds)
+        bool pass, long inTok, long outTok, int rounds, double seconds)
     {
         try
         {
@@ -250,7 +227,6 @@ public static class BenchmarkRunner
                 verdict = r.Verdict,
                 pass,
                 score = r.Score,
-                attempts,
                 rounds,
                 input_tokens = inTok,
                 output_tokens = outTok,
