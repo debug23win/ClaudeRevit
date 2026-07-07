@@ -26,6 +26,13 @@
             <CheckBox x:Name="ResetBox" Content="Reset model between tasks" IsChecked="True"
                       VerticalAlignment="Center" Margin="16,0,0,0"
                       ToolTip="Delete each task's elements after grading, so every task starts from the same clean baseline (fair comparison). Uncheck to keep everything and inspect the result." />
+            <TextBlock Text="Stop task after" VerticalAlignment="Center" Margin="16,0,4,0" />
+            <TextBox x:Name="MaxRoundsBox" Text="15" Width="34" Height="24" VerticalContentAlignment="Center"
+                     ToolTip="Give up on a task after this many tool rounds and grade what it built (0 = no limit)." />
+            <TextBlock Text="rounds or" VerticalAlignment="Center" Margin="4,0,4,0" />
+            <TextBox x:Name="MaxMinutesBox" Text="5" Width="34" Height="24" VerticalContentAlignment="Center"
+                     ToolTip="…or after this many minutes (0 = no limit)." />
+            <TextBlock Text="min" VerticalAlignment="Center" Margin="4,0,0,0" />
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"
