@@ -32,7 +32,10 @@
             <TextBlock Text="rounds or" VerticalAlignment="Center" Margin="4,0,4,0" />
             <TextBox x:Name="MaxMinutesBox" Text="5" Width="34" Height="24" VerticalContentAlignment="Center"
                      ToolTip="…or after this many minutes (0 = no limit)." />
-            <TextBlock Text="min" VerticalAlignment="Center" Margin="4,0,0,0" />
+            <TextBlock Text="min ·" VerticalAlignment="Center" Margin="4,0,4,0" />
+            <TextBlock Text="fix retries" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox x:Name="MaxRetriesBox" Text="2" Width="30" Height="24" VerticalContentAlignment="Center"
+                     ToolTip="On a failed grade, feed the grader's reason back and let the model try to fix it, up to this many extra attempts (like a real corrective turn). 0 = no retry." />
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"

@@ -433,9 +433,29 @@ public class ChatService
                 var claudeModelForTurn = advisorMode
                     ? SettingsStore.AutoExecutorModel
                     : (claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model);
-                var turn = alt
-                    ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
-                    : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct, advisorMode);
+                BackendTurn turn;
+                try
+                {
+                    turn = alt
+                        ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
+                        : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct, advisorMode);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    // A mid-loop backend/SDK failure (a malformed stream can surface as e.g.
+                    // "Sequence contains no elements") must not nuke the whole answer — end this
+                    // step gracefully with what's already built, so the model's work so far is kept
+                    // and the caller (or a benchmark retry) can continue.
+                    Log.Error("Turn stream failed mid-loop", ex);
+                    await ui.InvokeAsync(() => conversation.Add(new ChatMessage
+                    {
+                        Role = "assistant",
+                        Text = $"[The model call failed on this step: {Truncate(ex.Message, 200)} — stopping here. " +
+                               "Say \"continue\" to resume.]"
+                    }));
+                    break;
+                }
 
                 TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn, turn);
 

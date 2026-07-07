@@ -211,6 +211,7 @@ public class ToolDispatcher : IExternalEventHandler
                 wall_lengths_m = wallLens,
                 floors = floorAreas.Count,
                 floor_areas_m2 = floorAreas,
+                roofs = CountCat(BuiltInCategory.OST_Roofs),
                 levels = levelEls.Count,
                 level_elevations_m = levelEls,
                 grids = CountClass(typeof(Grid)),

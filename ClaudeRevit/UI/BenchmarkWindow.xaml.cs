@@ -61,13 +61,15 @@ public partial class BenchmarkWindow : Window
         int.TryParse(MaxRoundsBox.Text, out var maxRounds);
         int.TryParse(MaxMinutesBox.Text, out var maxMinutes);
         var maxSeconds = maxMinutes > 0 ? maxMinutes * 60 : 0;
+        int.TryParse(MaxRetriesBox.Text, out var maxRetries);
+        if (maxRetries < 0) maxRetries = 0;
 
         try
         {
             await BenchmarkRunner.RunAsync(
                 model, BenchmarkTasks.All, judgeModel: "opus-4-8", runStamp: stamp,
                 resetBetweenTasks: ResetBox.IsChecked == true,
-                maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds,
+                maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds, maxRetries: maxRetries,
                 onStatus: SetStatus,
                 onResult: r =>
                 {
