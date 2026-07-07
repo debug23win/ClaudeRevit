@@ -126,12 +126,10 @@ public static class BenchmarkRunner
 
     private static async Task<string> StatsAsync(CancellationToken ct)
     {
-        try
-        {
-            return await ToolDispatcher.Instance.ExecuteAsync(
-                "get_model_statistics", new Dictionary<string, JsonElement>(), ct);
-        }
-        catch (Exception ex) { return "{\"stats_error\":\"" + ex.Message + "\"}"; }
+        // Precise benchmark probe (counts rebar, DirectShapes, connections, wall lengths, level
+        // elevations, floor areas…) — not the coarse get_model_statistics, which can't see those.
+        try { return await ToolDispatcher.Instance.BenchmarkProbeAsync(ct); }
+        catch (Exception ex) { return "{\"probe_error\":\"" + ex.Message + "\"}"; }
     }
 
     private static async Task<Verdict> JudgeAsync(
@@ -140,15 +138,18 @@ public static class BenchmarkRunner
     {
         const string sys =
             "You are an impartial QA grader for a Revit modelling agent. Grade ONLY from the objective " +
-            "before/after model statistics (element counts by category). Treat the agent's own summary as " +
-            "an UNVERIFIED claim — trust the objective data over it; if the data can't confirm the claim, " +
-            "do not give credit for it. Reply with ONLY a JSON object, no prose: " +
-            "{\"pass\": true|false, \"score\": <0-100>, \"reason\": \"<one sentence>\"}.";
+            "before/after PROBE — precise counts by the relevant categories (walls with lengths_m, floors " +
+            "with areas_m2, levels with elevations_m, grids, structural_columns, structural_framing, rebar, " +
+            "area_reinforcement, path_reinforcement, structural_connections, doors, direct_shapes with " +
+            "bounding-box size_m, materials). Judge by the DELTA between before and after. Treat the agent's " +
+            "own summary as an UNVERIFIED claim — trust the probe over it; if the probe can't confirm the " +
+            "claim, do not give credit for it. Reply with ONLY a JSON object, no prose: " +
+            "{\"pass\": true|false, \"score\": <0-100>, \"reason\": \"<one sentence citing the probe delta>\"}.";
         var user =
             $"TASK:\n{task.Prompt}\n\nPASS CRITERIA:\n{task.Criteria}\n\n" +
-            $"MODEL STATISTICS BEFORE:\n{Truncate(before, 3000)}\n\n" +
-            $"MODEL STATISTICS AFTER:\n{Truncate(after, 3000)}\n\n" +
-            $"AGENT'S CLAIMED RESULT (unverified):\n{Truncate(finalText, 1200)}\n\nGrade now.";
+            $"OBJECTIVE PROBE BEFORE:\n{Truncate(before, 4000)}\n\n" +
+            $"OBJECTIVE PROBE AFTER:\n{Truncate(after, 4000)}\n\n" +
+            $"AGENT'S CLAIMED RESULT (unverified):\n{Truncate(finalText, 1000)}\n\nGrade now.";
         try
         {
             var raw = await chat.RawCompleteAsync(judgeModel, sys, user, ct);

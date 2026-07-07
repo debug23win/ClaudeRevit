@@ -345,7 +345,7 @@ public class ChatService
         }
         else
         {
-            systemBlocks = BuildSystemBlocks();
+            systemBlocks = BuildSystemBlocks(advisorMode);
             toolDefs = ClaudeTools();
         }
 
@@ -1040,13 +1040,25 @@ public class ChatService
     // and the experience digest MUST share a single breakpoint here (both are session-stable,
     // so caching them together loses nothing). Emitting a breakpoint per section overflowed
     // the limit once both existed ("maximum of 4 blocks with cache_control … Found 5").
-    private static List<BetaTextBlockParam> BuildSystemBlocks()
+    // When Auto is in advisor mode the model tends to under-use the advisor tool (field runs showed
+    // 0 consults even on 20-round struggles). This directive, added to the cached prompt only in
+    // advisor mode, tells it WHEN to reach for the advisor. Kept in the same block (no extra
+    // cache_control breakpoint — the request already spends all four).
+    private const string AdvisorDirective =
+        "\n\nADVISOR: you have an 'advisor' tool — a stronger model that returns a plan or course " +
+        "correction. CALL IT (don't just push on) when: the task needs real up-front decomposition " +
+        "(a multi-part structure, a freeform shape, reinforcement layout, a steel connection); a tool " +
+        "has failed twice the same way; or you're several rounds in without clear progress. Ask it a " +
+        "specific question, then act on the advice. One good consult is far cheaper than a dozen wrong " +
+        "rounds.";
+
+    private static List<BetaTextBlockParam> BuildSystemBlocks(bool advisorMode = false)
     {
         var blocks = new List<BetaTextBlockParam>
         {
             new BetaTextBlockParam
             {
-                Text = AnthropicPromptPrefix + SystemPromptBody,
+                Text = AnthropicPromptPrefix + SystemPromptBody + (advisorMode ? AdvisorDirective : ""),
                 CacheControl = new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
             }
         };
