@@ -31,6 +31,13 @@
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"
                    Text="Runs real modelling in the ACTIVE document — open a scratch/empty project first. Each task is one undo step. Grading uses an impartial fixed judge (Opus 4.8), so an Anthropic API key is required even when testing an alternative model. Results are appended to benchmark_results.jsonl in %AppData%\ClaudeRevit." />
 
+        <Border DockPanel.Dock="Top" Background="#EEF4FF" BorderBrush="#CFE0FF" BorderThickness="1"
+                Padding="8,5" Margin="0,0,0,8" x:Name="NowPanel" Visibility="Collapsed">
+            <TextBlock x:Name="NowText" FontFamily="Consolas" FontSize="12"
+                       Text="idle" TextTrimming="CharacterEllipsis"
+                       ToolTip="The clock keeps ticking while it works — if it freezes for a long time, Revit is busy on a heavy operation." />
+        </Border>
+
         <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontWeight="SemiBold" />
             <Button x:Name="CloseButton" Content="Close" Width="80" Height="26" HorizontalAlignment="Right"
