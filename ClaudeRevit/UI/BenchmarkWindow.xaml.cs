@@ -86,6 +86,7 @@ public partial class BenchmarkWindow : Window
                 resetBetweenTasks: ResetBox.IsChecked == true,
                 maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds,
                 judgeViaClaudeCode: JudgeViaCCBox.IsChecked == true,
+                runViaSubscription: RunViaSubBox.IsChecked == true,
                 onStatus: SetStatus,
                 onResult: r =>
                 {

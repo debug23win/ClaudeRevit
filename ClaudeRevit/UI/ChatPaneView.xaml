@@ -54,6 +54,10 @@
                     <ComboBoxItem Tag="claudecode">Claude Code (subscription)</ComboBoxItem>
                     <ComboBoxItem Tag="alt" x:Name="AltModelItem">Alt model (set up in ⚙)</ComboBoxItem>
                 </ComboBox>
+                <CheckBox Grid.Column="1" x:Name="SubscriptionBox" Content="Subscription"
+                          VerticalAlignment="Center" Margin="10,0,0,0"
+                          Checked="SubscriptionBox_Changed" Unchecked="SubscriptionBox_Changed"
+                          ToolTip="Run the selected model through the Claude Code CLI on your Pro/Max subscription (via the MCP server) instead of the pay-per-token API — zero API cost. Needs the Claude Code CLI installed. Note: the Auto advisor/haiku→opus escalation does not apply here — Claude Code runs its own loop with the one chosen model (Auto = its default model)." />
                 <Button Grid.Column="2" x:Name="ClearButton"
                         Content="Clear" Height="24" Padding="10,0" Margin="0,0,4,0"
                         Click="ClearButton_Click"

@@ -210,6 +210,11 @@ public class ChatService
     // same conversation via --resume. Reset on ClearHistory.
     private string? _claudeCodeSessionId;
 
+    // Set by the chat pane: when true, the selected model runs through the Claude Code CLI on the
+    // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
+    // NOT apply here — Claude Code runs its own loop with the one chosen model.
+    public bool SubscriptionMode;
+
     public void RecreateClient() => _client = null;
 
     public void ClearHistory()
@@ -270,7 +275,8 @@ public class ChatService
     // session id so follow-up messages continue the same conversation (--resume). Costs nothing on
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
-        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui, CancellationToken ct)
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
+        string? modelAlias, CancellationToken ct)
     {
         if (!McpServer.IsRunning)
         {
@@ -303,7 +309,7 @@ public class ChatService
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct);
+            ct, model: modelAlias);
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
 
@@ -333,11 +339,13 @@ public class ChatService
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
         // schemas, no history compaction here) and just stream its output into the pane.
-        if (model == "claudecode")
+        if (model == "claudecode" || SubscriptionMode)
         {
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
-            await SendViaClaudeCodeAsync(conversation, userText, ui, ct);
+            // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
+            var alias = model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
+            await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
             return;
         }
 

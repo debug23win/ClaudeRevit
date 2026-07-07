@@ -47,6 +47,7 @@ public static class BenchmarkRunner
         int maxRoundsPerTask,
         int maxSecondsPerTask,
         bool judgeViaClaudeCode,
+        bool runViaSubscription,
         Action<string> onStatus,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
@@ -56,8 +57,11 @@ public static class BenchmarkRunner
         ToolDispatcher.ForceSuppress = true;
 
         // "claudecode" tests the MCP path end to end: the local `claude` CLI (on the subscription)
-        // drives the Revit tools through our MCP server. One impartial judge chat for the whole run.
-        var isClaudeCode = modelTag == "claudecode";
+        // drives the Revit tools through our MCP server. runViaSubscription does the same for any
+        // chosen model — the picked model is passed to the CLI via --model.
+        var isClaudeCode = modelTag == "claudecode" || runViaSubscription;
+        // The picked model → Claude Code --model alias (null = the CLI's default subscription model).
+        var ccModelAlias = modelTag == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(modelTag);
         // The judge can run on the subscription too (same claude.exe, no tools) so grading costs
         // nothing on the API — needed since the account may sit at $0. It still grades from the
         // objective probe only, so it stays impartial.
@@ -113,11 +117,11 @@ public static class BenchmarkRunner
                             "mcp__clauderevit__*",
                             onText: t => sb.Append(t),
                             onTool: name => onStatus($"{task.Id} · {task.Title} · {name}"),
-                            taskCts.Token);
+                            taskCts.Token, model: ccModelAlias);
                         finalText = !string.IsNullOrEmpty(res.Text) ? res.Text : sb.ToString();
                         error = res.Error;
                         inTok = res.InputTokens; outTok = res.OutputTokens; rounds = res.NumTurns;
-                        modelUsed = "claude-code";
+                        modelUsed = ccModelAlias != null ? $"claude-code:{ccModelAlias}" : "claude-code";
                         // Surface WHY a run did nothing: MCP connection status + result flag. A launch
                         // with no tool calls and no tokens usually means MCP never connected.
                         ccDiag = $"MCP: {res.McpStatus ?? "no init event"}" +
