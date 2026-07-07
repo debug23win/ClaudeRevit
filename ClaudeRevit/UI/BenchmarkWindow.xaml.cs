@@ -58,11 +58,16 @@ public partial class BenchmarkWindow : Window
         var stamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         var passes = 0; long tokens = 0; double seconds = 0; var graded = 0;
 
+        int.TryParse(MaxRoundsBox.Text, out var maxRounds);
+        int.TryParse(MaxMinutesBox.Text, out var maxMinutes);
+        var maxSeconds = maxMinutes > 0 ? maxMinutes * 60 : 0;
+
         try
         {
             await BenchmarkRunner.RunAsync(
                 model, BenchmarkTasks.All, judgeModel: "opus-4-8", runStamp: stamp,
                 resetBetweenTasks: ResetBox.IsChecked == true,
+                maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds,
                 onStatus: SetStatus,
                 onResult: r =>
                 {

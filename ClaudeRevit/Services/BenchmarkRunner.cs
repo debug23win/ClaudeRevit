@@ -42,6 +42,8 @@ public static class BenchmarkRunner
         string judgeModel,
         string runStamp,
         bool resetBetweenTasks,
+        int maxRoundsPerTask,
+        int maxSecondsPerTask,
         Action<string> onStatus,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
@@ -57,8 +59,19 @@ public static class BenchmarkRunner
 
             onStatus($"{task.Id} · {task.Title} · starting…");
             var chat = new ChatService(ephemeral: true);
-            // Live round counter so the user can see it's working (and the clock keeps ticking).
-            chat.OnRound = (r, max) => onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
+
+            // Per-task budget: stop a task that drags on (rounds or wall-time) and grade whatever
+            // it built, so a runaway can't hang the whole run. Cancelling this linked source stops
+            // only the current task; the user's Stop button cancels `ct` and aborts everything.
+            using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
+            chat.OnRound = (r, max) =>
+            {
+                onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
+                if (maxRoundsPerTask > 0 && r > maxRoundsPerTask)
+                    try { taskCts.Cancel(); } catch { }
+            };
+
             var conv = new ObservableCollection<ChatMessage>();
             // Baseline snapshot so we can delete exactly what this task adds (clean isolation).
             var baselineIds = resetBetweenTasks
@@ -68,14 +81,24 @@ public static class BenchmarkRunner
 
             string finalText = "";
             string? error = null;
+            var budgetStopped = false;
             try
             {
                 conv.Add(new ChatMessage { Role = "user", Text = task.Prompt });
-                await chat.SendAsync(conv, modelTag, ct);
+                await chat.SendAsync(conv, modelTag, taskCts.Token);
                 finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
             }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex) { error = ex.Message; }
+            catch (OperationCanceledException)
+            {
+                if (ct.IsCancellationRequested) throw;  // user pressed Stop → abort the whole run
+                budgetStopped = true;                    // per-task budget → stop here, grade partial
+                finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+            }
+            catch (Exception ex)
+            {
+                error = ex.GetType().Name + ": " + ex.Message;
+                Log.Error($"Benchmark task {task.Id} threw", ex); // full stack → log file
+            }
 
             var after = await StatsAsync(ct);
             var m = chat.LastTask;
@@ -84,6 +107,8 @@ public static class BenchmarkRunner
             var verdict = error != null
                 ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
                 : await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
+            if (budgetStopped)
+                verdict = verdict with { Reason = "[stopped — task budget hit] " + verdict.Reason };
 
             // Reset the model to baseline AFTER grading (grading needs the elements to exist),
             // so the next task starts clean and can't be contaminated by this one's output.
