@@ -218,6 +218,9 @@ public static class McpServer
                 args[kv.Key] = doc.RootElement.Clone();
             }
 
+        // Auto-resolve Revit warning/error dialogs for the span of this call — the MCP client
+        // (Claude Code) drives unattended, so a modal would otherwise stall the whole session.
+        ToolDispatcher.PushSuppress();
         try
         {
             var text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, ct);
@@ -228,6 +231,7 @@ public static class McpServer
             // MCP convention: tool failures are a normal result with isError=true, not a protocol error.
             return (ToolResult("Error: " + ex.Message, true), null);
         }
+        finally { ToolDispatcher.PopSuppress(); }
     }
 
     private static JsonObject ToolResult(string text, bool isError) => new()
