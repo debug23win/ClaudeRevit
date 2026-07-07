@@ -1,0 +1,47 @@
+<Window x:Class="ClaudeRevit.UI.RunToolWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Run a saved tool"
+        Width="560" Height="560"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="#666" Margin="0,0,0,8"
+                   Text="Run one of your saved custom tools directly against the model — no AI, no tokens. Pick a tool, fill in its arguments as JSON, and Run." />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Tool:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="ToolBox" Width="360" Height="26"
+                      SelectionChanged="ToolBox_SelectionChanged" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" x:Name="DescriptionText" TextWrapping="Wrap" Foreground="#888"
+                   FontSize="11" Margin="0,0,0,8" />
+
+        <TextBlock Grid.Row="3" Text="Arguments (JSON object):" Margin="0,0,0,4" />
+        <TextBox Grid.Row="4" x:Name="ArgsBox" Height="120" AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"
+                 Text="{}" Margin="0,0,0,8" />
+
+        <TextBox Grid.Row="5" x:Name="ResultBox" IsReadOnly="True" AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
+                 FontFamily="Consolas" FontSize="12" Background="#FAFAFA" />
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button x:Name="RunButton" Content="Run" Width="90" Height="28" Margin="0,0,8,0"
+                    Click="RunButton_Click" IsDefault="True" />
+            <Button Content="Close" Width="90" Height="28" Click="CloseButton_Click" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>
