@@ -48,7 +48,8 @@
                         <TextBlock FontWeight="SemiBold" Text="Рекомендуемые модели" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             <Bold>Что выбрать под задачу:</Bold>&#10;
-                            • Повседневная работа с моделью → <Bold>Claude Sonnet 5</Bold> — лучший баланс качества, цены и кэширования. Рекомендуется по умолчанию.&#10;
+                            • По умолчанию → <Bold>Auto (Sonnet→Opus)</Bold> — экономит деньги: рутинные шаги идут на дешёвом Sonnet 5 ($3/$15 за 1M), а на сложных задачах, ошибках или длинных многошаговых циклах автоматически подключается Opus 4.8 ($5/$25). Платите за Opus только когда он реально нужен.&#10;
+                            • Повседневная работа с моделью → <Bold>Claude Sonnet 5</Bold> — лучший баланс качества, цены и кэширования.&#10;
                             • Простые вопросы и массовые операции, экономия → <Bold>Claude Haiku 4.5</Bold> или <Bold>DeepSeek</Bold>.&#10;
                             • Самое сложное (длинное многошаговое рассуждение) → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; из альтернатив — <Bold>grok-4.20-0309-reasoning</Bold>.&#10;
                             • Без ключа / офлайн / конфиденциально → <Bold>Ollama или LM Studio</Bold> (бесплатно, данные не покидают ПК, но слабее всего в оркестрации ~170 инструментов).&#10;&#10;
@@ -131,7 +132,8 @@
                         <TextBlock FontWeight="SemiBold" Text="Recommended models" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             <Bold>What to pick per task:</Bold>&#10;
-                            • Everyday model work → <Bold>Claude Sonnet 5</Bold> — the best balance of quality, price and caching. The recommended default.&#10;
+                            • Default → <Bold>Auto (Sonnet→Opus)</Bold> — saves money: routine steps run on the cheaper Sonnet 5 ($3/$15 per 1M) and Opus 4.8 ($5/$25) kicks in automatically on complex tasks, errors or long multi-step loops. You only pay Opus rates when it's actually needed.&#10;
+                            • Everyday model work → <Bold>Claude Sonnet 5</Bold> — the best balance of quality, price and caching.&#10;
                             • Simple questions and bulk operations, saving money → <Bold>Claude Haiku 4.5</Bold> or <Bold>DeepSeek</Bold>.&#10;
                             • The hardest, long multi-step reasoning → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; among alternatives, <Bold>grok-4.20-0309-reasoning</Bold>.&#10;
                             • No key / offline / confidential → <Bold>Ollama or LM Studio</Bold> (free, data never leaves the PC, but the weakest at orchestrating ~170 tools).&#10;&#10;

@@ -20,7 +20,7 @@ public partial class ChatPaneView : UserControl
 
     private readonly ChatService _service = new();
     private CancellationTokenSource? _cts;
-    private string _selectedModel = "sonnet-5";
+    private string _selectedModel = "auto";
 
     // An image attached for the next message (base64 + MIME), downscaled on attach.
     private string? _pendingImageBase64;

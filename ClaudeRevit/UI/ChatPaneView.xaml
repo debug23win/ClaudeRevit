@@ -41,9 +41,10 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <ComboBox Grid.Column="0" x:Name="ModelPicker"
-                          Width="170" Height="24" VerticalContentAlignment="Center"
+                          Width="190" Height="24" VerticalContentAlignment="Center"
                           SelectionChanged="ModelPicker_SelectionChanged">
-                    <ComboBoxItem Tag="sonnet-5" IsSelected="True">Sonnet 5 (default)</ComboBoxItem>
+                    <ComboBoxItem Tag="auto" IsSelected="True">Auto (Sonnet→Opus, cheaper)</ComboBoxItem>
+                    <ComboBoxItem Tag="sonnet-5">Sonnet 5 (default)</ComboBoxItem>
                     <ComboBoxItem Tag="opus-4-8">Opus 4.8 (smart)</ComboBoxItem>
                     <ComboBoxItem Tag="fable-5">Fable 5 (smartest)</ComboBoxItem>
                     <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (fastest)</ComboBoxItem>
