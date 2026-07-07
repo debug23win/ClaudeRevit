@@ -162,7 +162,7 @@ public sealed class OpenAIBackend
     private static async Task<(HttpResponseMessage Resp, int RequestChars)> SendAsync(
         JsonObject body, CancellationToken ct, int maxTokens = MaxOutputTokens)
     {
-        var baseUrl = SettingsStore.AltBaseUrl.TrimEnd('/');
+        var baseUrl = NormalizeBaseUrl(SettingsStore.AltBaseUrl);
         // The key cannot change mid-turn — read the DPAPI file once per request cycle,
         // not once per retry.
         var key = ApiKeyStore.LoadAlt();
@@ -202,6 +202,22 @@ public sealed class OpenAIBackend
         }
         catch { /* not JSON — fall through to the text match */ }
         return rawErrorBody.Contains("max_completion_tokens");
+    }
+
+    // Users routinely paste a full endpoint URL (or the OpenAI "Responses API" path that
+    // xAI/Grok and others don't expose) into the base-URL field. Strip a mistakenly-included
+    // endpoint suffix so we still hit /chat/completions instead of 404ing on, e.g.,
+    // https://api.x.ai/v1/responses. The base URL should be the root like https://api.x.ai/v1.
+    private static string NormalizeBaseUrl(string raw)
+    {
+        var url = (raw ?? "").Trim().TrimEnd('/');
+        foreach (var suffix in new[] { "/chat/completions", "/responses", "/completions" })
+            if (url.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                url = url[..^suffix.Length].TrimEnd('/');
+                break;
+            }
+        return url;
     }
 
     private static async Task<(HttpResponseMessage? Resp, string? Error, string? RawError, int RequestChars)>

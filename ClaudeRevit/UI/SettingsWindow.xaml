@@ -92,6 +92,7 @@
                 <ComboBoxItem Tag="">— not used —</ComboBoxItem>
                 <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
                 <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
+                <ComboBoxItem Tag="grok">xAI Grok</ComboBoxItem>
                 <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
                 <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>
                 <ComboBoxItem Tag="openrouter">OpenRouter (has free models)</ComboBoxItem>
