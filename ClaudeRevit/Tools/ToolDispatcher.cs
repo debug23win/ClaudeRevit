@@ -41,7 +41,12 @@ public class ToolDispatcher : IExternalEventHandler
     //                   turns, e.g. the reset-between-tasks deletions).
     private static volatile bool _suppressTurn;
     public static volatile bool ForceSuppress;
-    public static bool Suppressing => _suppressTurn || ForceSuppress;
+    //   _suppressCount — scoped suppression for callers with no turn (the MCP server): Push before
+    //                    a tool call, Pop after, so dialogs are auto-resolved for that call too.
+    private static int _suppressCount;
+    public static void PushSuppress() => System.Threading.Interlocked.Increment(ref _suppressCount);
+    public static void PopSuppress() => System.Threading.Interlocked.Decrement(ref _suppressCount);
+    public static bool Suppressing => _suppressTurn || ForceSuppress || _suppressCount > 0;
 
     private ToolDispatcher(ToolRegistry registry) => _registry = registry;
 
