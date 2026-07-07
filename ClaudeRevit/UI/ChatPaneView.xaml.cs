@@ -201,6 +201,9 @@ public partial class ChatPaneView : UserControl
         SendButton.Content = "Cancel";
         StatusText.Text = "Sending...";
 
+        // Live round counter so long jobs show progress toward the per-message cap.
+        _service.OnRound = (r, max) => StatusText.Text = $"Working… round {r}/{max}";
+
         Messages.Add(new ChatMessage { Role = "user", Text = text });
 
         _cts = new CancellationTokenSource();
