@@ -226,6 +226,29 @@ public static class ClaudeCodeBackend
         {
             if (c != null) { try { if (File.Exists(c)) return c; } catch { } }
         }
+
+        // Claude Desktop (the MSIX Store app) BUNDLES the Claude Code CLI under its package dir at
+        //   %LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code\<version>\claude.exe
+        // Users who only have the desktop app still have a working headless claude.exe here — it's just
+        // not on PATH. Glob for it and take the newest version folder.
+        try
+        {
+            var packages = Env("LOCALAPPDATA") is { } lad ? Path.Combine(lad, "Packages") : null;
+            if (packages != null && Directory.Exists(packages))
+            {
+                var best = Directory.EnumerateDirectories(packages, "Claude_*")
+                    .Select(pkg => Path.Combine(pkg, "LocalCache", "Roaming", "Claude", "claude-code"))
+                    .Where(Directory.Exists)
+                    .SelectMany(cc => Directory.EnumerateDirectories(cc))
+                    .Select(ver => Path.Combine(ver, "claude.exe"))
+                    .Where(File.Exists)
+                    .OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase) // newest version last-sorts first
+                    .FirstOrDefault();
+                if (best != null) return best;
+            }
+        }
+        catch { /* enumeration raced or access denied */ }
+
         return null;
     }
 
