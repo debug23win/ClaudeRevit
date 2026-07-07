@@ -36,6 +36,13 @@ public partial class SettingsWindow : Window
         _ => ("", "", 0)
     };
 
+    // Optional reasoning-model default per preset (auto-escalation target). Empty = none.
+    private static string AltReasoningPreset(string tag) => tag switch
+    {
+        "grok" => "grok-4.20-0309-reasoning",
+        _ => ""
+    };
+
     public SettingsWindow()
     {
         InitializeComponent();
@@ -60,6 +67,7 @@ public partial class SettingsWindow : Window
         AltContextBox.Text = SettingsStore.AltContextK > 0
             ? SettingsStore.AltContextK.ToString(CultureInfo.InvariantCulture)
             : "";
+        AltReasoningBox.Text = SettingsStore.AltReasoningModel;
         AltKeyBox.Password = ApiKeyStore.LoadAlt() ?? "";
         MaxRoundsBox.Text = SettingsStore.MaxToolRounds.ToString(CultureInfo.InvariantCulture);
 
@@ -128,6 +136,10 @@ public partial class SettingsWindow : Window
         ModelLabel.Text = L("Model id:", "ID модели:");
         AltKeyLabel.Text = L("API key:", "API-ключ:");
         ContextLabel.Text = L("Context, K:", "Контекст, K:");
+        ReasoningLabel.Text = L("Reasoning model:", "Reasoning-модель:");
+        ReasoningNote.Text = L(
+            "Optional. A stronger reasoning model (e.g. grok-4.20-0309-reasoning). When set, the fast model above handles routine work and this one kicks in automatically on complex tasks, errors or long multi-step jobs. Leave empty to always use the model above.",
+            "Необязательно. Более сильная reasoning-модель (напр. grok-4.20-0309-reasoning). Если задана — быстрая модель выше работает по рутине, а эта включается автоматически на сложных задачах, при ошибках или длинных многошаговых операциях. Пусто = всегда модель выше.");
         AltNote.Text = L(
             "Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL, a default model and its typical context size. Local Ollama / LM Studio need no key. The model must support function calling. Select “Alt” in the chat pane's model dropdown to use it.",
             "Необязательно. Любой OpenAI-совместимый эндпоинт; выбор пресета подставит URL, модель по умолчанию и типичный размер контекста. Локальным Ollama / LM Studio ключ не нужен. Модель должна поддерживать вызов функций. Чтобы использовать — выберите «Alt» в списке моделей панели чата.");
@@ -182,6 +194,7 @@ public partial class SettingsWindow : Window
         AltBaseUrlBox.Text = url;
         AltModelBox.Text = model;
         AltContextBox.Text = contextK > 0 ? contextK.ToString(CultureInfo.InvariantCulture) : "";
+        AltReasoningBox.Text = AltReasoningPreset(tag);
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -275,6 +288,7 @@ public partial class SettingsWindow : Window
         SettingsStore.AltProvider = AltProviderBox.SelectedItem is ComboBoxItem sel ? (string)sel.Tag : "";
         SettingsStore.AltBaseUrl = altUrl;
         SettingsStore.AltModel = altModel;
+        SettingsStore.AltReasoningModel = AltReasoningBox.Text.Trim();
         SettingsStore.AltContextK = contextK;
         SettingsStore.MaxToolRounds = maxRounds;
 

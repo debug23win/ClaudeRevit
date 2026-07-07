@@ -226,6 +226,14 @@ public class ChatService
         // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
         var maxIterations = SettingsStore.MaxToolRounds;
 
+        // Auto-escalation to a stronger "reasoning" model on the alt path: keep the fast model
+        // for routine work, switch to the reasoning model when the task looks hard up front, or
+        // once the fast model starts erroring / the task turns into a deep multi-step loop.
+        var reasoningModel = alt ? SettingsStore.AltReasoningModel : "";
+        var canEscalate = !string.IsNullOrWhiteSpace(reasoningModel);
+        var escalate = canEscalate && LooksComplex(lastUser);
+        const int EscalateAfterRounds = 6;
+
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
@@ -242,11 +250,12 @@ public class ChatService
                     break;
                 }
 
+                var altModelForTurn = escalate ? reasoningModel : null;
                 var turn = alt
-                    ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct)
+                    ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
                     : await StreamAnthropicTurnAsync(model, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
 
-                TrackUsage(alt ? "alt:" + SettingsStore.AltModel : model, turn);
+                TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : model, turn);
 
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
@@ -387,12 +396,43 @@ public class ChatService
                     if (alt) altTools = OpenAIBackend.BuildTools(allowedTools);
                     else toolDefs = BuildToolDefs(allowedTools);
                 }
+
+                // Escalate to the reasoning model for the rest of the turn once the fast model
+                // hits a tool error / Revit rollback, or the task has become a deep multi-step
+                // loop. Sticky: once escalated we stay on the reasoning model.
+                if (canEscalate && !escalate)
+                {
+                    var anyToolError = resultTurn.Blocks.OfType<ChatToolResultBlock>().Any(b => b.IsError);
+                    if (anyToolError || iter >= EscalateAfterRounds - 1)
+                        escalate = true;
+                }
             }
         }
         finally
         {
             await ToolDispatcher.Instance.EndTurnAsync(CancellationToken.None);
         }
+    }
+
+    // Cheap heuristic for "this looks like a hard, multi-step or diagnostic task" — used only
+    // to pick the reasoning model up front on the alt path. Escalation on errors/depth covers
+    // whatever this misses.
+    private static readonly string[] ComplexHints =
+    {
+        // en
+        "calculate", "compute", "layout", "optimi", "debug", "why ", "diagnose", "reinforc",
+        "constraint", "formula", "parametric", "step by step", "figure out", "plan ",
+        // ru
+        "рассчита", "посчита", "раскладк", "оптимиз", "отлад", "почему", "диагно", "армир",
+        "хомут", "формул", "параметр", "по шагам", "разберись", "спроектир", "зон"
+    };
+
+    private static bool LooksComplex(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt)) return false;
+        if (prompt.Length > 400) return true; // long, detailed asks tend to be multi-step
+        var p = prompt.ToLowerInvariant();
+        return ComplexHints.Any(h => p.Contains(h));
     }
 
     // ---- Anthropic path -----------------------------------------------------------
@@ -478,7 +518,8 @@ public class ChatService
         string dynamicContext,
         ObservableCollection<ChatMessage> conversation,
         Dispatcher ui,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? modelOverride = null)
     {
         ChatMessage? assistantBubble = null;
         // Deltas arrive on the HTTP read thread; awaiting the dispatcher operation gives
@@ -495,7 +536,7 @@ public class ChatService
         }).Task;
 
         return await _openAI.StreamTurnAsync(
-            systemPrompt, _history, dynamicContext, toolsJson, OnDelta, ct);
+            systemPrompt, _history, dynamicContext, toolsJson, OnDelta, ct, modelOverride);
     }
 
     // The alt system prompt: same body as the Anthropic one, different framing, plus the

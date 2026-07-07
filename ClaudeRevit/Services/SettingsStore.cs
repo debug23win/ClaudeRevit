@@ -57,6 +57,15 @@ public static class SettingsStore
         set { Current.AltModel = value; Save(); }
     }
 
+    // Optional stronger "reasoning" model id for the alternative provider (e.g. xAI's
+    // grok-4.20-…-reasoning). When set, ChatService keeps AltModel for routine work and
+    // auto-switches to this one on complex tasks / errors. Empty = never escalate.
+    public static string AltReasoningModel
+    {
+        get => Current.AltReasoningModel;
+        set { Current.AltReasoningModel = value; Save(); }
+    }
+
     // Context window of the alt model in thousands of tokens (0 = unknown → conservative
     // default). Drives the history-compaction threshold: an 8K local model must compact
     // long before a 1M Gemini.
@@ -178,6 +187,7 @@ public static class SettingsStore
         public string AltProvider { get; set; } = "";
         public string AltBaseUrl { get; set; } = "";
         public string AltModel { get; set; } = "";
+        public string AltReasoningModel { get; set; } = "";
         public int AltContextK { get; set; } = 0;
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
