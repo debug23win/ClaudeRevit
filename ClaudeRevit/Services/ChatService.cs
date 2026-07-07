@@ -206,6 +206,10 @@ public class ChatService
     // Set by the chat pane: progress ping each tool-call round (current, max) for the status line.
     public Action<int, int>? OnRound;
 
+    // Claude Code (subscription) mode keeps the CLI's session id so follow-up messages continue the
+    // same conversation via --resume. Reset on ClearHistory.
+    private string? _claudeCodeSessionId;
+
     public void RecreateClient() => _client = null;
 
     public void ClearHistory()
@@ -219,6 +223,7 @@ public class ChatService
         _execCsharpOk = 0;
         _promoteNudged = false;
         _revealedCategories.Clear();
+        _claudeCodeSessionId = null;
         if (!_ephemeral) HistoryStore.Clear();
     }
 
@@ -260,6 +265,62 @@ public class ChatService
         return string.Concat(msg.Content.Select(b => b.TryPickText(out var t) ? t.Text : ""));
     }
 
+    // Subscription mode: run the local Claude Code CLI headless, letting it drive the Revit tools
+    // through our in-process MCP server. Streams its narration into the pane and keeps the CLI's
+    // session id so follow-up messages continue the same conversation (--resume). Costs nothing on
+    // the API — the work runs on the user's Claude Pro/Max subscription.
+    private async Task SendViaClaudeCodeAsync(
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui, CancellationToken ct)
+    {
+        if (!McpServer.IsRunning)
+        {
+            try { McpServer.Start(); }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "Couldn't start the MCP server that Claude Code needs — free the port in " +
+                    "Settings → MCP and try again. (" + ex.Message + ")");
+            }
+        }
+        var config = McpServer.WriteClientConfig();
+        var workDir = McpServer.ClientWorkDir();
+        var exe = SettingsStore.ClaudeCodeExe;
+
+        ChatMessage? bubble = null;
+        void Append(string piece)
+        {
+            if (string.IsNullOrEmpty(piece)) return;
+            ui.InvokeAsync(() =>
+            {
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", Text = "" }; conversation.Add(bubble); }
+                bubble.Text += piece;
+            });
+        }
+
+        var toolCount = 0;
+        var res = await ClaudeCodeBackend.RunAsync(
+            exe, prompt, workDir, config, resumeSessionId: _claudeCodeSessionId,
+            allowedToolsGlob: "mcp__clauderevit__*",
+            onText: Append,
+            onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
+            ct);
+
+        _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
+
+        if (!string.IsNullOrEmpty(res.Error))
+        {
+            Append((bubble == null ? "" : "\n\n") + "⚠ " + res.Error);
+            return;
+        }
+        // Nothing streamed (e.g. a short answer delivered only in the final result event) — show it.
+        if (bubble == null && !string.IsNullOrEmpty(res.Text))
+            Append(res.Text);
+
+        if (SettingsStore.ShowTaskDiagnostics && bubble != null)
+            Append($"\n\n— claude-code · {res.NumTurns} turns · {res.DurationMs / 1000.0:0.0}s" +
+                   (res.McpStatus != null ? $" · MCP {res.McpStatus}" : ""));
+    }
+
     public async Task SendAsync(
         ObservableCollection<ChatMessage> conversation,
         string model,
@@ -268,6 +329,18 @@ public class ChatService
         string? imageMime = null)
     {
         var ui = Dispatcher.CurrentDispatcher;
+
+        // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
+        // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
+        // schemas, no history compaction here) and just stream its output into the pane.
+        if (model == "claudecode")
+        {
+            var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(userText)) return;
+            await SendViaClaudeCodeAsync(conversation, userText, ui, ct);
+            return;
+        }
+
         bool alt = IsAlt(model);
         if (alt && !OpenAIBackend.IsConfigured)
             throw new InvalidOperationException(

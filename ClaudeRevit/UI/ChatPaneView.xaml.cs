@@ -289,9 +289,12 @@ public partial class ChatPaneView : UserControl
     // Keep the assistant name shown in the chat in sync with the selected model, so an
     // alt-provider reply (Grok, Gemini, a local model…) isn't labelled "Claude".
     private void UpdateAssistantLabel() =>
-        ChatMessage.AssistantLabel = _selectedModel == "alt"
-            ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
-            : "Claude";
+        ChatMessage.AssistantLabel = _selectedModel switch
+        {
+            "alt" => SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant",
+            "claudecode" => "Claude Code",
+            _ => "Claude"
+        };
 
     private async Task SendAsync()
     {
