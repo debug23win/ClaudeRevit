@@ -1,10 +1,12 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using ClaudeRevit.Services;
 
 namespace ClaudeRevit.UI;
@@ -14,11 +16,29 @@ public partial class BenchmarkWindow : Window
     private readonly ObservableCollection<BenchmarkResult> _results = new();
     private CancellationTokenSource? _cts;
 
+    // Live "now running" status. The stopwatch is reset on every status change; the DispatcherTimer
+    // re-renders the elapsed seconds twice a second. That ticking clock is the liveness signal — if
+    // it keeps advancing the UI thread is alive; if it freezes, Revit is stuck on a heavy op.
+    private readonly DispatcherTimer _tick;
+    private readonly Stopwatch _phase = new();
+    private string _status = "idle";
+
     public BenchmarkWindow()
     {
         InitializeComponent();
         ResultsGrid.ItemsSource = _results;
+        _tick = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(500) };
+        _tick.Tick += (_, _) => RenderStatus();
     }
+
+    private void SetStatus(string s)
+    {
+        _status = s;
+        _phase.Restart();
+        RenderStatus();
+    }
+
+    private void RenderStatus() => NowText.Text = $"{_status}  ·  {_phase.Elapsed.TotalSeconds:0}s";
 
     private async void RunButton_Click(object sender, RoutedEventArgs e)
     {
@@ -29,6 +49,9 @@ public partial class BenchmarkWindow : Window
         SummaryText.Text = "Running…";
         RunButton.IsEnabled = false;
         CancelButton.IsEnabled = true;
+        NowPanel.Visibility = Visibility.Visible;
+        SetStatus("starting…");
+        _tick.Start();
         _cts = new CancellationTokenSource();
 
         // Stamp passed in (Date.Now is fine in app code) so every row of one run shares a run id.
@@ -40,6 +63,7 @@ public partial class BenchmarkWindow : Window
             await BenchmarkRunner.RunAsync(
                 model, BenchmarkTasks.All, judgeModel: "opus-4-8", runStamp: stamp,
                 resetBetweenTasks: ResetBox.IsChecked == true,
+                onStatus: SetStatus,
                 onResult: r =>
                 {
                     _results.Add(r);
@@ -60,6 +84,8 @@ public partial class BenchmarkWindow : Window
         catch (Exception ex) { SummaryText.Text = "Error: " + ex.Message; }
         finally
         {
+            _tick.Stop();
+            NowPanel.Visibility = Visibility.Collapsed;
             _cts?.Dispose();
             _cts = null;
             RunButton.IsEnabled = true;

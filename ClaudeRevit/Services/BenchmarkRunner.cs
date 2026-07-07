@@ -42,6 +42,7 @@ public static class BenchmarkRunner
         string judgeModel,
         string runStamp,
         bool resetBetweenTasks,
+        Action<string> onStatus,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
     {
@@ -54,7 +55,10 @@ public static class BenchmarkRunner
         {
             ct.ThrowIfCancellationRequested();
 
+            onStatus($"{task.Id} · {task.Title} · starting…");
             var chat = new ChatService(ephemeral: true);
+            // Live round counter so the user can see it's working (and the clock keeps ticking).
+            chat.OnRound = (r, max) => onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
             var conv = new ObservableCollection<ChatMessage>();
             // Baseline snapshot so we can delete exactly what this task adds (clean isolation).
             var baselineIds = resetBetweenTasks
@@ -76,6 +80,7 @@ public static class BenchmarkRunner
             var after = await StatsAsync(ct);
             var m = chat.LastTask;
 
+            onStatus($"{task.Id} · {task.Title} · grading…");
             var verdict = error != null
                 ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
                 : await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
