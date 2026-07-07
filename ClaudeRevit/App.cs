@@ -220,6 +220,10 @@ public class App : IExternalApplication
 
             SelectionService.Initialize(application);
 
+            // Experimental: start the MCP server if the user enabled it, so Claude Code / Desktop
+            // (subscription) can drive Revit. Off by default; failure is non-fatal.
+            try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Services.Log.Error("MCP start failed", ex); }
+
             var view = new ChatPaneView();
             application.RegisterDockablePane(PaneIds.Chat, "Claude Chat", new ChatPaneProvider(view));
 
@@ -312,6 +316,7 @@ public class App : IExternalApplication
         catch { /* shutting down anyway */ }
         try { application.DialogBoxShowing -= OnDialogBoxShowing; }
         catch { /* shutting down anyway */ }
+        try { McpServer.Stop(); } catch { /* shutting down anyway */ }
         // Post-close learning report: summarize the accumulated Dynamo/C# scripts into a
         // developer-facing file so recurring patterns can be promoted to native tools.
         try { ExperienceStore.WriteDiagnosticReport(); }

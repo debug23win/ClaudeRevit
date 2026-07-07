@@ -54,6 +54,9 @@ public partial class SettingsWindow : Window
         SelectByTag(AutoExecBox, SettingsStore.AutoExecutorModel);
         SelectByTag(AutoAdvBox, SettingsStore.AutoAdvisorModel);
         TaskDiagBox.IsChecked = SettingsStore.ShowTaskDiagnostics;
+        McpBox.IsChecked = SettingsStore.McpEnabled;
+        McpPortBox.Text = SettingsStore.McpPort.ToString();
+        UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
         // Order matters: selecting the combo fires SelectionChanged (fields are empty →
@@ -108,6 +111,23 @@ public partial class SettingsWindow : Window
 
     private static string TagOf(ComboBox box, string fallback) =>
         box.SelectedItem is ComboBoxItem it && it.Tag is string t ? t : fallback;
+
+    // A ready-to-paste Claude Code / Desktop MCP config, plus the live server status.
+    private void UpdateMcpConfig()
+    {
+        var port = int.TryParse(McpPortBox.Text, out var p) && p > 0 ? p : SettingsStore.McpPort;
+        McpConfigBox.Text =
+            "{\n  \"mcpServers\": {\n    \"clauderevit\": {\n" +
+            "      \"type\": \"http\",\n" +
+            $"      \"url\": \"http://127.0.0.1:{port}/mcp\",\n" +
+            $"      \"headers\": {{ \"Authorization\": \"Bearer {SettingsStore.McpToken}\" }}\n" +
+            "    }\n  }\n}";
+        McpStatusText.Text = McpServer.IsRunning
+            ? L($"running at {McpServer.Url}", $"работает на {McpServer.Url}")
+            : McpServer.LastError is { } e
+                ? L("not running — " + e, "не запущен — " + e)
+                : L("not running", "не запущен");
+    }
 
     private void LanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -178,6 +198,14 @@ public partial class SettingsWindow : Window
         MaxRoundsNote.Text = L(
             "How many tool-call rounds Claude may take answering one message before it pauses and asks to continue. Default 24; raise it for long automated jobs. Range 1–200.",
             "Сколько раундов вызовов инструментов Claude может сделать на одно сообщение, прежде чем остановиться и спросить о продолжении. По умолчанию 24; поднимите для длинных автоматических задач. Диапазон 1–200.");
+
+        McpBox.Content = L(
+            "Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)",
+            "Эксперимент: MCP-сервер (рулить Revit из Claude Code / Desktop по подписке)");
+        McpNote.Text = L(
+            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings.",
+            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code.");
+        McpPortLabel.Text = L("Port:", "Порт:");
 
         ToolGroupsHeader.Text = L("Active tool groups (fewer = fewer tokens per request)", "Активные группы инструментов (меньше = меньше токенов на запрос)");
         ToolGroupsNote.Text = L(
@@ -334,6 +362,10 @@ public partial class SettingsWindow : Window
         SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, "sonnet-5");
         SettingsStore.AutoAdvisorModel = TagOf(AutoAdvBox, "opus-4-8");
         SettingsStore.ShowTaskDiagnostics = TaskDiagBox.IsChecked == true;
+        if (int.TryParse(McpPortBox.Text, out var mcpPort) && mcpPort is > 0 and < 65536)
+            SettingsStore.McpPort = mcpPort;
+        SettingsStore.McpEnabled = McpBox.IsChecked == true;
+        try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Log.Error("MCP apply failed", ex); }
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;
         if (balanceChanged)

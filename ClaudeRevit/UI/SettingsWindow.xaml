@@ -171,6 +171,21 @@
                            Text="Uncheck groups you don't need — each request gets smaller in tokens. Helps free / rate-limited providers (e.g. Gemini's free tier, where one request can hit the limit). All on by default." />
                 <WrapPanel x:Name="ToolGroupsPanel" Orientation="Horizontal" />
 
+                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+
+                <CheckBox x:Name="McpBox" FontWeight="SemiBold"
+                          Content="Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)" />
+                <TextBlock x:Name="McpNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
+                           Text="Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings." />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock x:Name="McpPortLabel" Text="Port:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox x:Name="McpPortBox" Width="70" Height="26" Padding="4" VerticalContentAlignment="Center" />
+                    <TextBlock x:Name="McpStatusText" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11" Foreground="#888" />
+                </StackPanel>
+                <TextBox x:Name="McpConfigBox" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
+                         FontFamily="Consolas" FontSize="11" Height="120"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
