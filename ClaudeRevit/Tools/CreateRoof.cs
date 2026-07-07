@@ -70,9 +70,10 @@ public class CreateRoof : IRevitTool
         {
             var name = rt.GetString();
             roofType = roofTypes.FirstOrDefault(t => t.Name == name)
+                ?? roofTypes.FirstOrDefault(t => string.Equals(t.Name?.Trim(), name?.Trim(),
+                       StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidOperationException(
-                    $"Roof type '{name}' not found. Available roof types: " +
-                    string.Join(", ", roofTypes.Select(t => $"'{t.Name}'")));
+                    NameResolve.NotFound(name, "Roof type", roofTypes.Select(t => t.Name)));
         }
         else
         {
