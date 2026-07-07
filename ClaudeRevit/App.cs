@@ -25,6 +25,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new CreateLevel());
             ToolRegistry.Instance.Register(new CreateGrid());
             ToolRegistry.Instance.Register(new CreateRoof());
+            ToolRegistry.Instance.Register(new CreateDirectShape());
             ToolRegistry.Instance.Register(new CreateRoom());
             ToolRegistry.Instance.Register(new CreateView());
             ToolRegistry.Instance.Register(new CreateSection());
