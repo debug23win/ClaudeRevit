@@ -37,11 +37,28 @@
                             • <Bold>DeepSeek</Bold> — очень дёшево; ключ на platform.deepseek.com.&#10;
                             • <Bold>OpenRouter</Bold> — сотни моделей, есть бесплатные (id с «:free»); ключ на openrouter.ai, карта не нужна.&#10;
                             • <Bold>Groq</Bold> — быстрые Llama-модели, щедрый бесплатный лимит; ключ на console.groq.com.&#10;
+                            • <Bold>xAI Grok</Bold> — быстрый, с вызовом инструментов; base URL <Bold>https://api.x.ai/v1</Bold>, модель <Bold>grok-4.3</Bold> (на сложных задачах плагин сам переключится на grok-4.20-0309-reasoning). Ключ на console.x.ai. Важно: ключ и кредиты должны быть в ОДНОЙ команде (team) — иначе «team doesn't have credits». НЕ пишите grok-build-0.1: это агент через Responses API (/v1/responses), плагин с ним не работает.&#10;
                             • <Bold>Ollama / LM Studio</Bold> — модели на вашем компьютере: бесплатно, без ключа и без интернета. Установите программу, скачайте модель (например qwen3), укажите её id.&#10;
                             • <Bold>Custom</Bold> — любой другой OpenAI-совместимый сервис.&#10;&#10;
                             Требование одно: модель должна поддерживать вызов инструментов (function calling).
                             История чата сохраняется при переключении между Claude и альтернативной моделью —
                             можно делать черновую работу на бесплатной модели и переключаться на Claude для сложного.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Рекомендуемые модели" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            <Bold>Что выбрать под задачу:</Bold>&#10;
+                            • Повседневная работа с моделью → <Bold>Claude Sonnet 5</Bold> — лучший баланс качества, цены и кэширования. Рекомендуется по умолчанию.&#10;
+                            • Простые вопросы и массовые операции, экономия → <Bold>Claude Haiku 4.5</Bold> или <Bold>DeepSeek</Bold>.&#10;
+                            • Самое сложное (длинное многошаговое рассуждение) → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; из альтернатив — <Bold>grok-4.20-0309-reasoning</Bold>.&#10;
+                            • Без ключа / офлайн / конфиденциально → <Bold>Ollama или LM Studio</Bold> (бесплатно, данные не покидают ПК, но слабее всего в оркестрации ~170 инструментов).&#10;&#10;
+                            <Bold>Почему Claude — основной выбор:</Bold> только у Claude работает кэширование запросов (prompt caching). Системный промпт, память проекта и описания инструментов кэшируются на час, поэтому длинная сессия стоит в разы дешевле — это структурное преимущество, которого нет у альтернатив.&#10;&#10;
+                            <Bold>Минусы альтернатив (не-Claude):</Bold>&#10;
+                            • <Bold>Нет кэширования</Bold> — каждый запрос оплачивается целиком, токены «горят» быстрее, особенно в длинных сессиях.&#10;
+                            • <Bold>Слабее работа с инструментами</Bold> — мелкие и локальные модели чаще ошибаются в выборе инструмента и его аргументах, могут зацикливаться.&#10;
+                            • <Bold>Gemini free</Bold> — жёсткий дневной лимит, на сложной задаче может хватить буквально одного-двух запросов.&#10;
+                            • <Bold>Grok</Bold> — нужны кредиты в той же команде, что и ключ; grok-build-0.1 несовместим (Responses API).&#10;
+                            • <Bold>Локальные модели</Bold> — упираются в вашу видеокарту и медленнее; для стабильной работы с большим числом инструментов подходят хуже всего.
                         </TextBlock>
 
                         <TextBlock FontWeight="SemiBold" Text="Эффективные приёмы" Margin="0,12,0,4" />
@@ -103,11 +120,28 @@
                             • <Bold>DeepSeek</Bold> — very cheap; key at platform.deepseek.com.&#10;
                             • <Bold>OpenRouter</Bold> — hundreds of models incl. free ones (ids ending in “:free”); key at openrouter.ai, no card needed.&#10;
                             • <Bold>Groq</Bold> — fast Llama models with a generous free quota; key at console.groq.com.&#10;
+                            • <Bold>xAI Grok</Bold> — fast, with tool calling; base URL <Bold>https://api.x.ai/v1</Bold>, model <Bold>grok-4.3</Bold> (the plugin auto-escalates to grok-4.20-0309-reasoning on hard tasks). Key at console.x.ai. Important: the key and the credits must live in the SAME team, or you'll get “team doesn't have credits”. Do NOT use grok-build-0.1 — it's a coding agent on the Responses API (/v1/responses) and won't work here.&#10;
                             • <Bold>Ollama / LM Studio</Bold> — models on your own machine: free, keyless, offline. Install the app, pull a model (e.g. qwen3), enter its id.&#10;
                             • <Bold>Custom</Bold> — any other OpenAI-compatible service.&#10;&#10;
                             The one requirement: the model must support function calling. Chat history carries
                             over when you switch between Claude and the alternative model — rough work on a free
                             model, then switch to Claude for the hard parts.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Recommended models" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            <Bold>What to pick per task:</Bold>&#10;
+                            • Everyday model work → <Bold>Claude Sonnet 5</Bold> — the best balance of quality, price and caching. The recommended default.&#10;
+                            • Simple questions and bulk operations, saving money → <Bold>Claude Haiku 4.5</Bold> or <Bold>DeepSeek</Bold>.&#10;
+                            • The hardest, long multi-step reasoning → <Bold>Claude Opus 4.8</Bold> / <Bold>Fable 5</Bold>; among alternatives, <Bold>grok-4.20-0309-reasoning</Bold>.&#10;
+                            • No key / offline / confidential → <Bold>Ollama or LM Studio</Bold> (free, data never leaves the PC, but the weakest at orchestrating ~170 tools).&#10;&#10;
+                            <Bold>Why Claude is the primary choice:</Bold> only Claude does prompt caching. The system prompt, project memory and tool descriptions are cached for an hour, so a long session costs several times less — a structural advantage the alternatives don't have.&#10;&#10;
+                            <Bold>Downsides of alternatives (non-Claude):</Bold>&#10;
+                            • <Bold>No caching</Bold> — every request is billed in full, tokens burn faster, especially in long sessions.&#10;
+                            • <Bold>Weaker tool use</Bold> — small and local models more often pick the wrong tool or wrong arguments and can loop.&#10;
+                            • <Bold>Gemini free</Bold> — a hard daily quota; on a complex task one or two requests may be all you get.&#10;
+                            • <Bold>Grok</Bold> — needs credits in the same team as the key; grok-build-0.1 is incompatible (Responses API).&#10;
+                            • <Bold>Local models</Bold> — limited by your GPU and slower; the weakest fit for reliable work across many tools.
                         </TextBlock>
 
                         <TextBlock FontWeight="SemiBold" Text="Effective habits" Margin="0,12,0,4" />

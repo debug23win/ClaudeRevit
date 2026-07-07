@@ -83,7 +83,11 @@ public class ChatService
     // Non-Claude models are generally shakier at tool use — spell the contract out.
     private const string AltPromptSuffix =
         "\n\nIMPORTANT: When an action is needed, respond with a tool call whose arguments are valid JSON " +
-        "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it.";
+        "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it. " +
+        "When no dedicated tool fits the request and execute_csharp is offered to you, USE execute_csharp — " +
+        "write C# against the Revit API and run it, rather than explaining what could be done or asking the " +
+        "user to do it manually. Only if execute_csharp is not in your tool list is code execution disabled; " +
+        "then say so and suggest enabling it via the gear icon.";
 
     // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
     private const int DefaultMaxIterations = 24;
@@ -242,11 +246,14 @@ public class ChatService
         var escalate = canEscalate && LooksComplex(lastUser);
         const int EscalateAfterRounds = 6;
 
-        // Loop guard: count identical tool errors across the turn so a blind retry (the field
-        // log had one call fail 50× with the same message) is stopped instead of burning
-        // rounds. Keyed by the error text.
+        // Loop guard, two tiers. Count identical tool errors across the turn (the field log had
+        // one call fail 50× with the same message). On the 2nd/3rd repeat we DON'T stop — we
+        // append an explicit "stop retrying, change approach" directive to that error result so
+        // the model course-corrects ITSELF (verify a name with a list_*/get_* tool, switch
+        // tools, use execute_csharp, or ask). Only if it STILL repeats do we hard-stop the turn.
         var errorStreak = new Dictionary<string, int>();
-        const int MaxSameError = 3;
+        const int SoftNudgeAt = 2;   // start telling it to change approach here
+        const int MaxSameError = 4;  // give up (hard-stop) here
 
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
@@ -426,14 +433,28 @@ public class ChatService
                 if (canEscalate && !escalate && (erroredThisRound.Count > 0 || iter >= EscalateAfterRounds - 1))
                     escalate = true;
 
-                // Loop guard: if the same error keeps coming back, stop — retrying it again
-                // will not help, and the model should change approach or ask the user.
+                // Loop guard: if the same error keeps coming back, first nudge the model to
+                // change approach on its own (by appending a directive to that error result the
+                // model reads next round); only hard-stop if it still won't. resultTurn is
+                // already in _history, so replacing the block here reaches the model next round.
                 var stuck = false;
-                foreach (var b in erroredThisRound)
+                for (int bi = 0; bi < resultTurn.Blocks.Count; bi++)
                 {
+                    if (resultTurn.Blocks[bi] is not ChatToolResultBlock b || !b.IsError) continue;
                     var sig = Truncate(b.Content, 160);
                     var n = errorStreak[sig] = errorStreak.GetValueOrDefault(sig) + 1;
-                    if (n >= MaxSameError) stuck = true;
+                    if (n >= MaxSameError) { stuck = true; }
+                    else if (n >= SoftNudgeAt)
+                    {
+                        resultTurn.Blocks[bi] = b with
+                        {
+                            Content = b.Content +
+                                "\n\n[SYSTEM: this exact error has now happened " + n + " times. Retrying the " +
+                                "same call will NOT work — do not repeat it. Instead: look up the EXACT name/id " +
+                                "with a list_* or get_* tool, or use a different tool or approach (execute_csharp " +
+                                "is a fallback if code execution is enabled), or ask the user how to proceed.]"
+                        };
+                    }
                 }
                 if (stuck)
                 {

@@ -11,10 +11,16 @@ public class ChatMessage : INotifyPropertyChanged
     public string Role { get; init; } = "user";
     public string? ToolName { get; init; }
 
+    // The label shown for assistant messages. Points at whatever model is actually
+    // answering — "Claude" on the Anthropic path, or the alt model id (e.g. "grok-4.3")
+    // when an alternative provider is selected — so the pane never mislabels a Grok/Gemini
+    // reply as "Claude". Set by the chat pane when the model picker changes.
+    public static string AssistantLabel = "Claude";
+
     public string RoleDisplay => Role switch
     {
         "user" => "You",
-        "assistant" => "Claude",
+        "assistant" => AssistantLabel,
         "tool" => $"🔧 {ToolName}",
         _ => Role
     };
