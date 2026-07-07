@@ -170,6 +170,21 @@ public static class ScriptJournal
         }
     }
 
+    // Raw file lines, oldest→newest, without the write-queue wait. Safe to call at startup (no
+    // pending appends); used to fold the whole journal into the durable pattern archive.
+    public static List<string> ReadRawLines()
+    {
+        try
+        {
+            lock (FileGate)
+            {
+                if (!File.Exists(FilePath)) return new List<string>();
+                return File.ReadAllLines(FilePath).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+            }
+        }
+        catch { return new List<string>(); }
+    }
+
     private static List<JsonElement> ReadEntries(int limit) =>
         File.ReadAllLines(FilePath)
                 .Where(l => !string.IsNullOrWhiteSpace(l))
@@ -191,6 +206,11 @@ public static class ScriptJournal
             if (new FileInfo(FilePath).Length <= MaxFileBytes) return;
 
             var lines = File.ReadAllLines(FilePath).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+
+            // Fold every entry into the durable pattern archive BEFORE we evict any — so a rolled-off
+            // run's pattern (counts + a proven sample) survives forever even though its raw line is
+            // dropped here. FoldEntries is idempotent (timestamp watermark), so this never double-counts.
+            PatternArchive.FoldEntries(lines);
 
             // Keep the newest MaxKeptOkOnTrim successful runs plus the newest MaxKeptFailOnTrim
             // failures, so proven scripts survive even after a bad session — rather than blindly

@@ -199,6 +199,12 @@ public class App : IExternalApplication
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
 
+            // Fold the (rolling) journal into the durable pattern archive, so proven patterns from
+            // months/years ago survive even after their raw journal lines have rolled off. Runs
+            // before the experience digest is first built. Idempotent (timestamp watermark).
+            try { PatternArchive.FoldEntries(ScriptJournal.ReadRawLines()); }
+            catch (Exception ex) { Services.Log.Error("Startup pattern fold failed", ex); }
+
             SelectionService.Initialize(application);
 
             var view = new ChatPaneView();
