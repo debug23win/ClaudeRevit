@@ -60,9 +60,28 @@ public static class ExperienceStore
 
     private static List<Pattern> ExtractPatterns()
     {
-        // The journal is trimmed to a couple hundred entries, so one generous read covers it.
-        var entries = ScriptJournal.ReadRecent(500);
         var byKey = new Dictionary<string, Pattern>(StringComparer.Ordinal);
+
+        // Long-term memory first: the durable archive holds one deduplicated entry per distinct
+        // pattern with CUMULATIVE counts, so patterns proven months/years ago still surface even
+        // though their raw journal lines rolled off long ago.
+        foreach (var a in PatternArchive.Snapshot())
+        {
+            var key = a.Tool + "|" + (a.Engine ?? "") + "|" + string.Join(",", a.Categories);
+            byKey[key] = new Pattern
+            {
+                Tool = a.Tool, Engine = a.Engine, Categories = a.Categories,
+                Runs = a.Runs, Ok = a.Ok,
+                SampleCode = a.SampleCode, SampleResult = a.SampleResult,
+                LastTsUtc = a.LastTs
+            };
+        }
+
+        // Then add recent runs not yet folded into the archive (this session's work, and anything
+        // since the last fold), so the digest is never stale. The watermark prevents double count.
+        var watermark = PatternArchive.LastFoldedTs();
+        var entries = ScriptJournal.ReadRecent(500).Where(e =>
+            string.CompareOrdinal(GetString(e, "ts") ?? "", watermark) > 0);
         foreach (var e in entries)
         {
             try
