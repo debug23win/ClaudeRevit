@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using ClaudeRevit.Services;
 using ClaudeRevit.Tools;
 
 namespace ClaudeRevit.UI;
@@ -16,15 +17,36 @@ public partial class RunToolWindow : Window
     public RunToolWindow()
     {
         InitializeComponent();
+
+        // Saved tools only auto-load at Revit startup, and only when code execution was on then.
+        // If it's on now but nothing is loaded yet (e.g. the user just enabled it, or the loader
+        // never ran), load the on-disk files now so the window is self-healing rather than blank.
+        if (SettingsStore.AllowCodeExecution && DynamicToolLoader.ListCustom().Count == 0
+            && DynamicToolLoader.ListSavedFiles().Count > 0)
+        {
+            try { DynamicToolLoader.LoadAll(); } catch { /* surfaced via the empty message below */ }
+        }
+
         foreach (var (name, _) in DynamicToolLoader.ListCustom())
             ToolBox.Items.Add(new ComboBoxItem { Content = name, Tag = name });
 
         if (ToolBox.Items.Count > 0) ToolBox.SelectedIndex = 0;
         else
         {
-            DescriptionText.Text = "No custom tools yet. Create one by asking Claude to save a proven " +
-                                   "pattern (save_tool), then run it here without spending tokens.";
             RunButton.IsEnabled = false;
+            var savedCount = DynamicToolLoader.ListSavedFiles().Count;
+            if (!SettingsStore.AllowCodeExecution && savedCount > 0)
+                DescriptionText.Text = $"You have {savedCount} saved tool(s), but code execution is off " +
+                                       "so they aren't loaded. Enable 'Allow Claude to run code' in Settings " +
+                                       "(gear icon) — they load automatically.";
+            else if (savedCount > 0)
+                DescriptionText.Text = $"{savedCount} saved tool file(s) found but none loaded — one may have " +
+                                       "a compile error. Check %AppData%\\ClaudeRevit\\tools and the log.";
+            else
+                DescriptionText.Text = "No custom tools yet. These aren't pre-installed — Claude creates one " +
+                                       "when you ask it to save a proven approach (e.g. \"save that as a tool\"). " +
+                                       "Once saved, run it here with no model call (0 tokens), or Claude calls " +
+                                       "it by name in chat.";
         }
     }
 

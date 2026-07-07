@@ -242,6 +242,23 @@ public static class DynamicToolLoader
         return result;
     }
 
+    // The saved tool files on disk (name without extension), whether or not they are currently
+    // loaded. Lets the UI tell "nothing was ever saved" apart from "saved but not loaded because
+    // code execution was off at startup".
+    public static IReadOnlyList<string> ListSavedFiles()
+    {
+        if (!Directory.Exists(ToolsDir)) return Array.Empty<string>();
+        try
+        {
+            return Directory.GetFiles(ToolsDir, "*.cs")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Select(n => n!)
+                .ToList();
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
     // The source of a tool by name — the on-disk override/custom file if there is one, else
     // the built-in's original source embedded in the add-in. So the model can read ANY tool
     // (built-in included) to study or refine it.
