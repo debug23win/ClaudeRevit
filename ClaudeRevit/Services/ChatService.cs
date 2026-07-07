@@ -111,6 +111,14 @@ public class ChatService
     private readonly List<ApiTurn> _history = HistoryStore.LoadApiHistory();
     private long _lastPromptTokens;
 
+    // Active auto-promotion: the system prompt already asks the model to turn a repeated
+    // execute_csharp pattern into a saved tool, but field logs showed that instruction ignored
+    // (one pattern ran 300+ times, nothing saved). So we also remind it inline — once per
+    // session, the moment it has run C# successfully more than once — right in the tool result
+    // it reads next, where a nudge actually lands (same trick as the loop guard).
+    private int _execCsharpOk;
+    private bool _promoteNudged;
+
     public ChatService()
     {
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -146,6 +154,8 @@ public class ChatService
         // and the digest already sits in the (session-stable) system prompt.
         _history.Clear();
         _lastPromptTokens = 0;
+        _execCsharpOk = 0;
+        _promoteNudged = false;
         HistoryStore.Clear();
     }
 
@@ -406,9 +416,31 @@ public class ChatService
                         });
                     }
 
+                    // Nudge the model to promote a repeated C# pattern into a saved tool — once
+                    // per session, from the 2nd successful execute_csharp on. Appended to the
+                    // model-facing content only (the user's chat already shows the real result).
+                    if (!isError && name == "execute_csharp")
+                    {
+                        _execCsharpOk++;
+                        if (SettingsStore.AllowCodeExecution && !_promoteNudged && _execCsharpOk >= 2)
+                        {
+                            content += "\n\n[SYSTEM: you have run execute_csharp successfully " +
+                                _execCsharpOk + " times this session. If any of these is essentially " +
+                                "the SAME kind of operation as one you already did (a repeatable " +
+                                "pattern, not a genuine one-off), generalize it now — turn the specific " +
+                                "ids/sizes/names into input parameters — and call save_tool ONCE to " +
+                                "compile it into a persistent, 0-token tool the user can rerun from the " +
+                                "▶ Run tool window. Skip this only if it was truly one-off.]";
+                            _promoteNudged = true;
+                        }
+                    }
+
                     resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, content, isError));
                     if (!isError && (name == "save_tool" || name == "delete_tool"))
+                    {
                         toolSetChanged = true;
+                        _promoteNudged = true; // it's already promoting — stop reminding
+                    }
                 }
 
                 _history.Add(assistantTurn);
