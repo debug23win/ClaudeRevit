@@ -178,14 +178,41 @@ public class ToolDispatcher : IExternalEventHandler
                     ?? throw new InvalidOperationException("No active document.");
                 using var tx = new Transaction(doc, $"Claude: {tool.Name}");
                 tx.Start();
+
+                // Capture Revit's failure messages (the "could not cut instance out of wall"
+                // popups) instead of blocking on a modal dialog. Without this the dialog
+                // appears, Revit silently rolls the change back, and the model — never told —
+                // marches on to the next step thinking it succeeded.
+                var failures = new CapturingFailuresPreprocessor();
+                var opts = tx.GetFailureHandlingOptions();
+                opts.SetFailuresPreprocessor(failures);
+                opts.SetForcedModalHandling(false);
+                opts.SetClearAfterRollback(true);
+                tx.SetFailureHandlingOptions(opts);
+
                 try
                 {
                     result = tool.Execute(job.Input, app);
-                    tx.Commit();
+                    var status = tx.Commit();
+
+                    // An unresolved error rolls the transaction back WITHOUT throwing — surface
+                    // it as a tool error so the model knows this step did NOT take effect.
+                    if (status != TransactionStatus.Committed)
+                        throw new InvalidOperationException(
+                            "Revit rolled this operation back — it did NOT take effect" +
+                            (failures.Messages.Count > 0
+                                ? ": " + string.Join("; ", failures.Messages)
+                                : " (a Revit failure could not be resolved). Re-check the model before continuing."));
+
+                    // Committed, but Revit reported warnings — pass them along so the model
+                    // can verify the result rather than assume it was clean.
+                    if (failures.Messages.Count > 0)
+                        result += "\n\n[Revit reported during this operation: "
+                                  + string.Join("; ", failures.Messages) + "]";
                 }
                 catch
                 {
-                    tx.RollBack();
+                    if (tx.GetStatus() == TransactionStatus.Started) tx.RollBack();
                     throw;
                 }
             }
@@ -283,4 +310,27 @@ public class ToolDispatcher : IExternalEventHandler
         TaskCompletionSource<string> Tcs) : Job;
     private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
+
+    // Collects the text of Revit's failure messages during a transaction commit so they can
+    // be reported to the model, and lets Revit resolve them non-interactively (no modal
+    // dialog). Returning Continue means an unresolved error still rolls the transaction back —
+    // which the caller detects from the commit status.
+    private sealed class CapturingFailuresPreprocessor : IFailuresPreprocessor
+    {
+        public readonly List<string> Messages = new();
+
+        public FailureProcessingResult PreprocessFailures(FailuresAccessor a)
+        {
+            try
+            {
+                foreach (var f in a.GetFailureMessages())
+                {
+                    try { Messages.Add($"[{f.GetSeverity()}] {f.GetDescriptionText()}"); }
+                    catch { /* skip an unreadable message */ }
+                }
+            }
+            catch { /* never let failure capture itself throw */ }
+            return FailureProcessingResult.Continue;
+        }
+    }
 }
