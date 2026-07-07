@@ -234,6 +234,18 @@ public partial class ChatPaneView : UserControl
         dlg.ShowDialog();
     }
 
+    private void BenchmarkButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Non-modal (Show, not ShowDialog): the benchmark drives real tool calls through the
+        // ToolDispatcher external event, which only fires while Revit's main thread is idle — a
+        // modal dialog would keep the thread in a nested loop and deadlock the run.
+        var dlg = new BenchmarkWindow();
+        var owner = Window.GetWindow(this);
+        if (owner != null) dlg.Owner = owner;
+        else dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        dlg.Show();
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         var codeWasOn = SettingsStore.AllowCodeExecution;

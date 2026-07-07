@@ -39,6 +39,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <ComboBox Grid.Column="0" x:Name="ModelPicker"
                           Width="190" Height="24" VerticalContentAlignment="Center"
@@ -60,7 +61,11 @@
                         Content="▶" Height="24" Width="28" FontSize="12" Margin="0,0,4,0"
                         Click="RunToolButton_Click"
                         ToolTip="Run a saved custom tool directly (no AI, 0 tokens)." />
-                <Button Grid.Column="4" x:Name="SettingsButton"
+                <Button Grid.Column="4" x:Name="BenchmarkButton"
+                        Content="📊" Height="24" Width="28" FontSize="12" Margin="0,0,4,0"
+                        Click="BenchmarkButton_Click"
+                        ToolTip="Model benchmark — run graded tasks and compare models (time, tokens, pass rate)." />
+                <Button Grid.Column="5" x:Name="SettingsButton"
                         Content="⚙" Height="24" Width="28" FontSize="14"
                         Click="SettingsButton_Click"
                         ToolTip="Settings — set or change your API key." />
