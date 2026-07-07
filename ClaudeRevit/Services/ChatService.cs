@@ -103,9 +103,11 @@ public class ChatService
         "results. A short sentence before a batch of calls and a brief result at the end is enough; no filler.\n\n" +
         "BATCH YOUR WORK: every tool round is a full billed request, so do as much per round as you can. Most " +
         "tools that act on elements take a LIST of ids (move_elements, delete_elements, set_parameter targets, " +
-        "tag_elements, copy_elements…) — pass all the ids at once instead of one call per element. When several " +
-        "independent operations don't depend on each other's output, emit them as parallel tool calls in the " +
-        "same round rather than one per round. Fewer, fuller rounds = lower cost and faster.";
+        "tag_elements, copy_elements…) — pass all the ids at once instead of one call per element. For repeated " +
+        "CREATION (e.g. 20 columns, 10 walls, a stack of levels, many family placements) use run_batch: pass " +
+        "the tool name and an 'items' array of argument sets and it makes them all in ONE round — never place " +
+        "twenty columns with twenty separate calls. When several independent operations don't depend on each " +
+        "other's output, emit them as parallel tool calls in the same round. Fewer, fuller rounds = lower cost.";
 
     private const string AnthropicPromptPrefix =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. ";
