@@ -262,11 +262,34 @@ public class App : IExternalApplication
             var acc = e.GetFailuresAccessor();
             var msgs = acc.GetFailureMessages();
             if (msgs.Count == 0) return;
-            var deleted = false;
+
+            var acted = false;
+            var unresolvable = false;
             foreach (var m in msgs)
+            {
                 if (m.GetSeverity() == Autodesk.Revit.DB.FailureSeverity.Warning)
-                { acc.DeleteWarning(m); deleted = true; }
-            if (deleted) e.SetProcessingResult(Autodesk.Revit.DB.FailureProcessingResult.ProceedWithCommit);
+                {
+                    acc.DeleteWarning(m); acted = true;   // warnings: just clear and proceed
+                }
+                else
+                {
+                    // Errors ("необходимо исправить" — e.g. a door that can't cut its wall) block a
+                    // commit with a modal until resolved. Apply Revit's own default resolution
+                    // (usually "delete the offending instance"); if the error has none, we can't fix
+                    // it silently, so we'll roll the transaction back rather than stall on a dialog.
+                    try
+                    {
+                        if (m.HasResolutions()) { acc.ResolveFailure(m); acted = true; }
+                        else unresolvable = true;
+                    }
+                    catch { unresolvable = true; }
+                }
+            }
+
+            if (unresolvable)
+                e.SetProcessingResult(Autodesk.Revit.DB.FailureProcessingResult.ProceedWithRollBack);
+            else if (acted)
+                e.SetProcessingResult(Autodesk.Revit.DB.FailureProcessingResult.ProceedWithCommit);
         }
         catch { /* never let dialog suppression itself throw into Revit */ }
     }
