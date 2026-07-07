@@ -382,6 +382,13 @@ public sealed class OpenAIBackend
     // agentic-loop iterations of the turn.
     public static JsonArray BuildTools(IReadOnlyList<IRevitTool> tools)
     {
+        // Providers disagree on no-argument tools: xAI/Grok, OpenAI, DeepSeek, Groq… REQUIRE a
+        // "parameters" field on every tool (a missing one is a 422), while Gemini's OpenAI
+        // layer REJECTS an object schema with empty properties. So include parameters always,
+        // except omit it for a no-arg tool ONLY on Gemini.
+        var isGemini = (SettingsStore.AltBaseUrl ?? "")
+            .Contains("generativelanguage.googleapis.com", StringComparison.OrdinalIgnoreCase);
+
         var arr = new JsonArray();
         foreach (var t in tools)
         {
@@ -397,9 +404,7 @@ public sealed class OpenAIBackend
                 ["name"] = t.Name,
                 ["description"] = t.Description
             };
-            // No-argument tools omit "parameters" entirely: Gemini's OpenAI-compatible
-            // layer rejects an OBJECT schema with empty properties.
-            if (props.Count > 0)
+            if (props.Count > 0 || !isGemini)
                 fn["parameters"] = new JsonObject
                 {
                     ["type"] = "object",
