@@ -438,11 +438,19 @@ public class ChatService
                 // model reads next round); only hard-stop if it still won't. resultTurn is
                 // already in _history, so replacing the block here reaches the model next round.
                 var stuck = false;
+                var countedThisRound = new HashSet<string>();
                 for (int bi = 0; bi < resultTurn.Blocks.Count; bi++)
                 {
                     if (resultTurn.Blocks[bi] is not ChatToolResultBlock b || !b.IsError) continue;
                     var sig = Truncate(b.Content, 160);
-                    var n = errorStreak[sig] = errorStreak.GetValueOrDefault(sig) + 1;
+                    // Count each distinct error at most ONCE per round. A burst of identical
+                    // parallel failures (e.g. placing four corner columns that all hit the same
+                    // "type not found") is a single problem to solve, not four retries — counting
+                    // per call would trip the hard stop within one round, before the model ever
+                    // sees the "change approach" nudge on a later round.
+                    int n = countedThisRound.Add(sig)
+                        ? (errorStreak[sig] = errorStreak.GetValueOrDefault(sig) + 1)
+                        : errorStreak[sig];
                     if (n >= MaxSameError) { stuck = true; }
                     else if (n >= SoftNudgeAt)
                     {

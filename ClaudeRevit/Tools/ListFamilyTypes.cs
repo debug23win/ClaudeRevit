@@ -47,8 +47,7 @@ public class ListFamilyTypes : IRevitTool
         var limit = input.TryGetValue("limit", out var l) ? l.GetInt32() : 100;
         if (limit < 1 || limit > 500) limit = 100;
 
-        if (!Enum.TryParse<BuiltInCategory>($"OST_{category}", ignoreCase: true, out var bic))
-            throw new InvalidOperationException($"Unknown category '{category}'.");
+        var bic = CategoryResolve.Parse(category);
 
         IEnumerable<ElementType> types;
 

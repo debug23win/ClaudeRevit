@@ -47,8 +47,7 @@ public class TagAllInView : IRevitTool
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
         var category = input["category"].GetString()!;
-        if (!Enum.TryParse<BuiltInCategory>($"OST_{category}", true, out var bic))
-            throw new InvalidOperationException($"Unknown category '{category}'.");
+        var bic = CategoryResolve.Parse(category);
 
         var leader = input.TryGetValue("leader", out var l) && l.ValueKind == JsonValueKind.True;
 

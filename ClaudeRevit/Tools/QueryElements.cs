@@ -50,9 +50,7 @@ public class QueryElements : IRevitTool
         var limit = input.TryGetValue("limit", out var l) ? l.GetInt32() : 50;
         if (limit < 1 || limit > 500) limit = 50;
 
-        if (!Enum.TryParse<BuiltInCategory>($"OST_{category}", ignoreCase: true, out var bic))
-            throw new InvalidOperationException(
-                $"Unknown category '{category}'. Try 'Walls', 'Floors', 'Doors', 'Windows', etc.");
+        var bic = CategoryResolve.Parse(category);
 
         var raw = new FilteredElementCollector(doc)
             .OfCategory(bic)

@@ -46,8 +46,7 @@ public class GetElementsInRoom : IRevitTool
         FilteredElementCollector collector;
         if (input.TryGetValue("category", out var c) && c.ValueKind == JsonValueKind.String)
         {
-            if (!Enum.TryParse<BuiltInCategory>($"OST_{c.GetString()}", true, out var bic))
-                throw new InvalidOperationException($"Unknown category '{c.GetString()}'.");
+            var bic = CategoryResolve.Parse(c.GetString());
             collector = new FilteredElementCollector(doc).OfCategory(bic);
         }
         else

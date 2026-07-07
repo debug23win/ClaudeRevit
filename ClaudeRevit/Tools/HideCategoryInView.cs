@@ -45,8 +45,7 @@ public class HideCategoryInView : IRevitTool
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
         var category = input["category"].GetString()!;
-        if (!Enum.TryParse<BuiltInCategory>($"OST_{category}", true, out var bic))
-            throw new InvalidOperationException($"Unknown category '{category}'.");
+        var bic = CategoryResolve.Parse(category);
 
         var catId = new ElementId(bic);
         var hide = !input.TryGetValue("hide", out var h) || h.ValueKind != JsonValueKind.False;
