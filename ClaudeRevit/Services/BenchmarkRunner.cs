@@ -45,6 +45,11 @@ public static class BenchmarkRunner
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
     {
+        // Suppress Revit's modal warning/task dialogs for the whole unattended run (covers the
+        // gaps between turns, e.g. the reset deletions). Restored in the finally.
+        ToolDispatcher.ForceSuppress = true;
+        try
+        {
         foreach (var task in tasks)
         {
             ct.ThrowIfCancellationRequested();
@@ -96,6 +101,8 @@ public static class BenchmarkRunner
             Append(result, modelTag, runStamp, m);
             onResult(result);
         }
+        }
+        finally { ToolDispatcher.ForceSuppress = false; }
     }
 
     // Delete everything the task added (ids not present at baseline). Best-effort: Revit cascades
