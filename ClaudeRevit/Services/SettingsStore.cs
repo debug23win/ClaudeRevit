@@ -123,6 +123,35 @@ public static class SettingsStore
         set { Current.ShowTaskDiagnostics = value; Save(); }
     }
 
+    // EXPERIMENTAL MCP server — expose Revit tools so Claude Code / Desktop (subscription-authed)
+    // can drive Revit, putting cost on the subscription instead of the pay-per-token API.
+    public static bool McpEnabled
+    {
+        get => Current.McpEnabled;
+        set { Current.McpEnabled = value; Save(); }
+    }
+
+    public static int McpPort
+    {
+        get => Current.McpPort <= 0 ? 8788 : Current.McpPort;
+        set { Current.McpPort = value; Save(); }
+    }
+
+    // A bearer token the MCP client must send — generated once, since the server exposes model
+    // edits (and, with code execution on, arbitrary C#) on a local port.
+    public static string McpToken
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Current.McpToken))
+            {
+                Current.McpToken = Guid.NewGuid().ToString("N");
+                Save();
+            }
+            return Current.McpToken;
+        }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -242,6 +271,9 @@ public static class SettingsStore
         public string AutoExecutorModel { get; set; } = "sonnet-5";
         public string AutoAdvisorModel { get; set; } = "opus-4-8";
         public bool ShowTaskDiagnostics { get; set; } = true;
+        public bool McpEnabled { get; set; }
+        public int McpPort { get; set; } = 8788;
+        public string McpToken { get; set; } = "";
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";
