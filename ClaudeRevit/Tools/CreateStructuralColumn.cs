@@ -31,6 +31,16 @@ public class CreateStructuralColumn : IRevitTool
 
     public bool RequiresTransaction => true;
 
+    // Accepts either the bare type name ("400 x 400 мм") or the "Family: Type" combination
+    // ("210_… (НесКол_2ур): 400 x 400 мм"), trimmed and case-insensitive.
+    private static bool Matches(FamilySymbol s, string name)
+    {
+        if (string.Equals(s.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase)) return true;
+        var combined = $"{s.FamilyName}: {s.Name}";
+        return string.Equals(combined.Trim(), name, StringComparison.OrdinalIgnoreCase)
+               || string.Equals($"{s.FamilyName}:{s.Name}".Trim(), name, StringComparison.OrdinalIgnoreCase);
+    }
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -44,24 +54,27 @@ public class CreateStructuralColumn : IRevitTool
             .FirstOrDefault(l => l.Name == levelName)
             ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
 
+        var symbols = new FilteredElementCollector(doc)
+            .OfCategory(BuiltInCategory.OST_StructuralColumns)
+            .OfClass(typeof(FamilySymbol))
+            .Cast<FamilySymbol>()
+            .ToList();
+
         FamilySymbol symbol;
-        if (input.TryGetValue("type_name", out var tn) && tn.ValueKind == JsonValueKind.String)
+        if (input.TryGetValue("type_name", out var tn) && tn.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(tn.GetString()))
         {
-            var name = tn.GetString();
-            symbol = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_StructuralColumns)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Name == name)
-                ?? throw new InvalidOperationException($"Structural column type '{name}' not found.");
+            var name = tn.GetString()!.Trim();
+            // Match the bare type name OR the "Family: Type" form the model often passes
+            // (e.g. "210_Прямоугольного сечения (НесКол_2ур): 400 x 400 мм"), case-insensitively.
+            symbol = symbols.FirstOrDefault(s => Matches(s, name))
+                ?? throw new InvalidOperationException(NameResolve.NotFound(
+                    name, "Structural column type",
+                    symbols.Select(s => $"{s.FamilyName}: {s.Name}")));
         }
         else
         {
-            symbol = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_StructuralColumns)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault()
+            symbol = symbols.FirstOrDefault()
                 ?? throw new InvalidOperationException("No structural column types loaded.");
         }
 

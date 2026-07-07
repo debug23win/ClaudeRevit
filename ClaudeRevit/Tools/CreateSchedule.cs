@@ -64,9 +64,7 @@ public class CreateSchedule : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var category = input["category"].GetString()!;
-        if (!Enum.TryParse<BuiltInCategory>($"OST_{category}", ignoreCase: true, out var bic))
-            throw new InvalidOperationException(
-                $"Unknown category '{category}'. Try 'Walls', 'Floors', 'Rooms', 'Doors', etc.");
+        var bic = CategoryResolve.Parse(category);
 
         var schedule = ViewSchedule.CreateSchedule(doc, new ElementId(bic));
 
