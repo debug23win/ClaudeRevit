@@ -44,6 +44,7 @@ public partial class ChatPaneView : UserControl
         _service.ConfirmToolAsync = ConfirmToolAsync;
 
         UpdateAltModelLabel();
+        UpdateAssistantLabel();
 
         // Safety net: an unhandled exception on the WPF dispatcher normally takes the
         // whole Revit process down. Log every one; and if the fault originates in OUR
@@ -243,6 +244,7 @@ public partial class ChatPaneView : UserControl
         {
             _service.RecreateClient();
             UpdateAltModelLabel();
+            UpdateAssistantLabel();
             StatusText.Text = "Settings saved.";
         }
     }
@@ -256,8 +258,18 @@ public partial class ChatPaneView : UserControl
     private void ModelPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ModelPicker.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
             _selectedModel = tag;
+            UpdateAssistantLabel();
+        }
     }
+
+    // Keep the assistant name shown in the chat in sync with the selected model, so an
+    // alt-provider reply (Grok, Gemini, a local model…) isn't labelled "Claude".
+    private void UpdateAssistantLabel() =>
+        ChatMessage.AssistantLabel = _selectedModel == "alt"
+            ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
+            : "Claude";
 
     private async Task SendAsync()
     {
