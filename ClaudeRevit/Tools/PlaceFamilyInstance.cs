@@ -42,7 +42,9 @@ public class PlaceFamilyInstance : IRevitTool
 
         var typeId = new ElementId(input["family_type_id"].GetInt64());
         var symbol = doc.GetElement(typeId) as FamilySymbol
-            ?? throw new InvalidOperationException($"Element {typeId.Value} is not a FamilySymbol.");
+            ?? throw new InvalidOperationException(
+                $"Element {typeId.Value} is not a FamilySymbol (family type). Call list_family_types to get a " +
+                "valid family_type_id.");
 
         if (!symbol.IsActive) symbol.Activate();
         doc.Regenerate();
@@ -55,10 +57,7 @@ public class PlaceFamilyInstance : IRevitTool
         Level? level = null;
         if (input.TryGetValue("level_name", out var ln) && ln.ValueKind == JsonValueKind.String)
         {
-            var name = ln.GetString();
-            level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
-                .FirstOrDefault(l => l.Name == name)
-                ?? throw new InvalidOperationException($"Level '{name}' not found.");
+            level = NameResolve.ByName<Level>(doc, ln.GetString(), "Level");
         }
 
         FamilyInstance instance = level != null

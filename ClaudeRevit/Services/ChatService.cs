@@ -129,6 +129,9 @@ public class ChatService
     // Set by the chat pane: asks the user to approve a tool call. Returns true to run it.
     public Func<string, string, Task<bool>>? ConfirmToolAsync;
 
+    // Set by the chat pane: progress ping each tool-call round (current, max) for the status line.
+    public Action<int, int>? OnRound;
+
     public void RecreateClient() => _client = null;
 
     public void ClearHistory()
@@ -234,6 +237,12 @@ public class ChatService
         var escalate = canEscalate && LooksComplex(lastUser);
         const int EscalateAfterRounds = 6;
 
+        // Loop guard: count identical tool errors across the turn so a blind retry (the field
+        // log had one call fail 50× with the same message) is stopped instead of burning
+        // rounds. Keyed by the error text.
+        var errorStreak = new Dictionary<string, int>();
+        const int MaxSameError = 3;
+
         await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
         try
         {
@@ -248,6 +257,12 @@ public class ChatService
                                "Say \"continue\" to keep going, or raise the limit in Settings (gear icon).]"
                     }));
                     break;
+                }
+
+                if (OnRound != null)
+                {
+                    var r = iter + 1;
+                    await ui.InvokeAsync(() => OnRound(r, maxIterations));
                 }
 
                 var altModelForTurn = escalate ? reasoningModel : null;
@@ -397,14 +412,34 @@ public class ChatService
                     else toolDefs = BuildToolDefs(allowedTools);
                 }
 
+                var erroredThisRound = resultTurn.Blocks.OfType<ChatToolResultBlock>()
+                    .Where(b => b.IsError).ToList();
+
                 // Escalate to the reasoning model for the rest of the turn once the fast model
                 // hits a tool error / Revit rollback, or the task has become a deep multi-step
                 // loop. Sticky: once escalated we stay on the reasoning model.
-                if (canEscalate && !escalate)
+                if (canEscalate && !escalate && (erroredThisRound.Count > 0 || iter >= EscalateAfterRounds - 1))
+                    escalate = true;
+
+                // Loop guard: if the same error keeps coming back, stop — retrying it again
+                // will not help, and the model should change approach or ask the user.
+                var stuck = false;
+                foreach (var b in erroredThisRound)
                 {
-                    var anyToolError = resultTurn.Blocks.OfType<ChatToolResultBlock>().Any(b => b.IsError);
-                    if (anyToolError || iter >= EscalateAfterRounds - 1)
-                        escalate = true;
+                    var sig = Truncate(b.Content, 160);
+                    var n = errorStreak[sig] = errorStreak.GetValueOrDefault(sig) + 1;
+                    if (n >= MaxSameError) stuck = true;
+                }
+                if (stuck)
+                {
+                    await ui.InvokeAsync(() => conversation.Add(new ChatMessage
+                    {
+                        Role = "assistant",
+                        Text = "[Stopped: the same tool error came back " + MaxSameError + " times — retrying " +
+                               "it won't help. Check the inputs (e.g. an exact type/level/family name from a " +
+                               "list_* tool) or take a different approach.]"
+                    }));
+                    break;
                 }
             }
         }
