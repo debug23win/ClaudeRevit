@@ -83,6 +83,24 @@ public static class SettingsStore
         set { Current.DisabledToolGroups = value?.ToList() ?? new List<string>(); Save(); }
     }
 
+    // Interface language for the settings window ("en"/"ru"). Empty = auto-detect from the
+    // OS UI culture on first use.
+    public static string UiLanguage
+    {
+        get
+        {
+            var v = Current.UiLanguage;
+            if (!string.IsNullOrEmpty(v)) return v;
+            try
+            {
+                return System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru"
+                    ? "ru" : "en";
+            }
+            catch { return "en"; }
+        }
+        set { Current.UiLanguage = value; Save(); }
+    }
+
     // User-entered account balance (from console.anthropic.com) and the estimated
     // spend accumulated since it was entered. The API exposes no balance endpoint,
     // so the pane shows balance − local spend estimate.
@@ -163,6 +181,7 @@ public static class SettingsStore
         public int AltContextK { get; set; } = 0;
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
+        public string UiLanguage { get; set; } = "";
         public decimal BalanceUsd { get; set; } = 0;
         public decimal SpentUsd { get; set; } = 0;
     }
