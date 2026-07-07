@@ -25,6 +25,12 @@ public static class ClaudeCodeBackend
         public string Text = "";
         public string? SessionId;
         public string? Error;
+        // From the final `result` event — real numbers even on a subscription.
+        public long InputTokens;
+        public long OutputTokens;
+        public int NumTurns;
+        public double CostUsd;
+        public long DurationMs;
     }
 
     public static async Task<Result> RunAsync(
@@ -122,8 +128,19 @@ public static class ClaudeCodeBackend
             var type = root.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
                 ? t.GetString() : null;
 
-            if (type == "result" && root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.String)
-                result.Text = res.GetString() ?? result.Text;
+            if (type == "result")
+            {
+                if (root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.String)
+                    result.Text = res.GetString() ?? result.Text;
+                if (root.TryGetProperty("num_turns", out var nt) && nt.TryGetInt32(out var ntv)) result.NumTurns = ntv;
+                if (root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDouble(out var cv)) result.CostUsd = cv;
+                if (root.TryGetProperty("duration_ms", out var dm) && dm.TryGetInt64(out var dmv)) result.DurationMs = dmv;
+                if (root.TryGetProperty("usage", out var u) && u.ValueKind == JsonValueKind.Object)
+                {
+                    if (u.TryGetProperty("input_tokens", out var it) && it.TryGetInt64(out var itv)) result.InputTokens = itv;
+                    if (u.TryGetProperty("output_tokens", out var ot) && ot.TryGetInt64(out var otv)) result.OutputTokens = otv;
+                }
+            }
 
             if (type == "stream_event" && root.TryGetProperty("event", out var ev))
             {

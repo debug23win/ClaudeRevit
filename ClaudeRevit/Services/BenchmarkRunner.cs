@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,67 +53,109 @@ public static class BenchmarkRunner
         // Suppress Revit's modal warning/task dialogs for the whole unattended run (covers the
         // gaps between turns, e.g. the reset deletions). Restored in the finally.
         ToolDispatcher.ForceSuppress = true;
+
+        // "claudecode" tests the MCP path end to end: the local `claude` CLI (on the subscription)
+        // drives the Revit tools through our MCP server. One impartial judge chat for the whole run.
+        var isClaudeCode = modelTag == "claudecode";
+        string ccConfig = "", ccWorkDir = "", ccExe = "";
+        if (isClaudeCode)
+        {
+            McpServer.Start();
+            ccConfig = McpServer.WriteClientConfig();
+            ccWorkDir = McpServer.ClientWorkDir();
+            ccExe = SettingsStore.ClaudeCodeExe;
+        }
+        var judgeChat = new ChatService(ephemeral: true);
+
         try
         {
         foreach (var task in tasks)
         {
             ct.ThrowIfCancellationRequested();
-
             onStatus($"{task.Id} · {task.Title} · starting…");
-            var chat = new ChatService(ephemeral: true);
-            var conv = new ObservableCollection<ChatMessage>();
 
-            // Per-task budget: stop a task that drags on (rounds or wall-time) and grade whatever it
-            // built. Cancelling this linked source stops only this task; the user's Stop cancels ct.
             using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
-            chat.OnRound = (r, max) =>
-            {
-                onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
-                if (maxRoundsPerTask > 0 && r > maxRoundsPerTask)
-                    try { taskCts.Cancel(); } catch { }
-            };
 
             var baselineIds = resetBetweenTasks
                 ? new HashSet<long>(await ToolDispatcher.Instance.AllElementIdsAsync(ct))
                 : new HashSet<long>();
             var before = await StatsAsync(ct);
 
-            // The model runs the task ONCE and recovers from any errors on its own (tool failures
-            // come back to it as tool results — no hints from the judge). The judge only grades the
-            // final state, when the model considers itself done or the budget cuts it short.
+            // The model runs the task ONCE and recovers from any errors on its own — no judge hints.
             string finalText = "";
             string? error = null;
             var budgetStopped = false;
-            try
+            long inTok = 0, outTok = 0;
+            var rounds = 0;
+            var sw = Stopwatch.StartNew();
+            var modelUsed = modelTag;
+
+            if (isClaudeCode)
             {
-                conv.Add(new ChatMessage { Role = "user", Text = task.Prompt });
-                await chat.SendAsync(conv, modelTag, taskCts.Token);
-                finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+                if (!McpServer.IsRunning)
+                    error = "MCP server not running (enable it / free the port) — needed for Claude Code.";
+                else
+                {
+                    var sb = new StringBuilder();
+                    try
+                    {
+                        var res = await ClaudeCodeBackend.RunAsync(
+                            ccExe, task.Prompt, ccWorkDir, ccConfig, resumeSessionId: null,
+                            "mcp__clauderevit__*",
+                            onText: t => sb.Append(t),
+                            onTool: name => onStatus($"{task.Id} · {task.Title} · {name}"),
+                            taskCts.Token);
+                        finalText = !string.IsNullOrEmpty(res.Text) ? res.Text : sb.ToString();
+                        error = res.Error;
+                        inTok = res.InputTokens; outTok = res.OutputTokens; rounds = res.NumTurns;
+                        modelUsed = "claude-code";
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (ct.IsCancellationRequested) throw;
+                        budgetStopped = true; finalText = sb.ToString();
+                    }
+                }
             }
-            catch (OperationCanceledException)
+            else
             {
-                if (ct.IsCancellationRequested) throw;   // user Stop → abort the whole run
-                budgetStopped = true;                     // budget → grade the partial result
-                finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+                var chat = new ChatService(ephemeral: true);
+                var conv = new ObservableCollection<ChatMessage>();
+                chat.OnRound = (r, max) =>
+                {
+                    onStatus($"{task.Id} · {task.Title} · round {r}/{max}");
+                    if (maxRoundsPerTask > 0 && r > maxRoundsPerTask)
+                        try { taskCts.Cancel(); } catch { }
+                };
+                try
+                {
+                    conv.Add(new ChatMessage { Role = "user", Text = task.Prompt });
+                    await chat.SendAsync(conv, modelTag, taskCts.Token);
+                    finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+                }
+                catch (OperationCanceledException)
+                {
+                    if (ct.IsCancellationRequested) throw;
+                    budgetStopped = true;
+                    finalText = conv.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
+                }
+                catch (Exception ex) { error = ex.Message; Log.Error($"Benchmark task {task.Id} threw", ex); }
+
+                var mm = chat.LastTask;
+                inTok = mm?.InputTokens ?? 0; outTok = mm?.OutputTokens ?? 0; rounds = mm?.Rounds ?? 0;
+                modelUsed = mm?.Model ?? modelTag;
             }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                Log.Error($"Benchmark task {task.Id} threw", ex);
-            }
+            var seconds = sw.Elapsed.TotalSeconds;
 
             var after = await StatsAsync(ct);
-            var m = chat.LastTask;
-
             onStatus($"{task.Id} · {task.Title} · grading…");
             var verdict = error != null
                 ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
-                : await JudgeAsync(chat, judgeModel, task, before, after, finalText, ct);
+                : await JudgeAsync(judgeChat, judgeModel, task, before, after, finalText, ct);
             if (budgetStopped)
                 verdict = verdict with { Reason = "[stopped — task budget hit] " + verdict.Reason };
 
-            // Reset to baseline AFTER grading (grading needs the elements) so the next task is clean.
             if (resetBetweenTasks)
                 await ResetAsync(baselineIds, ct);
 
@@ -119,17 +163,16 @@ public static class BenchmarkRunner
             {
                 TaskId = task.Id,
                 Title = task.Title,
-                Model = m?.Model ?? modelTag,
+                Model = modelUsed,
                 Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗",
                 Score = verdict.Score,
-                Rounds = m?.Rounds ?? 0,
-                Tokens = (m?.InputTokens ?? 0) + (m?.OutputTokens ?? 0),
-                Time = m != null ? $"{m.Seconds:0.0}s" : "—",
+                Rounds = rounds,
+                Tokens = inTok + outTok,
+                Time = $"{seconds:0.0}s",
                 Reason = verdict.Reason
             };
 
-            Append(result, modelTag, runStamp, verdict.Pass,
-                m?.InputTokens ?? 0, m?.OutputTokens ?? 0, m?.Rounds ?? 0, m?.Seconds ?? 0);
+            Append(result, modelTag, runStamp, verdict.Pass, inTok, outTok, rounds, seconds);
             onResult(result);
         }
         }

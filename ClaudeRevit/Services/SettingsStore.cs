@@ -152,6 +152,14 @@ public static class SettingsStore
         }
     }
 
+    // The `claude` executable for the in-pane / benchmark Claude-Code path. Default "claude" (on
+    // PATH); set a full path if PATH resolution fails.
+    public static string ClaudeCodeExe
+    {
+        get => string.IsNullOrWhiteSpace(Current.ClaudeCodeExe) ? "claude" : Current.ClaudeCodeExe;
+        set { Current.ClaudeCodeExe = value; Save(); }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -274,6 +282,7 @@ public static class SettingsStore
         public bool McpEnabled { get; set; }
         public int McpPort { get; set; } = 8788;
         public string McpToken { get; set; } = "";
+        public string ClaudeCodeExe { get; set; } = "claude";
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";
