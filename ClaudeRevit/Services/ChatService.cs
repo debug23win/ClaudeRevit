@@ -661,6 +661,13 @@ public class ChatService
                 _history.Add(assistantTurn);
                 _history.Add(resultTurn);
 
+                // Intra-task result aging — ALT path only (no prompt cache to invalidate). Trims
+                // the tool results from older rounds of THIS answer so a long multi-round build
+                // stops re-sending the whole growing tail in full every round. Keeps the last two
+                // result-turns intact so the model still has what it just produced.
+                if (alt)
+                    ToolResultAging.AgeOlderTurns(_history, keepTailUserTurns: 2);
+
                 // Make a freshly saved/removed tool — or a group just revealed by find_tools —
                 // visible to the model for the rest of this turn. Rebuild only the tool list (not
                 // the system blocks) so the memory / experience prompt cache is untouched.
