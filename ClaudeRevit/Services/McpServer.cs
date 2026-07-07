@@ -36,6 +36,39 @@ public static class McpServer
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
     public static string AuthHeader => $"Authorization: Bearer {SettingsStore.McpToken}";
 
+    private static string AppDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit");
+
+    // Writes an .mcp.json pointing at this server (url + bearer token) and returns its path — for
+    // launching `claude --mcp-config <path>` (in-pane mode / the MCP benchmark).
+    public static string WriteClientConfig()
+    {
+        Directory.CreateDirectory(AppDir);
+        var path = Path.Combine(AppDir, "mcp-client.json");
+        var json = new JsonObject
+        {
+            ["mcpServers"] = new JsonObject
+            {
+                ["clauderevit"] = new JsonObject
+                {
+                    ["type"] = "http",
+                    ["url"] = Url,
+                    ["headers"] = new JsonObject { ["Authorization"] = $"Bearer {SettingsStore.McpToken}" }
+                }
+            }
+        }.ToJsonString();
+        File.WriteAllText(path, json);
+        return path;
+    }
+
+    // A working directory for the `claude` subprocess (no auto-discovery of unrelated project files).
+    public static string ClientWorkDir()
+    {
+        var dir = Path.Combine(AppDir, "ccwork");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
     // Start or stop to match the current settings. Safe to call repeatedly (idempotent).
     public static void ApplyFromSettings()
     {
