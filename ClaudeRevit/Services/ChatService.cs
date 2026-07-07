@@ -30,6 +30,16 @@ public class ChatService
     // conversation prefix stays cached even when the selection changes.
     private const string SystemPromptBody =
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
+        "TOOLSET IS LAZY-LOADED: to save tokens you start with a CORE toolset only — model inspection, the " +
+        "common modelling verbs (walls, floors, roofs, levels, grids, columns, beams, rooms, family " +
+        "placement, materials, direct-shape/mesh, set_parameter, transforms, delete), and the code/learning " +
+        "tools. Specialised groups are NOT loaded yet: rebar/reinforcement, MEP (duct/pipe), schedules, " +
+        "sheets, annotation (tags/dimensions/text/spot/revision), view creation (sections/elevations/" +
+        "callouts/3D/camera/crop/view range), family-editor authoring (parameters/formulas/arrays), export " +
+        "(PDF/DWG/image), groups, and visibility/filters. When a task needs one of those, call find_tools " +
+        "with a short query (e.g. find_tools(\"section view\"), find_tools(\"place rebar\"), find_tools(\"tag " +
+        "doors\")) — the matching tools load instantly and you call them on the next step. Search FIRST; " +
+        "don't fall back to execute_csharp for something a dedicated tool covers.\n\n" +
         "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, the " +
         "DEFAULT escape hatch is execute_csharp: C# directly against the Revit API, no Dynamo dependency, " +
         "runs inside a managed transaction that rolls back automatically on error. Use run_dynamo_python " +
@@ -89,7 +99,12 @@ public class ChatService
         "BE CONCISE: output tokens are billed and are the same price whatever the task. Do the work through " +
         "tool calls; don't narrate a play-by-play. Skip preambles like 'Начинаю моделировать…' / 'Let me…' and " +
         "don't restate the plan before each step or re-summarize what a tool just did — the user sees the tool " +
-        "results. A short sentence before a batch of calls and a brief result at the end is enough; no filler.";
+        "results. A short sentence before a batch of calls and a brief result at the end is enough; no filler.\n\n" +
+        "BATCH YOUR WORK: every tool round is a full billed request, so do as much per round as you can. Most " +
+        "tools that act on elements take a LIST of ids (move_elements, delete_elements, set_parameter targets, " +
+        "tag_elements, copy_elements…) — pass all the ids at once instead of one call per element. When several " +
+        "independent operations don't depend on each other's output, emit them as parallel tool calls in the " +
+        "same round rather than one per round. Fewer, fuller rounds = lower cost and faster.";
 
     private const string AnthropicPromptPrefix =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. ";
@@ -136,6 +151,18 @@ public class ChatService
     private int _execCsharpOk;
     private bool _promoteNudged;
 
+    // Progressive tool loading: only the core toolset is sent every request; a specialised group
+    // is added here (in reveal order) once the user's message points at it or the model calls
+    // find_tools. Session-scoped — cleared on ClearHistory. See ToolCatalog for the mechanism.
+    private readonly List<string> _revealedCategories = new();
+
+    private bool Reveal(string category)
+    {
+        if (_revealedCategories.Contains(category)) return false;
+        _revealedCategories.Add(category);
+        return true;
+    }
+
     public ChatService()
     {
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -173,6 +200,7 @@ public class ChatService
         _lastPromptTokens = 0;
         _execCsharpOk = 0;
         _promoteNudged = false;
+        _revealedCategories.Clear();
         HistoryStore.Clear();
     }
 
@@ -212,6 +240,12 @@ public class ChatService
 
         var lastUser = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
         if (string.IsNullOrWhiteSpace(lastUser)) return;
+
+        // Progressive tool loading: pre-load any specialised group the message obviously needs
+        // ("add rebar", "make a section") so those tools are present on the first round and the
+        // model doesn't have to spend a find_tools round first. It can still find_tools for the
+        // rest. Purely additive to what's already revealed this session.
+        foreach (var cat in ToolCatalog.PrewarmCategories(lastUser)) Reveal(cat);
 
         await CompactIfNeededAsync(conversation, ui, alt, ct);
 
@@ -416,6 +450,29 @@ public class ChatService
                         continue;
                     }
 
+                    // Progressive tool loading: find_tools is handled here, not on the Revit
+                    // thread — it only searches the catalogue and reveals a group for the rest of
+                    // the session. Revealing sets toolSetChanged so the tool list is rebuilt at the
+                    // end of this round and the newly-loaded tools are callable on the next one.
+                    if (name == "find_tools")
+                    {
+                        var query = inp.TryGetValue("query", out var qEl) && qEl.ValueKind == JsonValueKind.String
+                            ? qEl.GetString() ?? "" : "";
+                        var search = ToolCatalog.Search(ToolRegistry.Instance.All, query);
+                        var revealedAny = false;
+                        foreach (var c in search.Categories) revealedAny |= Reveal(c);
+                        if (revealedAny) toolSetChanged = true;
+
+                        await ui.InvokeAsync(() => conversation.Add(new ChatMessage
+                        {
+                            Role = "tool",
+                            ToolName = name,
+                            Text = FormatInput(inp) + "\n→ " + Truncate(search.Message, 400)
+                        }));
+                        resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, search.Message, false));
+                        continue;
+                    }
+
                     var tool = ToolRegistry.Instance.Get(name);
 
                     ChatMessage toolMsg = null!;
@@ -508,9 +565,9 @@ public class ChatService
                 _history.Add(assistantTurn);
                 _history.Add(resultTurn);
 
-                // Make a freshly saved/removed tool visible to the model for the rest of this
-                // turn. Rebuild only the tool list (not the system blocks) so the memory /
-                // experience prompt cache is untouched.
+                // Make a freshly saved/removed tool — or a group just revealed by find_tools —
+                // visible to the model for the rest of this turn. Rebuild only the tool list (not
+                // the system blocks) so the memory / experience prompt cache is untouched.
                 if (toolSetChanged)
                 {
                     allowedTools = AllowedTools();
@@ -783,17 +840,37 @@ public class ChatService
 
     // ---- Shared helpers -----------------------------------------------------------
 
-    private static List<IRevitTool> AllowedTools()
+    // The tools actually SENT to the model this turn — a small subset, not the ~180-tool catalogue.
+    // Order is deterministic (core sorted, then each revealed group in reveal order, then custom
+    // tools) so the cached tool prefix stays byte-identical between messages that reveal nothing,
+    // and only the appended tail changes when a new group loads. That order is the whole reason
+    // progressive loading also helps the cached Claude path, not just the uncached alt path.
+    private List<IRevitTool> AllowedTools()
     {
         // Code-execution tools are hidden from the model entirely unless the user opted
         // in, so they can't be invoked (or even suggested) by accident.
         var allowCode = SettingsStore.AllowCodeExecution;
         var disabledGroups = new HashSet<string>(SettingsStore.DisabledToolGroups, StringComparer.OrdinalIgnoreCase);
 
-        var tools = ToolRegistry.Instance.All
-            .Where(t => allowCode || !t.RequiresCodeExecutionOptIn)
-            .Where(t => disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)))
-            .ToList();
+        bool Ok(IRevitTool t) =>
+            (allowCode || !t.RequiresCodeExecutionOptIn) &&
+            (disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)));
+
+        var all = ToolRegistry.Instance.All.Where(Ok).ToList();
+
+        var core = all.Where(t => ToolCatalog.CoreToolNames.Contains(t.Name))
+            .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+
+        var revealed = new List<IRevitTool>();
+        foreach (var cat in _revealedCategories) // reveal order → append-only growth
+            revealed.AddRange(all
+                .Where(t => !ToolCatalog.IsCore(t) && ToolCatalog.CategoryOf(t) == cat)
+                .OrderBy(t => t.Name, StringComparer.Ordinal));
+
+        var custom = all.Where(ToolCatalog.IsCustom)
+            .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+
+        var tools = core.Concat(revealed).Concat(custom).ToList();
 
         // Never send an empty tool list (a mis-set filter that disables everything would
         // leave the model unable to act) — fall back to the code-gated full set.

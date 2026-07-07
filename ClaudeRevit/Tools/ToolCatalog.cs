@@ -51,6 +51,39 @@ public static class ToolCatalog
         return "Query";
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Progressive tool loading. The single biggest token sink is the tool catalogue: ~180 tools
+    // are re-sent on EVERY request (fully re-billed on alt providers, which have no prompt cache).
+    // So we only ever send a small CORE set plus a find_tools meta-tool; the specialised long tail
+    // (rebar, MEP, schedules, sheets, annotation, view creation, family-editor authoring, export,
+    // groups, visibility) is loaded on demand — the model calls find_tools, or we pre-load a group
+    // when the user's message clearly points at it. Everything stays reachable; it just isn't paid
+    // for until needed. This trims the per-request catalogue by roughly two thirds.
+    //
+    // The curated core set + the search/prewarm scorer live in Services.ToolSearchLogic (a pure,
+    // Revit-free class so they can be unit-tested). ToolCatalog is the thin Revit-side adapter.
+    public static readonly HashSet<string> CoreToolNames = Services.ToolSearchLogic.CoreToolNames;
+
+    // Custom tools (user's own saved patterns) are always visible — few in number, and they ARE
+    // the user's proven work — never hidden behind a search.
+    public static bool IsCustom(IRevitTool tool) => tool is DynamicToolProxy;
+
+    public static bool IsCore(IRevitTool tool) =>
+        IsCustom(tool) || CoreToolNames.Contains(tool.Name);
+
+    // Groups to pre-load based on the user's message. Only deferred groups are returned.
+    public static List<string> PrewarmCategories(string prompt) =>
+        Services.ToolSearchLogic.Prewarm(prompt);
+
+    // find_tools backend: adapt the registered tools to plain (name, desc, category, isCore)
+    // records and delegate the scoring/reveal to the pure logic.
+    public static Services.ToolSearchLogic.SearchResult Search(IEnumerable<IRevitTool> allTools, string query)
+    {
+        var infos = allTools.Select(t =>
+            new Services.ToolSearchLogic.ToolInfo(t.Name, t.Description, CategoryOf(t), IsCore(t)));
+        return Services.ToolSearchLogic.Search(infos, query);
+    }
+
     // (category, count) over a set of tools, in display order.
     public static List<(string Category, int Count)> Summarize(IEnumerable<IRevitTool> tools)
     {

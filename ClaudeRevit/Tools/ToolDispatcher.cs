@@ -272,8 +272,14 @@ public class ToolDispatcher : IExternalEventHandler
                 return;
             }
 
-            var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
+            var allLevels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .OrderBy(l => l.Elevation).Select(l => l.Name).ToList();
+            // This context trails EVERY request uncached — keep it small. A tower with hundreds of
+            // levels would otherwise re-bill the whole list every round; cap it and let the model
+            // call get_levels for the full set when it actually needs them.
+            var levels = allLevels.Count > 40
+                ? allLevels.Take(40).Append($"… +{allLevels.Count - 40} more (call get_levels)").ToList()
+                : allLevels;
 
             string units;
             try
@@ -290,7 +296,7 @@ public class ToolDispatcher : IExternalEventHandler
                 title = doc.Title,
                 active_view = doc.ActiveView?.Name,
                 length_units = units,
-                level_count = levels.Count,
+                level_count = allLevels.Count,
                 levels,
                 project_notes = string.IsNullOrWhiteSpace(projectNotes) ? null : projectNotes
             };
