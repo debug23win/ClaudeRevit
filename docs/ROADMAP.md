@@ -37,9 +37,10 @@ the user doesn't have to think about it. Premature now (we have dozens); impleme
 
 ## Other parked ideas (agreed, deferred)
 
-- **"Auto-эконом" mode: Haiku executor + Opus advisor.** Cheapest tier — Haiku 4.5 does the
-  mechanical tool calls, Opus 4.8 advises on planning via the advisor tool (a documented valid
-  executor/advisor pair). Offer as a picker entry alongside the default Sonnet+advisor Auto.
+- ~~**"Auto-эконом" mode: Haiku executor + Opus advisor.**~~ SHIPPED (v1.70): Auto's executor
+  (Sonnet 5 / Haiku 4.5) and advisor (Opus 4.8 / Fable 5) are selectable in Settings. Per-task
+  diagnostics (time/tokens/rounds) added alongside. Benchmark mode (v1.71) compares models on
+  graded tasks with an impartial Opus judge.
 - **Auto-update after Revit closes.** A background updater launched on shutdown: check GitHub
   releases, silently install a newer version, and pull the latest knowledge base (tools + patterns).
   Loaded DLLs can't self-update while Revit runs. Requires user opt-in + a signed installer.

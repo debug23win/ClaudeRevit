@@ -141,8 +141,18 @@ public class ChatService
 
     private AnthropicClient? _client;
     private readonly OpenAIBackend _openAI = new();
-    private readonly List<ApiTurn> _history = HistoryStore.LoadApiHistory();
+    private readonly List<ApiTurn> _history = new();
     private long _lastPromptTokens;
+
+    // Ephemeral instances (the benchmark) keep their conversation in memory only: they never load
+    // from or write to the persisted chat history, so a benchmark run can't touch the user's chat.
+    private readonly bool _ephemeral;
+
+    // Metrics of the most recently completed SendAsync — the benchmark reads these; the chat pane
+    // shows them as the per-task diagnostics line. Populated even when the diagnostics UI is off.
+    public sealed record TaskMetrics(
+        string Model, int Rounds, long InputTokens, long OutputTokens, int AdvisorConsults, double Seconds);
+    public TaskMetrics? LastTask { get; private set; }
 
     // Active auto-promotion: the system prompt already asks the model to turn a repeated
     // execute_csharp pattern into a saved tool, but field logs showed that instruction ignored
@@ -164,8 +174,13 @@ public class ChatService
         return true;
     }
 
-    public ChatService()
+    public ChatService() : this(false) { }
+
+    public ChatService(bool ephemeral)
     {
+        _ephemeral = ephemeral;
+        if (!ephemeral) _history.AddRange(HistoryStore.LoadApiHistory());
+
         // A restored long history must be eligible for compaction on the very FIRST send
         // after a restart — otherwise an oversized persisted conversation is replayed
         // uncompacted into a small-context alt model and every request fails.
@@ -202,11 +217,14 @@ public class ChatService
         _execCsharpOk = 0;
         _promoteNudged = false;
         _revealedCategories.Clear();
-        HistoryStore.Clear();
+        if (!_ephemeral) HistoryStore.Clear();
     }
 
-    public void SaveHistory(IEnumerable<ChatMessage> uiMessages) =>
+    public void SaveHistory(IEnumerable<ChatMessage> uiMessages)
+    {
+        if (_ephemeral) return;
         HistoryStore.Save(uiMessages, _history);
+    }
 
     private static bool IsAlt(string model) => model == "alt";
 
@@ -219,6 +237,25 @@ public class ChatService
                 "Anthropic API key is not set. Click the gear icon to enter your key — or " +
                 "pick the alternative model in the dropdown if you configured one.");
         return _client = new AnthropicClient(new ClientOptions { ApiKey = apiKey });
+    }
+
+    // One-shot, non-streaming, tool-less completion. Used by the benchmark's impartial judge so a
+    // fixed model can grade results independently of the model under test. No history, no tools.
+    public async Task<string> RawCompleteAsync(string modelTag, string systemPrompt, string userText, CancellationToken ct = default)
+    {
+        var client = GetClient();
+        var parameters = new MessageCreateParams
+        {
+            Model = ResolveModel(modelTag),
+            MaxTokens = 1500,
+            System = new List<BetaTextBlockParam> { new() { Text = systemPrompt } },
+            Messages = new List<BetaMessageParam>
+            {
+                new() { Role = ApiRole.User, Content = new List<BetaContentBlockParam> { new BetaTextBlockParam { Text = userText } } }
+            }
+        };
+        var msg = await client.Beta.Messages.Create(parameters, ct);
+        return string.Concat(msg.Content.Select(b => b.TryPickText(out var t) ? t.Text : ""));
     }
 
     public async Task SendAsync(
@@ -715,12 +752,14 @@ public class ChatService
         {
             await ToolDispatcher.Instance.EndTurnAsync(CancellationToken.None);
 
+            sw.Stop();
+            var mdl = string.Join("+", modelsUsed);
+            LastTask = new TaskMetrics(mdl, taskRounds, taskInTok, taskOutTok, advisorConsults, sw.Elapsed.TotalSeconds);
+
             if (SettingsStore.ShowTaskDiagnostics && taskRounds > 0)
             {
-                sw.Stop();
                 var advisorNote = advisorConsults > 0
                     ? $" · advisor {SettingsStore.AutoAdvisorModel}×{advisorConsults}" : "";
-                var mdl = string.Join("+", modelsUsed);
                 var line = $"{mdl}{advisorNote} · {taskRounds} rounds · " +
                            $"{taskInTok + taskOutTok:N0} tokens (in {taskInTok:N0} / out {taskOutTok:N0}) · " +
                            $"{sw.Elapsed.TotalSeconds:0.0}s";
