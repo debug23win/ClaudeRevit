@@ -32,6 +32,23 @@ public static class McpServer
     public static bool IsRunning { get { lock (Gate) return _listener?.IsListening == true; } }
     public static string? LastError { get; private set; }
 
+    // Guidance handed to the driving model (Claude Code) via the MCP handshake — it has no access
+    // to the in-Revit chat pane's system prompt, so the key rules for working Revit efficiently and
+    // correctly go here. Distilled from real field runs.
+    private const string Instructions =
+        "You are editing a LIVE Autodesk Revit model through these tools. UNITS: all spatial inputs " +
+        "are in FEET (Revit's internal unit) — convert first: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, " +
+        "1 in ≈ 0.0833333 ft.\n" +
+        "EFFICIENCY: the MCP round-trip is the main cost, so batch aggressively. For heavy or " +
+        "multi-step work write ONE execute_csharp call against the Revit API instead of many separate " +
+        "tool calls; to repeat one tool over many items use run_batch. (execute_csharp / run_dynamo_python " +
+        "run only if the user enabled code execution — if they aren't offered, it's off.)\n" +
+        "PERFORMANCE: creating elements is cheap (~2000/sec) but doc.Regenerate() is SUPER-LINEAR — call " +
+        "it ONCE at the end of a batch, never inside a loop.\n" +
+        "REVIT API: on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
+        "RequestViewChange inside a transaction — use the set_active_view tool. Prefer a dedicated tool " +
+        "when one exists; execute_csharp is the escape hatch for anything else. Every change is undoable.";
+
     // The URL and header a user pastes into their Claude Code / Desktop MCP config.
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
     public static string AuthHeader => $"Authorization: Bearer {SettingsStore.McpToken}";
@@ -202,7 +219,9 @@ public static class McpServer
                 {
                     ["protocolVersion"] = clientVer ?? "2025-06-18",
                     ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                    ["serverInfo"] = new JsonObject { ["name"] = "ClaudeRevit", ["version"] = "1.0" }
+                    ["serverInfo"] = new JsonObject { ["name"] = "ClaudeRevit", ["version"] = "1.0" },
+                    // Surfaced to the model by the client — the hard-won rules for driving Revit well.
+                    ["instructions"] = Instructions
                 }, null);
 
             case "ping":
