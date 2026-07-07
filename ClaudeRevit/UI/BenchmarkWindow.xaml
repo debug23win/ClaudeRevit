@@ -43,6 +43,9 @@
             <TextBox x:Name="MaxMinutesBox" Text="5" Width="34" Height="24" VerticalContentAlignment="Center"
                      ToolTip="…or after this many minutes (0 = no limit)." />
             <TextBlock Text="min" VerticalAlignment="Center" Margin="4,0,0,0" />
+            <CheckBox x:Name="JudgeViaCCBox" Content="Judge on subscription" IsChecked="True"
+                      VerticalAlignment="Center" Margin="16,0,0,0"
+                      ToolTip="Grade with the Claude Code CLI (your subscription) instead of the Opus 4.8 API, so the benchmark costs nothing on the API. The judge still grades only from the objective before/after probe. Needs the Claude Code CLI installed." />
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"

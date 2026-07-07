@@ -32,6 +32,12 @@ public static class ClaudeCodeBackend
         public int NumTurns;
         public double CostUsd;
         public long DurationMs;
+        // Diagnostics: MCP server connection status from the init event ("clauderevit=connected"),
+        // and whether the final result was flagged an error. Explains a run that launched but did
+        // nothing (e.g. MCP failed to connect → no Revit tools → no work).
+        public string? McpStatus;
+        public bool IsError;
+        public string? Subtype;
     }
 
     public static async Task<Result> RunAsync(
@@ -43,10 +49,20 @@ public static class ClaudeCodeBackend
             "-p",
             "--output-format", "stream-json",
             "--verbose",
-            "--include-partial-messages",
-            "--mcp-config", mcpConfigPath,
-            "--allowedTools", allowedToolsGlob
+            "--include-partial-messages"
         };
+        // MCP + tools are for the "drive Revit" path. The judge runs with neither (empty) — a pure
+        // text-grading call — so skip the flags; an empty allowedTools glob denies every tool.
+        if (!string.IsNullOrWhiteSpace(mcpConfigPath))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigPath);
+        }
+        if (!string.IsNullOrWhiteSpace(allowedToolsGlob))
+        {
+            args.Add("--allowedTools");
+            args.Add(allowedToolsGlob);
+        }
         if (!string.IsNullOrWhiteSpace(resumeSessionId))
         {
             args.Add("--resume");
@@ -125,6 +141,20 @@ public static class ClaudeCodeBackend
         return result;
     }
 
+    // A one-shot, no-tools text completion on the subscription — used for the impartial benchmark
+    // judge so grading costs nothing on the API. The bogus allowedTools glob matches no tool, so in
+    // headless (-p) mode every built-in tool is auto-denied and the model just returns text.
+    public static async Task<string> CompleteAsync(string exe, string prompt, string workDir, CancellationToken ct)
+    {
+        var res = await RunAsync(
+            exe, prompt, workDir, mcpConfigPath: "", resumeSessionId: null,
+            allowedToolsGlob: "__deny_all_tools__",
+            onText: _ => { }, onTool: _ => { }, ct);
+        if (string.IsNullOrEmpty(res.Text) && !string.IsNullOrEmpty(res.Error))
+            throw new InvalidOperationException(res.Error);
+        return res.Text;
+    }
+
     // Each stdout line is one JSON event. We pull: the session id (to resume the conversation next
     // turn), streamed assistant text deltas, tool-call names, and the final result text.
     private static void ParseLine(string line, Result result, Action<string> onText, Action<string> onTool)
@@ -141,10 +171,31 @@ public static class ClaudeCodeBackend
             var type = root.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
                 ? t.GetString() : null;
 
+            // The init event lists the MCP servers Claude Code tried to attach and whether each
+            // connected — the single most useful signal when a run launches but does no work.
+            if (type == "system" && root.TryGetProperty("mcp_servers", out var servers) &&
+                servers.ValueKind == JsonValueKind.Array)
+            {
+                var parts = new List<string>();
+                foreach (var s in servers.EnumerateArray())
+                {
+                    var name = s.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                        ? n.GetString() : "?";
+                    var status = s.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
+                        ? st.GetString() : "?";
+                    parts.Add($"{name}={status}");
+                }
+                if (parts.Count > 0) result.McpStatus = string.Join(", ", parts);
+            }
+
             if (type == "result")
             {
                 if (root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.String)
                     result.Text = res.GetString() ?? result.Text;
+                if (root.TryGetProperty("is_error", out var ie) && ie.ValueKind == JsonValueKind.True)
+                    result.IsError = true;
+                if (root.TryGetProperty("subtype", out var sub) && sub.ValueKind == JsonValueKind.String)
+                    result.Subtype = sub.GetString();
                 if (root.TryGetProperty("num_turns", out var nt) && nt.TryGetInt32(out var ntv)) result.NumTurns = ntv;
                 if (root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDouble(out var cv)) result.CostUsd = cv;
                 if (root.TryGetProperty("duration_ms", out var dm) && dm.TryGetInt64(out var dmv)) result.DurationMs = dmv;
