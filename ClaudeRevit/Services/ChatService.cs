@@ -85,7 +85,11 @@ public class ChatService
         "since, re-query the live model instead.\n\n" +
         "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
         "If a tool returns an error, read it and adjust. All edits within one user prompt are bundled into a " +
-        "single undo entry, so the user can ⌃Z to revert.";
+        "single undo entry, so the user can ⌃Z to revert.\n\n" +
+        "BE CONCISE: output tokens are billed and are the same price whatever the task. Do the work through " +
+        "tool calls; don't narrate a play-by-play. Skip preambles like 'Начинаю моделировать…' / 'Let me…' and " +
+        "don't restate the plan before each step or re-summarize what a tool just did — the user sees the tool " +
+        "results. A short sentence before a batch of calls and a brief result at the end is enough; no filler.";
 
     private const string AnthropicPromptPrefix =
         "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. ";
@@ -261,11 +265,16 @@ public class ChatService
         // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
         var maxIterations = SettingsStore.MaxToolRounds;
 
-        // Auto-escalation to a stronger "reasoning" model on the alt path: keep the fast model
-        // for routine work, switch to the reasoning model when the task looks hard up front, or
-        // once the fast model starts erroring / the task turns into a deep multi-step loop.
+        // Auto-escalation to a stronger model: keep a cheap/fast model for routine work, switch
+        // to a stronger one when the task looks hard up front, or once the fast model starts
+        // erroring / the task turns into a deep multi-step loop. Two paths share this machinery:
+        //   • Alt path — fast alt model → the configured "reasoning" alt model.
+        //   • Claude "Auto" — Sonnet 5 (cheap) → Opus 4.8 (strong). This is the big cost lever:
+        //     Sonnet is $3/$15 vs Opus $5/$25 per 1M, so routine turns run at ~60% of the price
+        //     and Opus is reserved for the turns that actually need it.
+        var claudeAuto = !alt && model == "auto";
         var reasoningModel = alt ? SettingsStore.AltReasoningModel : "";
-        var canEscalate = !string.IsNullOrWhiteSpace(reasoningModel);
+        var canEscalate = alt ? !string.IsNullOrWhiteSpace(reasoningModel) : claudeAuto;
         var escalate = canEscalate && LooksComplex(lastUser);
         const int EscalateAfterRounds = 6;
 
@@ -315,11 +324,13 @@ public class ChatService
                 }
 
                 var altModelForTurn = escalate ? reasoningModel : null;
+                // Claude Auto: pick the cheap model until we've escalated, then Opus for the rest.
+                var claudeModelForTurn = claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model;
                 var turn = alt
                     ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
-                    : await StreamAnthropicTurnAsync(model, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
+                    : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct);
 
-                TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : model, turn);
+                TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn, turn);
 
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
