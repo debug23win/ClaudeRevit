@@ -20,3 +20,5 @@ jobs:
         run: dotnet restore ClaudeRevit\ClaudeRevit.csproj
       - name: Build (Release, no deploy)
         run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true --no-restore
+      - name: Unit tests (pure logic, no Revit)
+        run: dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release

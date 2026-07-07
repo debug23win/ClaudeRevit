@@ -405,12 +405,23 @@ public sealed class OpenAIBackend
         var isGemini = (SettingsStore.AltBaseUrl ?? "")
             .Contains("generativelanguage.googleapis.com", StringComparison.OrdinalIgnoreCase);
 
+        // The alt path has NO prompt caching, so the whole ~170-tool schema is re-sent (and paid
+        // for) every single request — the biggest token sink on non-Claude models. Compacting
+        // trims each tool description to one sentence and each parameter description to a short
+        // hint, keeping names/types/required intact. On by default; can be turned off in Settings.
+        var compact = SettingsStore.AltCompactTools;
+
         var arr = new JsonArray();
         foreach (var t in tools)
         {
             var props = new JsonObject();
             foreach (var kv in t.InputSchema.Properties ?? new Dictionary<string, JsonElement>())
-                props[kv.Key] = JsonSerializer.SerializeToNode(kv.Value);
+            {
+                var node = JsonSerializer.SerializeToNode(kv.Value);
+                if (compact && node is JsonObject po && po["description"] is not null)
+                    po["description"] = Shorten(po["description"]!.GetValue<string>(), 70);
+                props[kv.Key] = node;
+            }
             var required = new JsonArray();
             foreach (var r in t.InputSchema.Required ?? Array.Empty<string>())
                 required.Add(r);
@@ -418,7 +429,7 @@ public sealed class OpenAIBackend
             var fn = new JsonObject
             {
                 ["name"] = t.Name,
-                ["description"] = t.Description
+                ["description"] = compact ? Shorten(t.Description, 160) : t.Description
             };
             if (props.Count > 0 || !isGemini)
                 fn["parameters"] = new JsonObject
@@ -431,6 +442,19 @@ public sealed class OpenAIBackend
             arr.Add(new JsonObject { ["type"] = "function", ["function"] = fn });
         }
         return arr;
+    }
+
+    // Keep the informative head of a description: the first sentence, or a hard char cap — enough
+    // for a model to pick the right tool without paying for the full prose on every uncached call.
+    private static string Shorten(string? s, int max)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return s ?? "";
+        s = s.Trim();
+        var dot = s.IndexOf(". ", StringComparison.Ordinal);
+        if (dot > 0 && dot + 1 <= max) return s[..(dot + 1)];
+        if (s.Length <= max) return s;
+        var cut = s.LastIndexOf(' ', Math.Min(max, s.Length - 1));
+        return (cut > max / 2 ? s[..cut] : s[..max]).TrimEnd() + "…";
     }
 
     private static string ExtractErrorMessage(string responseBody)
