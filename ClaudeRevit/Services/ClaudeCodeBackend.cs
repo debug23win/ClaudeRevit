@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -53,30 +54,42 @@ public static class ClaudeCodeBackend
         }
 
         var result = new Result();
+
+        // Revit is a GUI process — its PATH is often narrower than the user's shell, so a bare
+        // "claude" from an npm/native install frequently isn't found. Resolve to a full path across
+        // the common install locations FIRST; that also avoids cmd.exe's localized (and, on a Russian
+        // Windows, mojibaked) "'claude' is not recognized as a command" error leaking into results.
+        var resolved = Resolve(exe);
+        if (resolved == null)
+        {
+            result.Error =
+                $"Claude Code CLI not found ('{exe}'). Install it (npm i -g @anthropic-ai/claude-code), " +
+                "run 'claude login' once, then set the full path to claude.cmd/claude.exe in Settings.";
+            return result;
+        }
+
+        var viaCmd = resolved.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                     resolved.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
+
         Process proc;
         try
         {
-            proc = Start(exe, args, workDir);
-        }
-        catch (Win32Exception)
-        {
-            // npm-installed `claude` is a .cmd shim — not directly launchable; go through cmd.exe.
-            try
+            if (viaCmd)
             {
-                var viaCmd = new List<string> { "/c", exe };
-                viaCmd.AddRange(args);
-                proc = Start("cmd.exe", viaCmd, workDir);
+                // .cmd/.bat shims aren't PE images — must run through cmd.exe. The path is real, so
+                // cmd won't print a "not recognized" error.
+                var cmdArgs = new List<string> { "/c", resolved };
+                cmdArgs.AddRange(args);
+                proc = Start("cmd.exe", cmdArgs, workDir);
             }
-            catch (Exception ex)
+            else
             {
-                result.Error = $"Can't launch Claude Code ('{exe}'). Install it and run 'claude login', " +
-                               $"or set the full path in Settings. ({ex.Message})";
-                return result;
+                proc = Start(resolved, args, workDir);
             }
         }
         catch (Exception ex)
         {
-            result.Error = $"Can't launch Claude Code ('{exe}'): {ex.Message}";
+            result.Error = $"Can't launch Claude Code ('{resolved}'): {ex.Message}";
             return result;
         }
 
@@ -168,6 +181,54 @@ public static class ClaudeCodeBackend
         catch { /* non-JSON or partial line — ignore */ }
     }
 
+    // Find the `claude` executable. Honours an explicit path, then PATH (+ Windows extensions),
+    // then the well-known npm-global and native-install locations that Revit's PATH usually misses.
+    // Returns a full path, or null if nothing exists.
+    private static string? Resolve(string exe)
+    {
+        if (string.IsNullOrWhiteSpace(exe)) exe = "claude";
+
+        // Explicit path (has a directory separator) — trust it if it exists.
+        if (exe.IndexOf(Path.DirectorySeparatorChar) >= 0 || exe.IndexOf('/') >= 0)
+            return File.Exists(exe) ? exe : null;
+
+        var exts = new[] { "", ".cmd", ".exe", ".bat", ".ps1" };
+
+        // Search each PATH entry.
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in pathVar.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            foreach (var ext in exts)
+            {
+                try { var p = Path.Combine(dir, exe + ext); if (File.Exists(p)) return p; }
+                catch { /* bad PATH entry */ }
+            }
+        }
+
+        // Common install locations the GUI PATH tends to omit.
+        string? Env(string v) => Environment.GetEnvironmentVariable(v);
+        var candidates = new List<string?>
+        {
+            // npm global (default prefix)
+            Env("APPDATA") is { } ad ? Path.Combine(ad, "npm", exe + ".cmd") : null,
+            Env("APPDATA") is { } ad2 ? Path.Combine(ad2, "npm", exe + ".ps1") : null,
+            // native installer / local install
+            Env("LOCALAPPDATA") is { } la ? Path.Combine(la, "Programs", "claude", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up ? Path.Combine(up, ".claude", "local", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up2 ? Path.Combine(up2, ".claude", "local", exe) : null,
+            Env("USERPROFILE") is { } up3 ? Path.Combine(up3, ".local", "bin", exe) : null,
+            // unix-y (in case Revit ever runs elsewhere)
+            "/usr/local/bin/" + exe,
+            "/usr/bin/" + exe,
+        };
+        foreach (var c in candidates)
+        {
+            if (c != null) { try { if (File.Exists(c)) return c; } catch { } }
+        }
+        return null;
+    }
+
     private static Process Start(string file, IEnumerable<string> args, string workDir)
     {
         var psi = new ProcessStartInfo
@@ -179,7 +240,8 @@ public static class ClaudeCodeBackend
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         return Process.Start(psi) ?? throw new InvalidOperationException("Process.Start returned null.");
