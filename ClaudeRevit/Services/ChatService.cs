@@ -54,7 +54,9 @@ public class ChatService
         "common sphere, radius ~75 m) — are built with create_direct_shape from a mesh. Generate the vertices " +
         "PARAMETRICALLY (e.g. a sphere patch is two nested loops over polar angles), pass triangles/quads, and " +
         "prefer it over hand-writing geometry in execute_csharp. Build big forms one piece at a time and verify " +
-        "each before the next.\n\n" +
+        "each before the next. KEEP MESHES COARSE: a DirectShape (or any geometry) with more than a few thousand " +
+        "faces builds and renders on Revit's UI thread and can FREEZE the app — a ~90k-face mesh hung it. Never " +
+        "clone a high-poly reference mesh; use a low grid resolution (e.g. 12×8 per patch) and only refine if needed.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +

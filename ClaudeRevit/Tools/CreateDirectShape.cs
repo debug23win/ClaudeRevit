@@ -63,6 +63,11 @@ public class CreateDirectShape : IRevitTool
 
     public bool RequiresTransaction => true;
 
+    // A single DirectShape past this many faces builds/renders on the UI thread heavily enough to
+    // freeze Revit. Refuse above it; warn as we approach it.
+    private const int MaxFaces = 20000;
+    private const int WarnFaces = 8000;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -77,6 +82,17 @@ public class CreateDirectShape : IRevitTool
             .ToList();
         if (faces.Count == 0)
             throw new InvalidOperationException("No faces provided.");
+
+        // Guardrail: a DirectShape with tens of thousands of faces (e.g. cloning a high-poly
+        // reference mesh) builds and renders on Revit's UI thread and can hang the whole app —
+        // a 92k-face copy froze it in the field. Refuse and tell the model to build coarser /
+        // split into pieces, rather than locking Revit up.
+        if (faces.Count > MaxFaces)
+            throw new InvalidOperationException(
+                $"Mesh has {faces.Count} faces — too many for one DirectShape (limit {MaxFaces}); a mesh " +
+                "this dense hangs Revit's UI thread. Build a coarser mesh (fewer grid steps), split it " +
+                "into several smaller shapes, or model the form parametrically instead of cloning a " +
+                "high-poly mesh.");
 
         // Validate indices up front so a bad mesh fails with a clear message, not deep in Revit.
         foreach (var face in faces)
@@ -163,7 +179,9 @@ public class CreateDirectShape : IRevitTool
             face_count = faces.Count,
             solid,
             material = materialName,
-            note = categoryNote
+            note = faces.Count >= WarnFaces
+                ? (categoryNote + $" NOTE: {faces.Count} faces is heavy — Revit may lag; prefer coarser meshes.").Trim()
+                : categoryNote
         });
     }
 
