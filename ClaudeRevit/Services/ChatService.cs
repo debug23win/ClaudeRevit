@@ -49,6 +49,12 @@ public class ChatService
         "on an element (before deleting / to diagnose a failed delete); get_family_parameters also reports " +
         "errored_count (family health); get_element_locations reads positions/bboxes in mm. Family " +
         "length values in these tools are in millimetres; formulas use Revit's own syntax.\n\n" +
+        "FREEFORM GEOMETRY: curved or sculptural shapes that walls/floors/roofs cannot express — domes, " +
+        "shells, vaults, canopies, sweeping roofs, the Sydney Opera House sails (which are sections of one " +
+        "common sphere, radius ~75 m) — are built with create_direct_shape from a mesh. Generate the vertices " +
+        "PARAMETRICALLY (e.g. a sphere patch is two nested loops over polar angles), pass triangles/quads, and " +
+        "prefer it over hand-writing geometry in execute_csharp. Build big forms one piece at a time and verify " +
+        "each before the next.\n\n" +
         "CONVENTIONS: x = east, y = north. Plan coordinates only — z comes from the level. When the user is " +
         "vague about position, place geometry near the origin and pick sensible defaults. When they say " +
         "'this' / 'these' / 'the selected', call get_selection first. When writing code against the Revit " +
