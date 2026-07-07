@@ -84,12 +84,21 @@ public class CreateWallType : IRevitTool
             ?? throw new InvalidOperationException("Failed to duplicate the wall type.");
 
         double? thicknessMm = ToolInput.OptionalDouble(input, "thickness_mm");
+        var wantsMaterial = input.TryGetValue("material_name", out var matEl) &&
+                            matEl.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(matEl.GetString());
         string? appliedMaterial = null;
 
-        var cs = newType.GetCompoundStructure();
-        if (cs != null && (thicknessMm.HasValue ||
-                           (input.TryGetValue("material_name", out var m) && m.ValueKind == JsonValueKind.String)))
+        if (thicknessMm.HasValue || wantsMaterial)
         {
+            var cs = newType.GetCompoundStructure();
+            // Don't claim success while silently dropping the thickness/material: if the base
+            // has no editable layer structure (curtain/stacked wall, or a type with none),
+            // fail so the transaction rolls back and the model picks a proper base.
+            if (cs == null)
+                throw new InvalidOperationException(
+                    $"Base wall type '{baseType.Name}' has no editable layer structure, so thickness/material " +
+                    "can't be set. Pass a single-layer basic wall via 'based_on'.");
+
             var idx = cs.GetFirstCoreLayerIndex();
             if (thicknessMm.HasValue)
             {
@@ -97,14 +106,13 @@ public class CreateWallType : IRevitTool
                 catch (Exception ex)
                 {
                     throw new InvalidOperationException(
-                        $"Created the type but could not set thickness: {ex.Message}. The base type may have " +
-                        "multiple layers — pick a single-layer base with 'based_on'.");
+                        $"Could not set thickness: {ex.Message}. The base type may have multiple/locked layers " +
+                        "— pick a single-layer base with 'based_on'.");
                 }
             }
-            if (input.TryGetValue("material_name", out var mat) && mat.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(mat.GetString()))
+            if (wantsMaterial)
             {
-                var material = NameResolve.ByName<Material>(doc, mat.GetString(), "Material");
+                var material = NameResolve.ByName<Material>(doc, matEl.GetString(), "Material");
                 cs.SetMaterialId(idx, material.Id);
                 appliedMaterial = material.Name;
             }

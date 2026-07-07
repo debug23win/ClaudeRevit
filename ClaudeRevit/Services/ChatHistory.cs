@@ -26,6 +26,10 @@ public sealed record ChatToolUseBlock(string Id, string Name, string InputJson) 
 
 public sealed record ChatToolResultBlock(string ToolUseId, string Content, bool IsError) : ChatBlock;
 
+// A user-attached image (base64-encoded), sent to a vision-capable model. MediaType is a MIME
+// type like "image/png".
+public sealed record ChatImageBlock(string MediaType, string Base64) : ChatBlock;
+
 // One streamed assistant turn in backend-neutral form: content blocks plus token usage.
 // Both the Anthropic and the OpenAI-compatible backend produce this, so the agentic tool
 // loop in ChatService doesn't care which provider generated the turn.

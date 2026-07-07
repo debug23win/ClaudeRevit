@@ -194,17 +194,22 @@
 
         <Grid Grid.Row="4" Margin="8">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="InputBox" Grid.Column="0"
+            <Button Grid.Column="0" x:Name="AttachButton"
+                    Content="📎" Width="34" MinHeight="60" FontSize="15" Margin="0,0,6,0"
+                    Click="AttachButton_Click" VerticalAlignment="Stretch"
+                    ToolTip="Attach an image for the model to see (needs a vision-capable model)." />
+            <TextBox x:Name="InputBox" Grid.Column="1"
                      AcceptsReturn="True" TextWrapping="Wrap"
                      MinHeight="60" MaxHeight="180"
                      VerticalScrollBarVisibility="Auto"
                      Padding="8" BorderBrush="#CCC"
                      ToolTip="Enter — send, Shift+Enter — new line"
                      PreviewKeyDown="InputBox_PreviewKeyDown" />
-            <Button Grid.Column="1" x:Name="SendButton"
+            <Button Grid.Column="2" x:Name="SendButton"
                     Content="Send" Width="72" Margin="6,0,0,0"
                     Click="SendButton_Click" />
         </Grid>

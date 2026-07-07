@@ -115,6 +115,9 @@ public static class HistoryStore
             ChatThinkingBlock x => new BlockDto("thinking", null, null, null, null, null, null, false, x.Thinking, x.Signature),
             ChatRedactedThinkingBlock x => new BlockDto("redacted_thinking", null, null, null, null, null, null, false, x.Data, null),
             ChatTextBlock x => new BlockDto("text", x.Text, null, null, null, null, null, false, null, null),
+            // Images are not persisted (base64 would bloat conversation.json and resend on
+            // restart) — leave a placeholder so the transcript still reads sensibly.
+            ChatImageBlock => new BlockDto("text", "[image attached]", null, null, null, null, null, false, null, null),
             _ => new BlockDto("text", "", null, null, null, null, null, false, null, null)
         }).ToList());
 
