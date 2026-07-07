@@ -1,11 +1,14 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ClaudeRevit.Services;
 
@@ -18,6 +21,10 @@ public partial class ChatPaneView : UserControl
     private readonly ChatService _service = new();
     private CancellationTokenSource? _cts;
     private string _selectedModel = "sonnet-5";
+
+    // An image attached for the next message (base64 + MIME), downscaled on attach.
+    private string? _pendingImageBase64;
+    private string? _pendingImageMime;
 
     public ChatPaneView()
     {
@@ -166,6 +173,50 @@ public partial class ChatPaneView : UserControl
         InputBox.Focus();
     }
 
+    private void AttachButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cts != null) return;
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Attach an image",
+            Filter = "Images|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp"
+        };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            _pendingImageBase64 = LoadDownscaledJpeg(dlg.FileName);
+            _pendingImageMime = "image/jpeg";
+            AttachButton.Content = "📎✓";
+            StatusText.Text = "Image attached — it goes with your next message.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Couldn't read image: " + ex.Message;
+        }
+    }
+
+    // Load an image, downscale so the longest side is ≤ 1568px (Anthropic's guidance), and
+    // re-encode as JPEG — keeps the base64 small so it doesn't blow the token budget.
+    private static string LoadDownscaledJpeg(string path)
+    {
+        var src = new BitmapImage();
+        src.BeginInit();
+        src.CacheOption = BitmapCacheOption.OnLoad;
+        src.UriSource = new Uri(path);
+        src.EndInit();
+
+        var longest = Math.Max(src.PixelWidth, src.PixelHeight);
+        BitmapSource bmp = longest > 1568
+            ? new TransformedBitmap(src, new ScaleTransform(1568.0 / longest, 1568.0 / longest))
+            : src;
+
+        var enc = new JpegBitmapEncoder { QualityLevel = 85 };
+        enc.Frames.Add(BitmapFrame.Create(bmp));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return Convert.ToBase64String(ms.ToArray());
+    }
+
     private void RunToolButton_Click(object sender, RoutedEventArgs e)
     {
         if (!SettingsStore.AllowCodeExecution)
@@ -211,7 +262,15 @@ public partial class ChatPaneView : UserControl
     private async Task SendAsync()
     {
         var text = InputBox.Text.Trim();
-        if (string.IsNullOrEmpty(text) || _cts != null) return;
+        if ((string.IsNullOrEmpty(text) && _pendingImageBase64 == null) || _cts != null) return;
+        if (string.IsNullOrEmpty(text)) text = "(see attached image)";
+
+        // Take and clear the pending image so it rides with THIS message only.
+        var image = _pendingImageBase64;
+        var imageMime = _pendingImageMime;
+        _pendingImageBase64 = null;
+        _pendingImageMime = null;
+        AttachButton.Content = "📎";
 
         InputBox.Text = "";
         SendButton.Content = "Cancel";
@@ -220,12 +279,12 @@ public partial class ChatPaneView : UserControl
         // Live round counter so long jobs show progress toward the per-message cap.
         _service.OnRound = (r, max) => StatusText.Text = $"Working… round {r}/{max}";
 
-        Messages.Add(new ChatMessage { Role = "user", Text = text });
+        Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 
         _cts = new CancellationTokenSource();
         try
         {
-            await _service.SendAsync(Messages, _selectedModel, _cts.Token);
+            await _service.SendAsync(Messages, _selectedModel, _cts.Token, image, imageMime);
             StatusText.Text = "";
         }
         catch (OperationCanceledException)

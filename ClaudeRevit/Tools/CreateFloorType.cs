@@ -78,12 +78,19 @@ public class CreateFloorType : IRevitTool
             ?? throw new InvalidOperationException("Failed to duplicate the floor type.");
 
         double? thicknessMm = ToolInput.OptionalDouble(input, "thickness_mm");
+        var wantsMaterial = input.TryGetValue("material_name", out var matEl) &&
+                            matEl.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(matEl.GetString());
         string? appliedMaterial = null;
 
-        var cs = newType.GetCompoundStructure();
-        if (cs != null && (thicknessMm.HasValue ||
-                           (input.TryGetValue("material_name", out var _) )))
+        if (thicknessMm.HasValue || wantsMaterial)
         {
+            var cs = newType.GetCompoundStructure();
+            // Fail rather than falsely report a thickness/material that couldn't be applied.
+            if (cs == null)
+                throw new InvalidOperationException(
+                    $"Base floor type '{baseType.Name}' has no editable layer structure, so thickness/material " +
+                    "can't be set. Pass a single-layer floor type via 'based_on'.");
+
             var idx = cs.GetFirstCoreLayerIndex();
             if (thicknessMm.HasValue)
             {
@@ -91,14 +98,13 @@ public class CreateFloorType : IRevitTool
                 catch (Exception ex)
                 {
                     throw new InvalidOperationException(
-                        $"Created the type but could not set thickness: {ex.Message}. The base type may have " +
-                        "multiple layers — pick a single-layer base with 'based_on'.");
+                        $"Could not set thickness: {ex.Message}. The base type may have multiple/locked layers " +
+                        "— pick a single-layer base with 'based_on'.");
                 }
             }
-            if (input.TryGetValue("material_name", out var mat) && mat.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(mat.GetString()))
+            if (wantsMaterial)
             {
-                var material = NameResolve.ByName<Material>(doc, mat.GetString(), "Material");
+                var material = NameResolve.ByName<Material>(doc, matEl.GetString(), "Material");
                 cs.SetMaterialId(idx, material.Id);
                 appliedMaterial = material.Name;
             }

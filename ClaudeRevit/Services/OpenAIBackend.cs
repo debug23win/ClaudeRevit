@@ -368,7 +368,22 @@ public sealed class OpenAIBackend
                 }
                 var text = string.Join("\n\n",
                     turn.Blocks.OfType<ChatTextBlock>().Select(b => b.Text).Where(t => t.Length > 0));
-                if (text.Length > 0)
+                var images = turn.Blocks.OfType<ChatImageBlock>().ToList();
+                if (images.Count > 0)
+                {
+                    // OpenAI-compatible vision: content becomes an array of text + image_url
+                    // parts, images as data URIs.
+                    var parts = new JsonArray();
+                    if (text.Length > 0) parts.Add(new JsonObject { ["type"] = "text", ["text"] = text });
+                    foreach (var im in images)
+                        parts.Add(new JsonObject
+                        {
+                            ["type"] = "image_url",
+                            ["image_url"] = new JsonObject { ["url"] = $"data:{im.MediaType};base64,{im.Base64}" }
+                        });
+                    messages.Add(new JsonObject { ["role"] = "user", ["content"] = parts });
+                }
+                else if (text.Length > 0)
                     messages.Add(new JsonObject { ["role"] = "user", ["content"] = text });
             }
         }

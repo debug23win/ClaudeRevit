@@ -164,7 +164,9 @@ public class ChatService
     public async Task SendAsync(
         ObservableCollection<ChatMessage> conversation,
         string model,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? imageBase64 = null,
+        string? imageMime = null)
     {
         var ui = Dispatcher.CurrentDispatcher;
         bool alt = IsAlt(model);
@@ -222,7 +224,10 @@ public class ChatService
             toolDefs = BuildToolDefs(allowedTools);
         }
 
-        _history.Add(new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } });
+        var userTurn = new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } };
+        if (!string.IsNullOrEmpty(imageBase64))
+            userTurn.Blocks.Add(new ChatImageBlock(imageMime ?? "image/png", imageBase64));
+        _history.Add(userTurn);
 
         var turnLabel = "Claude: " + Truncate(lastUser, 60);
 
@@ -699,7 +704,20 @@ public class ChatService
             IsError = tr.IsError,
             CacheControl = cache
         },
+        ChatImageBlock im => new BetaImageBlockParam
+        {
+            Source = new BetaBase64ImageSource { Data = im.Base64, MediaType = MediaTypeFor(im.MediaType) },
+            CacheControl = cache
+        },
         _ => throw new InvalidOperationException("Unknown history block type.")
+    };
+
+    private static MediaType MediaTypeFor(string mime) => mime switch
+    {
+        "image/jpeg" => MediaType.ImageJpeg,
+        "image/gif" => MediaType.ImageGif,
+        "image/webp" => MediaType.ImageWebP,
+        _ => MediaType.ImagePng
     };
 
     private async Task CompactIfNeededAsync(
