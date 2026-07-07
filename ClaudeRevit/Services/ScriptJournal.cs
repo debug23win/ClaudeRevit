@@ -18,7 +18,11 @@ namespace ClaudeRevit.Services;
 public static class ScriptJournal
 {
     private const long MaxFileBytes = 2_000_000; // keep the journal bounded
-    private const int MaxKeptEntriesOnTrim = 200;
+    // On trim we keep the newest SUCCESSFUL runs preferentially and only a small tail of
+    // failures — otherwise a recent burst of failures (e.g. a bad session) would evict older
+    // proven scripts purely by age. Successful scripts are the whole point of the journal.
+    private const int MaxKeptOkOnTrim = 450;
+    private const int MaxKeptFailOnTrim = 50;
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -185,8 +189,28 @@ public static class ScriptJournal
         try
         {
             if (new FileInfo(FilePath).Length <= MaxFileBytes) return;
-            var lines = File.ReadAllLines(FilePath);
-            File.WriteAllLines(FilePath, lines.TakeLast(MaxKeptEntriesOnTrim));
+
+            var lines = File.ReadAllLines(FilePath).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+
+            // Keep the newest MaxKeptOkOnTrim successful runs plus the newest MaxKeptFailOnTrim
+            // failures, so proven scripts survive even after a bad session — rather than blindly
+            // keeping the newest N (which would preserve recent junk and evict older gold).
+            var keep = new HashSet<int>();
+            int oks = 0, fails = 0;
+            for (int i = lines.Count - 1; i >= 0; i--) // newest → oldest
+            {
+                var ok = lines[i].Contains("\"ok\":true");
+                if (ok)
+                {
+                    if (oks < MaxKeptOkOnTrim) { keep.Add(i); oks++; }
+                }
+                else if (fails < MaxKeptFailOnTrim) { keep.Add(i); fails++; }
+            }
+
+            var kept = new List<string>(keep.Count);
+            for (int i = 0; i < lines.Count; i++) // rewrite in original chronological order
+                if (keep.Contains(i)) kept.Add(lines[i]);
+            File.WriteAllLines(FilePath, kept);
         }
         catch { /* best-effort */ }
     }
