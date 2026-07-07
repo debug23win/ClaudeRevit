@@ -51,7 +51,8 @@ public class MeasureDistance : IRevitTool
             from = (fromBbox.Min + fromBbox.Max) * 0.5;
             to = (toBbox.Min + toBbox.Max) * 0.5;
         }
-        else if (input.ContainsKey("from_x") && input.ContainsKey("to_x"))
+        else if (input.ContainsKey("from_x") && input.ContainsKey("from_y")
+                 && input.ContainsKey("to_x") && input.ContainsKey("to_y"))
         {
             from = new XYZ(
                 input["from_x"].GetDouble(),

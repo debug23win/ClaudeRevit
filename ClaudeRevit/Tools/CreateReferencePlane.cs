@@ -42,8 +42,11 @@ public class CreateReferencePlane : IRevitTool
         if (start.IsAlmostEqualTo(end))
             throw new InvalidOperationException("Reference plane has zero length.");
 
-        // Vertical plane: cut vector is upward
-        var refPlane = doc.Create.NewReferencePlane2(start, end, new XYZ(0, 0, 1), view);
+        // NewReferencePlane2's third argument is a POINT the plane must pass through, not a
+        // direction. For a vertical plane it has to sit directly above the line — using a fixed
+        // (0,0,1) forced the plane through the world origin, tilting it for any line away from
+        // the origin. A point straight above 'start' keeps the plane truly vertical.
+        var refPlane = doc.Create.NewReferencePlane2(start, end, new XYZ(start.X, start.Y, 1), view);
 
         if (input.TryGetValue("name", out var n) && n.ValueKind == JsonValueKind.String)
         {

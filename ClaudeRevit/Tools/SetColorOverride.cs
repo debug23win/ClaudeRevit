@@ -53,10 +53,18 @@ public class SetColorOverride : IRevitTool
         var hasB = input.TryGetValue("b", out var bEl);
         var hasColor = hasR && hasG && hasB;
 
+        // Reject a partial colour: with only some of r/g/b the old code fell through to "no
+        // colour" and silently CLEARED the elements' overrides instead of colouring them.
+        if ((hasR || hasG || hasB) && !hasColor)
+            throw new InvalidOperationException(
+                "Provide all three of r, g, b (0–255) to set a colour, or none of them to clear the override.");
+
+        static byte Channel(JsonElement e) => (byte)Math.Clamp(e.GetInt32(), 0, 255);
+
         var settings = new OverrideGraphicSettings();
         if (hasColor)
         {
-            var color = new Color((byte)rEl.GetInt32(), (byte)gEl.GetInt32(), (byte)bEl.GetInt32());
+            var color = new Color(Channel(rEl), Channel(gEl), Channel(bEl));
             settings.SetProjectionLineColor(color);
             settings.SetCutLineColor(color);
             settings.SetSurfaceForegroundPatternColor(color);

@@ -43,12 +43,16 @@ public class SetProjectInfo : IRevitTool
             ?? throw new InvalidOperationException("Document has no ProjectInformation element.");
 
         var updated = new List<string>();
+        var failed = new List<string>();
 
         void TrySet(string key, Action<string> setter)
         {
             if (input.TryGetValue(key, out var el) && el.ValueKind == JsonValueKind.String)
             {
-                try { setter(el.GetString()!); updated.Add(key); } catch { }
+                // Report a failed set (e.g. a borrowed/read-only field in a workshared model)
+                // instead of swallowing it silently, so the model knows the write didn't land.
+                try { setter(el.GetString()!); updated.Add(key); }
+                catch (Exception ex) { failed.Add($"{key}: {ex.Message}"); }
             }
         }
 
@@ -66,6 +70,7 @@ public class SetProjectInfo : IRevitTool
         return JsonSerializer.Serialize(new
         {
             updated_fields = updated,
+            failed_fields = failed.Count > 0 ? failed : null,
             current = new
             {
                 name = pi.Name,
