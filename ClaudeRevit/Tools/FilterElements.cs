@@ -97,10 +97,6 @@ public class FilterElements : IRevitTool
 
     public bool RequiresTransaction => false;
 
-    private const double FtToMm = 304.8;
-    private const double Ft2ToM2 = 0.09290304;
-    private const double Ft3ToM3 = 0.028316846592;
-
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -251,18 +247,18 @@ public class FilterElements : IRevitTool
         switch (param.ToLowerInvariant())
         {
             case "length":
-                return (el.Location is LocationCurve lc ? lc.Curve.Length * FtToMm : (double?)null, null);
+                return (el.Location is LocationCurve lc ? lc.Curve.Length * Units.MmPerFoot : (double?)null, null);
             case "height":
                 var bb = el.get_BoundingBox(null);
-                return (bb != null ? (bb.Max.Z - bb.Min.Z) * FtToMm : (double?)null, null);
+                return (bb != null ? (bb.Max.Z - bb.Min.Z) * Units.MmPerFoot : (double?)null, null);
             case "area":
                 return (Ft2(el, BuiltInParameter.HOST_AREA_COMPUTED, BuiltInParameter.ROOM_AREA), null);
             case "volume":
                 return (Ft3(el, BuiltInParameter.HOST_VOLUME_COMPUTED, BuiltInParameter.ROOM_VOLUME), null);
             case "elevation":
-                if (el is Level lvl) return (lvl.Elevation * FtToMm, null);
+                if (el is Level lvl) return (lvl.Elevation * Units.MmPerFoot, null);
                 var bbx = el.get_BoundingBox(null);
-                return (bbx != null ? bbx.Min.Z * FtToMm : (double?)null, null);
+                return (bbx != null ? bbx.Min.Z * Units.MmPerFoot : (double?)null, null);
             case "name":
                 return (null, el.Name);
             case "category":
@@ -298,7 +294,7 @@ public class FilterElements : IRevitTool
         foreach (var bip in bips)
         {
             var p = el.get_Parameter(bip);
-            if (p != null && p.HasValue && p.StorageType == StorageType.Double) return p.AsDouble() * Ft2ToM2;
+            if (p != null && p.HasValue && p.StorageType == StorageType.Double) return p.AsDouble() * Units.SqMPerSqFoot;
         }
         return null;
     }
@@ -308,7 +304,7 @@ public class FilterElements : IRevitTool
         foreach (var bip in bips)
         {
             var p = el.get_Parameter(bip);
-            if (p != null && p.HasValue && p.StorageType == StorageType.Double) return p.AsDouble() * Ft3ToM3;
+            if (p != null && p.HasValue && p.StorageType == StorageType.Double) return p.AsDouble() * Units.CuMPerCuFoot;
         }
         return null;
     }

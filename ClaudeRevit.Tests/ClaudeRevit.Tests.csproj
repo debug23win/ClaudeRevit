@@ -24,6 +24,7 @@
          Revit runtime. Keep this list to files with no Autodesk.Revit dependency. -->
     <Compile Include="..\ClaudeRevit\Services\PatternArchive.cs" Link="src\PatternArchive.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolSearchLogic.cs" Link="src\ToolSearchLogic.cs" />
+    <Compile Include="..\ClaudeRevit\Tools\Units.cs" Link="src\Units.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultAging.cs" Link="src\ToolResultAging.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultArchive.cs" Link="src\ToolResultArchive.cs" />
     <Compile Include="..\ClaudeRevit\Services\ChatHistory.cs" Link="src\ChatHistory.cs" />
