@@ -337,7 +337,11 @@ public class ChatService
                 var idList = sel.Ids.Count > 30
                     ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
                     : string.Join(", ", sel.Ids);
-                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}. Element IDs: [{idList}]";
+                // Inline the per-category breakdown so "what's selected?" is answerable with no tool call.
+                var cats = sel.CategoryCounts.Count > 0
+                    ? " — " + string.Join(", ", sel.CategoryCounts.Select(kv => $"{kv.Value}× {kv.Key}"))
+                    : "";
+                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
             }
             contextedPrompt = ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
         }

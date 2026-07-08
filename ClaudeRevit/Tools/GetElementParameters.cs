@@ -33,6 +33,11 @@ public class GetElementParameters : IRevitTool
                 type = "array",
                 description = "Optional whitelist of parameter names. Omit to return all parameters.",
                 items = new { type = "string" }
+            }),
+            ["relevant_only"] = JsonSerializer.SerializeToElement(new
+            {
+                type = "boolean",
+                description = "When true, drop parameters with an empty/none value — a compact, meaningful set. Default false (all)."
             })
         },
         Required = ["element_ids"]
@@ -52,6 +57,8 @@ public class GetElementParameters : IRevitTool
         if (input.TryGetValue("parameter_names", out var pn) && pn.ValueKind == JsonValueKind.Array)
             whitelist = pn.EnumerateArray().Select(e => e.GetString() ?? "").ToHashSet();
 
+        var relevantOnly = input.TryGetValue("relevant_only", out var ro) && ro.ValueKind == JsonValueKind.True;
+
         var results = ids.Select(id =>
         {
             var el = doc.GetElement(id);
@@ -66,6 +73,12 @@ public class GetElementParameters : IRevitTool
                     storage = p.StorageType.ToString(),
                     read_only = p.IsReadOnly
                 })
+                // Revit exposes the same display name more than once (built-in + shared) — collapse
+                // the noise to one entry per name. Optionally keep only parameters that actually
+                // carry a value.
+                .Where(p => !relevantOnly || (p.value.Length > 0 && p.value != "(none)"))
+                .GroupBy(p => p.name)
+                .Select(g => g.First())
                 .ToList();
 
             return new
