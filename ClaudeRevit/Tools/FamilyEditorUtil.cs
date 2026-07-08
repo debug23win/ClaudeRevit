@@ -8,7 +8,7 @@ namespace ClaudeRevit.Tools;
 // clear message when the active document is an ordinary project.
 internal static class FamilyEditorUtil
 {
-    private const double FeetToMm = 304.8;
+    private const double FeetToMm = Units.MmPerFoot;
 
     public static FamilyManager Manager(Document doc)
     {

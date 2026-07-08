@@ -115,7 +115,7 @@ public class GetProjectCatalog : IRevitTool
             .Select(m => m.Name).OrderBy(n => n).ToList(), 150);
 
         var barTypes = new FilteredElementCollector(doc).OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
-            .Select(t => new { name = t.Name, diameter_mm = Math.Round(t.BarNominalDiameter * 304.8, 1) })
+            .Select(t => new { name = t.Name, diameter_mm = Math.Round(t.BarNominalDiameter * Units.MmPerFoot, 1) })
             .OrderBy(t => t.diameter_mm).ToList();
         var shapes = new FilteredElementCollector(doc).OfClass(typeof(RebarShape))
             .Select(s => s.Name).OrderBy(n => n).ToList();

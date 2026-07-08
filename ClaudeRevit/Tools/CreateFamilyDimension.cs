@@ -78,7 +78,7 @@ public class CreateFamilyDimension : IRevitTool
 
     public bool RequiresTransaction => true;
 
-    private const double MmToFeet = 1.0 / 304.8;
+    private const double MmToFeet = 1.0 / Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -142,7 +142,7 @@ public class CreateFamilyDimension : IRevitTool
         var persisted = refetched is { IsValidObject: true };
         double? valueMm = null;
         if (persisted)
-            try { valueMm = refetched!.Value.HasValue ? refetched.Value!.Value * 304.8 : null; } catch { }
+            try { valueMm = refetched!.Value.HasValue ? refetched.Value!.Value * Units.MmPerFoot : null; } catch { }
 
         return JsonSerializer.Serialize(new
         {

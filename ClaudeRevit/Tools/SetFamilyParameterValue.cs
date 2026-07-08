@@ -9,7 +9,7 @@ namespace ClaudeRevit.Tools;
 
 // Sets the value of a family parameter under the current type (only works on parameters not
 // driven by a formula). Lengths accept millimetres directly, which is how families are
-// authored — avoids the /304.8 conversion the scripts repeated everywhere.
+// authored — avoids the /Units.MmPerFoot conversion the scripts repeated everywhere.
 public class SetFamilyParameterValue : IRevitTool
 {
     public string Name => "set_family_parameter_value";
@@ -46,7 +46,7 @@ public class SetFamilyParameterValue : IRevitTool
 
     public bool RequiresTransaction => true;
 
-    private const double MmToFeet = 1.0 / 304.8;
+    private const double MmToFeet = 1.0 / Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

@@ -51,7 +51,7 @@ public class CreateWallType : IRevitTool
 
     public bool RequiresTransaction => true;
 
-    private const double MmToFeet = 1.0 / 304.8;
+    private const double MmToFeet = 1.0 / Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

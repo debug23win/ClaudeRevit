@@ -42,7 +42,7 @@ public class ListRebarCoverTypes : IRevitTool
             {
                 id = t.Id.Value,
                 name = t.Name,
-                cover_mm = Math.Round(t.CoverDistance * 304.8, 1)
+                cover_mm = Math.Round(t.CoverDistance * Units.MmPerFoot, 1)
             })
             .OrderBy(t => t.cover_mm)
             .Cast<object>()
