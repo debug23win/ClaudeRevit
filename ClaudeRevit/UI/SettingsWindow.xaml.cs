@@ -219,9 +219,42 @@ public partial class SettingsWindow : Window
             "Uncheck groups you don't need — each request gets smaller in tokens. Helps free / rate-limited providers (e.g. Gemini's free tier, where one request can hit the limit). All on by default.",
             "Снимите галочки с ненужных групп — каждый запрос станет меньше по токенам. Полезно для бесплатных / лимитированных провайдеров (напр. бесплатный тир Gemini, где одного запроса хватает до лимита). По умолчанию включены все.");
 
+        TabGeneral.Header = L("General", "Основное");
+        TabModels.Header = L("Models", "Модели");
+        TabMcp.Header = L("Subscription (MCP)", "Подписка (MCP)");
+        TabTools.Header = L("Tools", "Инструменты");
+        TabAbout.Header = L("About", "О программе");
+        AboutHeader.Text = L("Version & updates", "Версия и обновления");
+        VersionText.Text = L("Current version: ", "Текущая версия: ") + Services.UpdateChecker.CurrentVersion;
+        CheckUpdateButton.Content = L("Check for updates", "Проверить обновления");
+        AboutNote.Text = L(
+            "Updates are notify-only: a loaded add-in can't replace its own DLL while Revit is open, so when a newer release exists the check offers the installer to download — close Revit, run it, reopen. The chat pane footer also shows an “update available” link when one is found.",
+            "Обновления только уведомляют: загруженный аддин не может заменить свою DLL при открытом Revit, поэтому при наличии новой версии предлагается скачать установщик — закройте Revit, запустите его, откройте снова. В подвале панели чата тоже появляется ссылка «доступно обновление».");
+
         HelpButton.Content = L("Help / Помощь", "Помощь / Help");
         CancelButton.Content = L("Cancel", "Отмена");
         SaveButton.Content = L("Save", "Сохранить");
+    }
+
+    private async void CheckUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateResultText.Text = L("Checking…", "Проверяю…");
+        try
+        {
+            var r = await Services.UpdateChecker.CheckAsync();
+            if (r.UpdateAvailable && r.DownloadUrl != null)
+            {
+                UpdateResultText.Text = L($"Update {r.Latest} available — opening download…",
+                                          $"Доступно обновление {r.Latest} — открываю загрузку…");
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(r.DownloadUrl) { UseShellExecute = true }); }
+                catch (Exception ex) { Log.Error("Opening update URL failed", ex); }
+            }
+            else if (r.Error != null)
+                UpdateResultText.Text = L("Couldn't check: ", "Не удалось проверить: ") + r.Error;
+            else
+                UpdateResultText.Text = L("You're on the latest version.", "У вас последняя версия.");
+        }
+        catch (Exception ex) { UpdateResultText.Text = ex.Message; }
     }
 
     // One checkbox per tool group (with its tool count). Unchecking a group drops those tools
