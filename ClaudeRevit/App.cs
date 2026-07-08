@@ -21,6 +21,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetLevels());
             ToolRegistry.Instance.Register(new GetSelection());
             ToolRegistry.Instance.Register(new QueryElements());
+            ToolRegistry.Instance.Register(new FilterElements());
             ToolRegistry.Instance.Register(new AnalyzeWarnings());
             ToolRegistry.Instance.Register(new CreateWall());
             ToolRegistry.Instance.Register(new CreateWallType());

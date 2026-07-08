@@ -223,7 +223,54 @@ public static class McpServer
         var experience = ExperienceStore.Digest();
         if (!string.IsNullOrWhiteSpace(experience))
             sb.Append("\n\n").Append(experience!.Trim());
+        // Full tool index in the handshake so the driving model knows every tool up front and can
+        // call the right one directly — no discovery round-trips even when the client defers the
+        // (180) tool schemas. Generated once, cached, and mirrored to a settings .md for the user.
+        sb.Append("\n\n").Append(ToolIndexMarkdown());
         return sb.ToString();
+    }
+
+    private static string? _toolIndexCache;
+    private static string ToolCatalogPath => Path.Combine(AppDir, "tools-catalog.md");
+
+    private static string ToolIndexMarkdown()
+    {
+        if (_toolIndexCache != null) return _toolIndexCache;
+
+        var allowCode = SettingsStore.AllowCodeExecution;
+        var byCat = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var t in ToolRegistry.Instance.All)
+        {
+            if (t.RequiresCodeExecutionOptIn && !allowCode) continue;
+            var cat = ClaudeRevit.Tools.ToolCatalog.CategoryOf(t);
+            if (!byCat.TryGetValue(cat, out var list)) byCat[cat] = list = new List<string>();
+            list.Add($"- `{t.Name}` — {FirstSentence(t.Description)}");
+        }
+
+        var sb = new StringBuilder();
+        sb.Append("AVAILABLE TOOLS — the full set is listed here so you can call the right tool by its " +
+                  "exact name without searching first. Schemas load on first use.\n");
+        foreach (var kv in byCat)
+        {
+            sb.Append("\n**").Append(kv.Key).Append("**\n");
+            kv.Value.Sort(StringComparer.Ordinal);
+            foreach (var line in kv.Value) sb.Append(line).Append('\n');
+        }
+        _toolIndexCache = sb.ToString();
+
+        try { Directory.CreateDirectory(AppDir); File.WriteAllText(ToolCatalogPath, _toolIndexCache); }
+        catch { /* the md mirror is a convenience, not required */ }
+        return _toolIndexCache;
+    }
+
+    // First sentence of a tool description, trimmed to keep the index compact.
+    private static string FirstSentence(string desc)
+    {
+        if (string.IsNullOrWhiteSpace(desc)) return "";
+        var s = desc.Replace('\n', ' ').Trim();
+        var dot = s.IndexOf(". ", StringComparison.Ordinal);
+        if (dot > 0) s = s.Substring(0, dot);
+        return s.Length > 140 ? s.Substring(0, 140).TrimEnd() + "…" : s;
     }
 
     private static async Task<(JsonNode? value, JsonObject? error)> Dispatch(string? method, JsonNode? prms, CancellationToken ct)

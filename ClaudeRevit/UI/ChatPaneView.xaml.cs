@@ -51,6 +51,35 @@ public partial class ChatPaneView : UserControl
         // code, mark it handled so the chat pane can never crash Revit. Exceptions from
         // Revit itself or other add-ins are logged but left to their normal handling.
         Dispatcher.UnhandledException += OnDispatcherUnhandledException;
+
+        _ = CheckForUpdateAsync();
+    }
+
+    private string? _updateUrl;
+
+    // Best-effort, non-blocking: if GitHub has a newer release, reveal the footer link. Loaded DLLs
+    // can't self-replace while Revit is open, so we only point the user at the installer.
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var r = await UpdateChecker.CheckAsync();
+            if (!r.UpdateAvailable || r.DownloadUrl == null) return;
+            _updateUrl = r.DownloadUrl;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                UpdateNotice.Text = $"⬆ {r.Latest} available";
+                UpdateNotice.Visibility = Visibility.Visible;
+            });
+        }
+        catch { /* never let an update check disturb the pane */ }
+    }
+
+    private void UpdateNotice_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_updateUrl)) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateUrl) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Error("Opening update URL failed", ex); }
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

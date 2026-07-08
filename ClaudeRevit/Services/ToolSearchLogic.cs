@@ -20,7 +20,7 @@ public static class ToolSearchLogic
     public static readonly HashSet<string> CoreToolNames = new(StringComparer.Ordinal)
     {
         // Query / inspection
-        "get_selection", "query_elements", "get_element_parameters", "get_type_parameters",
+        "get_selection", "query_elements", "filter_elements", "get_element_parameters", "get_type_parameters",
         "get_element_locations", "get_element_bounding_box", "get_levels", "get_model_statistics",
         "get_project_catalog", "get_project_info", "get_active_view_info", "list_family_types",
         "list_loaded_families", "list_materials", "measure_distance", "analyze_warnings",

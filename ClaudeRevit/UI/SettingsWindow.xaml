@@ -30,170 +30,210 @@
                     Click="SaveButton_Click" IsDefault="True" />
         </StackPanel>
 
-        <!-- Scrollable settings body -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
-            <StackPanel>
+        <!-- Tabbed settings body -->
+        <TabControl x:Name="Tabs">
 
-                <TextBlock x:Name="ApiKeyHeader" Text="Anthropic API key" FontWeight="SemiBold" Margin="0,0,0,6" />
-                <PasswordBox x:Name="ApiKeyBox" Padding="6" Height="28" />
-                <TextBlock x:Name="ApiKeyNote" Margin="0,8,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Stored encrypted (Windows DPAPI, current user) in %AppData%\ClaudeRevit. Get a key at console.anthropic.com → Settings → API Keys." />
+            <!-- GENERAL -->
+            <TabItem x:Name="TabGeneral" Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                    <StackPanel>
+                        <TextBlock x:Name="ApiKeyHeader" Text="Anthropic API key" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <PasswordBox x:Name="ApiKeyBox" Padding="6" Height="28" />
+                        <TextBlock x:Name="ApiKeyNote" Margin="0,8,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Stored encrypted (Windows DPAPI, current user) in %AppData%\ClaudeRevit. Get a key at console.anthropic.com → Settings → API Keys." />
 
-                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+                        <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
-                <CheckBox x:Name="AllowCodeBox" Content="Allow Claude to run code (C# / Dynamo Python)" FontWeight="SemiBold" />
-                <TextBlock x:Name="AllowCodeNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
-                           Text="Off by default. When enabled, Claude may run scripts against the full Revit API for actions no built-in tool covers. Leave this off unless you need it; arbitrary code can modify or delete anything in the model. Every turn is one undo step (Ctrl+Z)." />
+                        <CheckBox x:Name="AllowCodeBox" Content="Allow Claude to run code (C# / Dynamo Python)" FontWeight="SemiBold" />
+                        <TextBlock x:Name="AllowCodeNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
+                                   Text="Off by default. When enabled, Claude may run scripts against the full Revit API for actions no built-in tool covers. Leave this off unless you need it; arbitrary code can modify or delete anything in the model. Every turn is one undo step (Ctrl+Z)." />
 
-                <CheckBox x:Name="ConfirmOpsBox" Margin="0,12,0,0"
-                          Content="Ask for confirmation before destructive / code operations" />
-                <TextBlock x:Name="ConfirmOpsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z." />
+                        <CheckBox x:Name="ConfirmOpsBox" Margin="0,12,0,0"
+                                  Content="Ask for confirmation before destructive / code operations" />
+                        <TextBlock x:Name="ConfirmOpsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z." />
 
-                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                    <TextBlock x:Name="BalanceLabel" Text="Account balance, USD:" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBox x:Name="BalanceBox" Width="100" Height="26" Margin="8,0,0,0" Padding="4"
-                             VerticalContentAlignment="Center" />
-                </StackPanel>
-                <TextBlock x:Name="BalanceNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Optional. Enter your current credit balance from console.anthropic.com — the chat pane will show it minus the estimated local spend (the API has no balance endpoint). Re-entering a value resets the counter." />
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <TextBlock x:Name="BalanceLabel" Text="Account balance, USD:" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBox x:Name="BalanceBox" Width="100" Height="26" Margin="8,0,0,0" Padding="4"
+                                     VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="BalanceNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Optional. Enter your current credit balance from console.anthropic.com — the chat pane will show it minus the estimated local spend (the API has no balance endpoint). Re-entering a value resets the counter." />
 
-                <CheckBox x:Name="AutoAdvisorBox" Margin="0,14,0,0"
-                          Content="Auto mode: consult Opus via the advisor tool (recommended)" FontWeight="SemiBold" />
-                <TextBlock x:Name="AutoAdvisorNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Applies to the “Auto” model. On (recommended): the executor below runs the whole turn and consults the advisor only when it needs a plan — the executor's cache stays warm all session and the advisor is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache)." />
+                        <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
-                <Grid Margin="20,8,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <TextBlock x:Name="AutoExecLabel" Grid.Row="0" Grid.Column="0" Text="Executor:" VerticalAlignment="Center" Margin="0,0,8,4" />
-                    <ComboBox x:Name="AutoExecBox" Grid.Row="0" Grid.Column="1" Height="26" Margin="0,0,0,4">
-                        <ComboBoxItem Tag="sonnet-5">Sonnet 5 (balanced)</ComboBoxItem>
-                        <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (cheapest)</ComboBoxItem>
-                    </ComboBox>
-                    <TextBlock x:Name="AutoAdvLabel" Grid.Row="1" Grid.Column="0" Text="Advisor:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <ComboBox x:Name="AutoAdvBox" Grid.Row="1" Grid.Column="1" Height="26">
-                        <ComboBoxItem Tag="opus-4-8">Opus 4.8 (default)</ComboBoxItem>
-                        <ComboBoxItem Tag="fable-5">Fable 5 (hardest tasks)</ComboBoxItem>
-                    </ComboBox>
-                </Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="MaxRoundsLabel" Text="Max tool rounds per message:" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBox x:Name="MaxRoundsBox" Width="70" Height="26" Margin="8,0,0,0" Padding="4"
+                                     VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="MaxRoundsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="How many tool-call rounds Claude may take answering one message before it pauses and asks to continue. Default 24; raise it for long automated jobs. Range 1–200." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <CheckBox x:Name="TaskDiagBox" Margin="0,12,0,0"
-                          Content="Show per-task diagnostics (time, tokens, rounds)" />
-                <TextBlock x:Name="TaskDiagNote" Margin="20,2,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="After each answer, print a line with the model(s) used, tool rounds, tokens (in/out) and wall-clock time — to compare how efficiently different models solve the same task." />
+            <!-- MODELS -->
+            <TabItem x:Name="TabModels" Header="Models">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                    <StackPanel>
+                        <CheckBox x:Name="AutoAdvisorBox"
+                                  Content="Auto mode: consult Opus via the advisor tool (recommended)" FontWeight="SemiBold" />
+                        <TextBlock x:Name="AutoAdvisorNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Applies to the “Auto” model. On (recommended): the executor below runs the whole turn and consults the advisor only when it needs a plan — the executor's cache stays warm all session and the advisor is billed only for the short advice. Off: the older behaviour — the whole turn switches to Opus on a hard task, error or long loop (costs more, drops the cache)." />
 
-                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+                        <Grid Margin="20,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="AutoExecLabel" Grid.Row="0" Grid.Column="0" Text="Executor:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                            <ComboBox x:Name="AutoExecBox" Grid.Row="0" Grid.Column="1" Height="26" Margin="0,0,0,4">
+                                <ComboBoxItem Tag="sonnet-5">Sonnet 5 (balanced)</ComboBoxItem>
+                                <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (cheapest)</ComboBoxItem>
+                            </ComboBox>
+                            <TextBlock x:Name="AutoAdvLabel" Grid.Row="1" Grid.Column="0" Text="Advisor:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="AutoAdvBox" Grid.Row="1" Grid.Column="1" Height="26">
+                                <ComboBoxItem Tag="opus-4-8">Opus 4.8 (default)</ComboBoxItem>
+                                <ComboBoxItem Tag="fable-5">Fable 5 (hardest tasks)</ComboBoxItem>
+                            </ComboBox>
+                        </Grid>
 
-                <TextBlock x:Name="AltHeader" Text="Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)"
-                           FontWeight="SemiBold" Margin="0,0,0,6" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                        <CheckBox x:Name="TaskDiagBox" Margin="0,12,0,0"
+                                  Content="Show per-task diagnostics (time, tokens, rounds)" />
+                        <TextBlock x:Name="TaskDiagNote" Margin="20,2,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="After each answer, print a line with the model(s) used, tool rounds, tokens (in/out) and wall-clock time — to compare how efficiently different models solve the same task." />
 
-                    <TextBlock x:Name="ProviderLabel" Grid.Row="0" Grid.Column="0" Text="Provider:" VerticalAlignment="Center" Margin="0,0,8,6" />
-                    <ComboBox Grid.Row="0" Grid.Column="1" x:Name="AltProviderBox" Height="26" Margin="0,0,0,6"
-                              SelectionChanged="AltProviderBox_SelectionChanged">
-                        <ComboBoxItem Tag="">— not used —</ComboBoxItem>
-                        <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
-                        <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
-                        <ComboBoxItem Tag="grok">xAI Grok</ComboBoxItem>
-                        <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
-                        <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>
-                        <ComboBoxItem Tag="openrouter">OpenRouter (has free models)</ComboBoxItem>
-                        <ComboBoxItem Tag="groq">Groq (free tier)</ComboBoxItem>
-                        <ComboBoxItem Tag="ollama">Ollama (local, free)</ComboBoxItem>
-                        <ComboBoxItem Tag="lmstudio">LM Studio (local, free)</ComboBoxItem>
-                        <ComboBoxItem Tag="custom">Custom (any OpenAI-compatible)</ComboBoxItem>
-                    </ComboBox>
+                        <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
-                    <TextBlock x:Name="BaseUrlLabel" Grid.Row="1" Grid.Column="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,6" />
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="AltBaseUrlBox" Height="26" Padding="4"
-                             VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
+                        <TextBlock x:Name="AltHeader" Text="Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                    <TextBlock x:Name="ModelLabel" Grid.Row="2" Grid.Column="0" Text="Model id:" VerticalAlignment="Center" Margin="0,0,8,6" />
-                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="AltModelBox" Height="26" Padding="4"
-                             VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
+                            <TextBlock x:Name="ProviderLabel" Grid.Row="0" Grid.Column="0" Text="Provider:" VerticalAlignment="Center" Margin="0,0,8,6" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="AltProviderBox" Height="26" Margin="0,0,0,6"
+                                      SelectionChanged="AltProviderBox_SelectionChanged">
+                                <ComboBoxItem Tag="">— not used —</ComboBoxItem>
+                                <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
+                                <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
+                                <ComboBoxItem Tag="grok">xAI Grok</ComboBoxItem>
+                                <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
+                                <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>
+                                <ComboBoxItem Tag="openrouter">OpenRouter (has free models)</ComboBoxItem>
+                                <ComboBoxItem Tag="groq">Groq (free tier)</ComboBoxItem>
+                                <ComboBoxItem Tag="ollama">Ollama (local, free)</ComboBoxItem>
+                                <ComboBoxItem Tag="lmstudio">LM Studio (local, free)</ComboBoxItem>
+                                <ComboBoxItem Tag="custom">Custom (any OpenAI-compatible)</ComboBoxItem>
+                            </ComboBox>
 
-                    <TextBlock x:Name="AltKeyLabel" Grid.Row="3" Grid.Column="0" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,6" />
-                    <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AltKeyBox" Height="26" Padding="4"
-                                 VerticalContentAlignment="Center" Margin="0,0,0,6" />
+                            <TextBlock x:Name="BaseUrlLabel" Grid.Row="1" Grid.Column="0" Text="Base URL:" VerticalAlignment="Center" Margin="0,0,8,6" />
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="AltBaseUrlBox" Height="26" Padding="4"
+                                     VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
 
-                    <TextBlock x:Name="ContextLabel" Grid.Row="4" Grid.Column="0" Text="Context, K:" VerticalAlignment="Center" Margin="0,0,8,6" />
-                    <TextBox Grid.Row="4" Grid.Column="1" x:Name="AltContextBox" Width="80" Height="26" Padding="4"
-                             HorizontalAlignment="Left" VerticalContentAlignment="Center" Margin="0,0,0,6" />
+                            <TextBlock x:Name="ModelLabel" Grid.Row="2" Grid.Column="0" Text="Model id:" VerticalAlignment="Center" Margin="0,0,8,6" />
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="AltModelBox" Height="26" Padding="4"
+                                     VerticalContentAlignment="Center" Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" />
 
-                    <TextBlock x:Name="ReasoningLabel" Grid.Row="5" Grid.Column="0" Text="Reasoning model:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBox Grid.Row="5" Grid.Column="1" x:Name="AltReasoningBox" Height="26" Padding="4"
-                             VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="12" />
-                </Grid>
-                <TextBlock x:Name="ReasoningNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Optional. A stronger reasoning model (e.g. grok-4.20-0309-reasoning). When set, the fast model above is used for routine work and this one kicks in automatically on complex tasks, errors or long multi-step jobs. Leave empty to always use the model above." />
-                <CheckBox x:Name="AltCompactToolsBox" Margin="0,10,0,0"
-                          Content="Save tokens: send compact tool descriptions to the alt model" />
-                <TextBlock x:Name="AltCompactNote" Margin="20,2,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Alt providers don't cache the prompt, so the full ~170-tool list is re-billed every request. Compacting trims tool/parameter descriptions (names and types stay). Turn off only if a weaker model needs the full text." />
-                <TextBlock x:Name="AltNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL, a default model and its typical context size. Local Ollama / LM Studio need no key. The model must support function calling. Select “Alt” in the chat pane's model dropdown to use it." />
+                            <TextBlock x:Name="AltKeyLabel" Grid.Row="3" Grid.Column="0" Text="API key:" VerticalAlignment="Center" Margin="0,0,8,6" />
+                            <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="AltKeyBox" Height="26" Padding="4"
+                                         VerticalContentAlignment="Center" Margin="0,0,0,6" />
 
-                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+                            <TextBlock x:Name="ContextLabel" Grid.Row="4" Grid.Column="0" Text="Context, K:" VerticalAlignment="Center" Margin="0,0,8,6" />
+                            <TextBox Grid.Row="4" Grid.Column="1" x:Name="AltContextBox" Width="80" Height="26" Padding="4"
+                                     HorizontalAlignment="Left" VerticalContentAlignment="Center" Margin="0,0,0,6" />
 
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="MaxRoundsLabel" Text="Max tool rounds per message:" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBox x:Name="MaxRoundsBox" Width="70" Height="26" Margin="8,0,0,0" Padding="4"
-                             VerticalContentAlignment="Center" />
-                </StackPanel>
-                <TextBlock x:Name="MaxRoundsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="How many tool-call rounds Claude may take answering one message before it pauses and asks to continue. Default 24; raise it for long automated jobs. Range 1–200." />
+                            <TextBlock x:Name="ReasoningLabel" Grid.Row="5" Grid.Column="0" Text="Reasoning model:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Grid.Row="5" Grid.Column="1" x:Name="AltReasoningBox" Height="26" Padding="4"
+                                     VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="12" />
+                        </Grid>
+                        <TextBlock x:Name="ReasoningNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Optional. A stronger reasoning model (e.g. grok-4.20-0309-reasoning). When set, the fast model above is used for routine work and this one kicks in automatically on complex tasks, errors or long multi-step jobs. Leave empty to always use the model above." />
+                        <CheckBox x:Name="AltCompactToolsBox" Margin="0,10,0,0"
+                                  Content="Save tokens: send compact tool descriptions to the alt model" />
+                        <TextBlock x:Name="AltCompactNote" Margin="20,2,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Alt providers don't cache the prompt, so the full ~170-tool list is re-billed every request. Compacting trims tool/parameter descriptions (names and types stay). Turn off only if a weaker model needs the full text." />
+                        <TextBlock x:Name="AltNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Optional. Any OpenAI-compatible endpoint; picking a preset fills in the URL, a default model and its typical context size. Local Ollama / LM Studio need no key. The model must support function calling. Select “Alt” in the chat pane's model dropdown to use it." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+            <!-- SUBSCRIPTION / MCP -->
+            <TabItem x:Name="TabMcp" Header="Subscription (MCP)">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                    <StackPanel>
+                        <CheckBox x:Name="McpBox" FontWeight="SemiBold"
+                                  Content="Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)" />
+                        <TextBlock x:Name="McpNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
+                                   Text="Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings." />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock x:Name="McpPortLabel" Text="Port:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox x:Name="McpPortBox" Width="70" Height="26" Padding="4" VerticalContentAlignment="Center" />
+                            <TextBlock x:Name="McpStatusText" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11" Foreground="#888" />
+                        </StackPanel>
+                        <TextBox x:Name="McpConfigBox" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
+                                 FontFamily="Consolas" FontSize="11" Height="120"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
 
-                <TextBlock x:Name="ToolGroupsHeader" Text="Active tool groups (fewer = fewer tokens per request)"
-                           FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBlock x:Name="ToolGroupsNote" FontSize="11" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6"
-                           Text="Uncheck groups you don't need — each request gets smaller in tokens. Helps free / rate-limited providers (e.g. Gemini's free tier, where one request can hit the limit). All on by default." />
-                <WrapPanel x:Name="ToolGroupsPanel" Orientation="Horizontal" />
+                        <TextBlock x:Name="ClaudeCodeExeLabel" Margin="0,10,0,0" FontWeight="SemiBold"
+                                   Text="Claude Code executable (for the in-pane / benchmark subscription path)" />
+                        <TextBox x:Name="ClaudeCodeExeBox" Margin="0,4,0,0" Height="26" Padding="4"
+                                 VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock x:Name="ClaudeCodeExeNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Leave as &quot;claude&quot; if it is on PATH. Revit’s process often can’t see it — if the benchmark says “Claude Code CLI not found”, put the full path here (run &quot;where claude&quot; in a terminal; usually %APPDATA%\npm\claude.cmd)." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
+            <!-- TOOLS -->
+            <TabItem x:Name="TabTools" Header="Tools">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                    <StackPanel>
+                        <TextBlock x:Name="ToolGroupsHeader" Text="Active tool groups (fewer = fewer tokens per request)"
+                                   FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock x:Name="ToolGroupsNote" FontSize="11" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6"
+                                   Text="Uncheck groups you don't need — each request gets smaller in tokens. Helps free / rate-limited providers (e.g. Gemini's free tier, where one request can hit the limit). All on by default." />
+                        <WrapPanel x:Name="ToolGroupsPanel" Orientation="Horizontal" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <CheckBox x:Name="McpBox" FontWeight="SemiBold"
-                          Content="Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)" />
-                <TextBlock x:Name="McpNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
-                           Text="Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings." />
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <TextBlock x:Name="McpPortLabel" Text="Port:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBox x:Name="McpPortBox" Width="70" Height="26" Padding="4" VerticalContentAlignment="Center" />
-                    <TextBlock x:Name="McpStatusText" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11" Foreground="#888" />
-                </StackPanel>
-                <TextBox x:Name="McpConfigBox" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
-                         FontFamily="Consolas" FontSize="11" Height="120"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+            <!-- ABOUT / UPDATES -->
+            <TabItem x:Name="TabAbout" Header="About">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                    <StackPanel>
+                        <TextBlock x:Name="AboutHeader" Text="Version &amp; updates" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock x:Name="VersionText" FontSize="13" Margin="0,0,0,4" Text="Current version: …" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="CheckUpdateButton" Content="Check for updates" Height="28" Padding="12,0"
+                                    Click="CheckUpdateButton_Click" />
+                            <TextBlock x:Name="UpdateResultText" VerticalAlignment="Center" Margin="12,0,0,0"
+                                       FontSize="12" Foreground="#888" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock x:Name="AboutNote" Margin="0,12,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Updates are notify-only: a loaded add-in can't replace its own DLL while Revit is open, so when a newer release exists the check offers the installer to download — close Revit, run it, reopen. The chat pane footer also shows an “update available” link when one is found." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <TextBlock x:Name="ClaudeCodeExeLabel" Margin="0,10,0,0" FontWeight="SemiBold"
-                           Text="Claude Code executable (for the in-pane / benchmark subscription path)" />
-                <TextBox x:Name="ClaudeCodeExeBox" Margin="0,4,0,0" Height="26" Padding="4"
-                         VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                <TextBlock x:Name="ClaudeCodeExeNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                           Text="Leave as &quot;claude&quot; if it is on PATH. Revit’s process often can’t see it — if the benchmark says “Claude Code CLI not found”, put the full path here (run &quot;where claude&quot; in a terminal; usually %APPDATA%\npm\claude.cmd)." />
-
-            </StackPanel>
-        </ScrollViewer>
+        </TabControl>
     </DockPanel>
 </Window>

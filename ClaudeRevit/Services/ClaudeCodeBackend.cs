@@ -339,7 +339,11 @@ public static class ClaudeCodeBackend
             UseShellExecute = false,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
+            StandardErrorEncoding = Encoding.UTF8,
+            // CRITICAL: the prompt (with Cyrillic / any non-ASCII) is written to the CLI's stdin. Without
+            // this, .NET encodes it with the OS default (CP1251/OEM on a Russian Windows) and `claude`
+            // receives mojibake — the model literally can't read the request. UTF-8, no BOM.
+            StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         return Process.Start(psi) ?? throw new InvalidOperationException("Process.Start returned null.");
