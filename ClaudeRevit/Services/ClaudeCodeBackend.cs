@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -31,21 +32,54 @@ public static class ClaudeCodeBackend
         public int NumTurns;
         public double CostUsd;
         public long DurationMs;
+        // Diagnostics: MCP server connection status from the init event ("clauderevit=connected"),
+        // and whether the final result was flagged an error. Explains a run that launched but did
+        // nothing (e.g. MCP failed to connect → no Revit tools → no work).
+        public string? McpStatus;
+        public bool IsError;
+        public string? Subtype;
     }
+
+    // Map our internal model tag to a Claude Code `--model` alias. Returns null for "auto"/"fable"/
+    // the default subscription model — where we let the CLI pick — since the advisor-escalation that
+    // "auto" means on the API doesn't exist inside Claude Code's own loop.
+    public static string? ModelAlias(string? tag) => tag switch
+    {
+        "opus-4-8" or "opus-4-7" or "opus-4-6" => "opus",
+        "sonnet-5" or "sonnet-4-6" => "sonnet",
+        "haiku-4-5" => "haiku",
+        _ => null
+    };
 
     public static async Task<Result> RunAsync(
         string exe, string prompt, string workDir, string mcpConfigPath, string? resumeSessionId,
-        string allowedToolsGlob, Action<string> onText, Action<string> onTool, CancellationToken ct)
+        string allowedToolsGlob, Action<string> onText, Action<string> onTool, CancellationToken ct,
+        string? model = null)
     {
         var args = new List<string>
         {
             "-p",
             "--output-format", "stream-json",
             "--verbose",
-            "--include-partial-messages",
-            "--mcp-config", mcpConfigPath,
-            "--allowedTools", allowedToolsGlob
+            "--include-partial-messages"
         };
+        if (!string.IsNullOrWhiteSpace(model))
+        {
+            args.Add("--model");
+            args.Add(model!);
+        }
+        // MCP + tools are for the "drive Revit" path. The judge runs with neither (empty) — a pure
+        // text-grading call — so skip the flags; an empty allowedTools glob denies every tool.
+        if (!string.IsNullOrWhiteSpace(mcpConfigPath))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigPath);
+        }
+        if (!string.IsNullOrWhiteSpace(allowedToolsGlob))
+        {
+            args.Add("--allowedTools");
+            args.Add(allowedToolsGlob);
+        }
         if (!string.IsNullOrWhiteSpace(resumeSessionId))
         {
             args.Add("--resume");
@@ -53,30 +87,42 @@ public static class ClaudeCodeBackend
         }
 
         var result = new Result();
+
+        // Revit is a GUI process — its PATH is often narrower than the user's shell, so a bare
+        // "claude" from an npm/native install frequently isn't found. Resolve to a full path across
+        // the common install locations FIRST; that also avoids cmd.exe's localized (and, on a Russian
+        // Windows, mojibaked) "'claude' is not recognized as a command" error leaking into results.
+        var resolved = Resolve(exe);
+        if (resolved == null)
+        {
+            result.Error =
+                $"Claude Code CLI not found ('{exe}'). Install it (npm i -g @anthropic-ai/claude-code), " +
+                "run 'claude login' once, then set the full path to claude.cmd/claude.exe in Settings.";
+            return result;
+        }
+
+        var viaCmd = resolved.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                     resolved.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
+
         Process proc;
         try
         {
-            proc = Start(exe, args, workDir);
-        }
-        catch (Win32Exception)
-        {
-            // npm-installed `claude` is a .cmd shim — not directly launchable; go through cmd.exe.
-            try
+            if (viaCmd)
             {
-                var viaCmd = new List<string> { "/c", exe };
-                viaCmd.AddRange(args);
-                proc = Start("cmd.exe", viaCmd, workDir);
+                // .cmd/.bat shims aren't PE images — must run through cmd.exe. The path is real, so
+                // cmd won't print a "not recognized" error.
+                var cmdArgs = new List<string> { "/c", resolved };
+                cmdArgs.AddRange(args);
+                proc = Start("cmd.exe", cmdArgs, workDir);
             }
-            catch (Exception ex)
+            else
             {
-                result.Error = $"Can't launch Claude Code ('{exe}'). Install it and run 'claude login', " +
-                               $"or set the full path in Settings. ({ex.Message})";
-                return result;
+                proc = Start(resolved, args, workDir);
             }
         }
         catch (Exception ex)
         {
-            result.Error = $"Can't launch Claude Code ('{exe}'): {ex.Message}";
+            result.Error = $"Can't launch Claude Code ('{resolved}'): {ex.Message}";
             return result;
         }
 
@@ -112,6 +158,20 @@ public static class ClaudeCodeBackend
         return result;
     }
 
+    // A one-shot, no-tools text completion on the subscription — used for the impartial benchmark
+    // judge so grading costs nothing on the API. The bogus allowedTools glob matches no tool, so in
+    // headless (-p) mode every built-in tool is auto-denied and the model just returns text.
+    public static async Task<string> CompleteAsync(string exe, string prompt, string workDir, CancellationToken ct)
+    {
+        var res = await RunAsync(
+            exe, prompt, workDir, mcpConfigPath: "", resumeSessionId: null,
+            allowedToolsGlob: "__deny_all_tools__",
+            onText: _ => { }, onTool: _ => { }, ct);
+        if (string.IsNullOrEmpty(res.Text) && !string.IsNullOrEmpty(res.Error))
+            throw new InvalidOperationException(res.Error);
+        return res.Text;
+    }
+
     // Each stdout line is one JSON event. We pull: the session id (to resume the conversation next
     // turn), streamed assistant text deltas, tool-call names, and the final result text.
     private static void ParseLine(string line, Result result, Action<string> onText, Action<string> onTool)
@@ -128,10 +188,36 @@ public static class ClaudeCodeBackend
             var type = root.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
                 ? t.GetString() : null;
 
+            // The init event lists the MCP servers Claude Code tried to attach and whether each
+            // connected — the single most useful signal when a run launches but does no work.
+            if (type == "system" && root.TryGetProperty("mcp_servers", out var servers) &&
+                servers.ValueKind == JsonValueKind.Array)
+            {
+                // Report ONLY our own server — the user's Claude Code may have many unrelated
+                // connectors (Gmail, Drive, Booking.com…) whose statuses would otherwise flood the
+                // diagnostic line.
+                var parts = new List<string>();
+                foreach (var s in servers.EnumerateArray())
+                {
+                    var name = s.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                        ? n.GetString() ?? "" : "";
+                    if (name.IndexOf("clauderevit", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    var status = s.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
+                        ? st.GetString() : "?";
+                    parts.Add($"{name}={status}");
+                }
+                if (parts.Count > 0) result.McpStatus = string.Join(", ", parts);
+                else if (result.McpStatus == null) result.McpStatus = "clauderevit=absent";
+            }
+
             if (type == "result")
             {
                 if (root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.String)
                     result.Text = res.GetString() ?? result.Text;
+                if (root.TryGetProperty("is_error", out var ie) && ie.ValueKind == JsonValueKind.True)
+                    result.IsError = true;
+                if (root.TryGetProperty("subtype", out var sub) && sub.ValueKind == JsonValueKind.String)
+                    result.Subtype = sub.GetString();
                 if (root.TryGetProperty("num_turns", out var nt) && nt.TryGetInt32(out var ntv)) result.NumTurns = ntv;
                 if (root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDouble(out var cv)) result.CostUsd = cv;
                 if (root.TryGetProperty("duration_ms", out var dm) && dm.TryGetInt64(out var dmv)) result.DurationMs = dmv;
@@ -168,6 +254,79 @@ public static class ClaudeCodeBackend
         catch { /* non-JSON or partial line — ignore */ }
     }
 
+    // Find the `claude` executable. Honours an explicit path, then PATH (+ Windows extensions),
+    // then the well-known npm-global and native-install locations that Revit's PATH usually misses.
+    // Returns a full path, or null if nothing exists.
+    private static string? Resolve(string exe)
+    {
+        if (string.IsNullOrWhiteSpace(exe)) exe = "claude";
+
+        // Explicit path (has a directory separator) — trust it if it exists.
+        if (exe.IndexOf(Path.DirectorySeparatorChar) >= 0 || exe.IndexOf('/') >= 0)
+            return File.Exists(exe) ? exe : null;
+
+        var exts = new[] { "", ".cmd", ".exe", ".bat", ".ps1" };
+
+        // Search each PATH entry.
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in pathVar.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            foreach (var ext in exts)
+            {
+                try { var p = Path.Combine(dir, exe + ext); if (File.Exists(p)) return p; }
+                catch { /* bad PATH entry */ }
+            }
+        }
+
+        // Common install locations the GUI PATH tends to omit.
+        string? Env(string v) => Environment.GetEnvironmentVariable(v);
+        var candidates = new List<string?>
+        {
+            // npm global (default prefix)
+            Env("APPDATA") is { } ad ? Path.Combine(ad, "npm", exe + ".cmd") : null,
+            Env("APPDATA") is { } ad2 ? Path.Combine(ad2, "npm", exe + ".ps1") : null,
+            // native installer (irm https://claude.ai/install.ps1 | iex) → %USERPROFILE%\.local\bin\claude.exe
+            Env("USERPROFILE") is { } upn ? Path.Combine(upn, ".local", "bin", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up3 ? Path.Combine(up3, ".local", "bin", exe) : null,
+            // other local installs
+            Env("LOCALAPPDATA") is { } la ? Path.Combine(la, "Programs", "claude", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up ? Path.Combine(up, ".claude", "local", exe + ".exe") : null,
+            Env("USERPROFILE") is { } up2 ? Path.Combine(up2, ".claude", "local", exe) : null,
+            // unix-y (in case Revit ever runs elsewhere)
+            "/usr/local/bin/" + exe,
+            "/usr/bin/" + exe,
+        };
+        foreach (var c in candidates)
+        {
+            if (c != null) { try { if (File.Exists(c)) return c; } catch { } }
+        }
+
+        // Claude Desktop (the MSIX Store app) BUNDLES the Claude Code CLI under its package dir at
+        //   %LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code\<version>\claude.exe
+        // Users who only have the desktop app still have a working headless claude.exe here — it's just
+        // not on PATH. Glob for it and take the newest version folder.
+        try
+        {
+            var packages = Env("LOCALAPPDATA") is { } lad ? Path.Combine(lad, "Packages") : null;
+            if (packages != null && Directory.Exists(packages))
+            {
+                var best = Directory.EnumerateDirectories(packages, "Claude_*")
+                    .Select(pkg => Path.Combine(pkg, "LocalCache", "Roaming", "Claude", "claude-code"))
+                    .Where(Directory.Exists)
+                    .SelectMany(cc => Directory.EnumerateDirectories(cc))
+                    .Select(ver => Path.Combine(ver, "claude.exe"))
+                    .Where(File.Exists)
+                    .OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase) // newest version last-sorts first
+                    .FirstOrDefault();
+                if (best != null) return best;
+            }
+        }
+        catch { /* enumeration raced or access denied */ }
+
+        return null;
+    }
+
     private static Process Start(string file, IEnumerable<string> args, string workDir)
     {
         var psi = new ProcessStartInfo
@@ -179,7 +338,8 @@ public static class ClaudeCodeBackend
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         return Process.Start(psi) ?? throw new InvalidOperationException("Process.Start returned null.");

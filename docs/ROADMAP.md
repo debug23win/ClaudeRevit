@@ -41,12 +41,34 @@ the user doesn't have to think about it. Premature now (we have dozens); impleme
   (Sonnet 5 / Haiku 4.5) and advisor (Opus 4.8 / Fable 5) are selectable in Settings. Per-task
   diagnostics (time/tokens/rounds) added alongside. Benchmark mode (v1.71) compares models on
   graded tasks with an impartial Opus judge.
-- ~~**Subscription-backed use.**~~ SHIPPED (v1.83) as the experimental MCP server. Direct
-  subscription OAuth in a third-party API call is banned by Anthropic and blocked server-side, so
-  the in-Revit pane stays on a pay-per-token API key; the MCP server lets Claude Code / Desktop
-  (subscription-authed) drive Revit instead, putting cost on the flat subscription. Tradeoff: the
-  client runs the loop, so our token machinery + pane don't apply in that mode. Needs field
-  validation (HttpListener URL-ACL on Windows; client handshake).
+- ~~**Subscription-backed use.**~~ SHIPPED and field-validated (v1.83 → v1.96). The MCP server lets
+  Claude Code / Desktop (subscription-authed) drive Revit, putting cost on the flat subscription
+  (direct subscription OAuth in a third-party API call is banned by Anthropic). Now driveable from
+  the in-Revit pane too (pick **Subscription** in the model dropdown → the local `claude` CLI runs
+  headless and streams into the pane), with model selection via `--model`, and the benchmark can run
+  both the tested model and the judge on the subscription. **Parity work done (v1.96):** MCP
+  `initialize` instructions carry the saved memory + proven-scripts digest; the pane prepends the
+  current document + selection; the CLI session id persists across Revit restarts; subscription usage
+  is shown in per-task diagnostics. Remaining gap vs the API path (inherent): the client runs its own
+  loop, so the Auto advisor / haiku→opus escalation and our token machinery don't apply there.
+  Field-validated on a real machine: benchmark passes B0–B6, L3, L4, plus the domain tasks R1 (rebar,
+  ✓90) and S1 (steel + connection, ✓95) on subscription Opus.
+
+## From the revit-mcp comparison (borrow)
+
+Compared our code to the `revit-mcp` project (Node/TS MCP server + separate C# plugin, socket bridge,
+26 tools; archived Feb 2026). We win on depth (180+ native tools, rebar/steel/family-editor),
+single-component design (in-process HTTP MCP server, no Node bridge), the learning layer, caching,
+and the benchmark. Two things they do better and worth borrowing:
+
+- **Dynamic tool loading (PRIMARY borrow).** revit-mcp loads command DLLs at runtime without
+  recompiling the core; we require a `.cs` + `App.cs` registration + rebuild. This is the same
+  mechanism the "lazy custom-tool library" section above needs — a plugin/DLL drop-in path so
+  third-party (and self-learned) tools join the catalogue without a core rebuild. Do this together
+  with the lazy-compile + find_tools work.
+- **stdio MCP adapter.** Our server is Streamable HTTP (Claude Code connects natively; Claude Desktop
+  needs the `mcp-remote` bridge). A tiny stdio shim (or a stdio transport option on the server) would
+  let Claude Desktop attach in one step, matching revit-mcp's out-of-the-box Desktop experience.
 
 - **Auto-update after Revit closes.** A background updater launched on shutdown: check GitHub
   releases, silently install a newer version, and pull the latest knowledge base (tools + patterns).

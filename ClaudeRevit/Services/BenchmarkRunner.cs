@@ -46,6 +46,8 @@ public static class BenchmarkRunner
         bool resetBetweenTasks,
         int maxRoundsPerTask,
         int maxSecondsPerTask,
+        bool judgeViaClaudeCode,
+        bool runViaSubscription,
         Action<string> onStatus,
         Action<BenchmarkResult> onResult,
         CancellationToken ct)
@@ -55,15 +57,24 @@ public static class BenchmarkRunner
         ToolDispatcher.ForceSuppress = true;
 
         // "claudecode" tests the MCP path end to end: the local `claude` CLI (on the subscription)
-        // drives the Revit tools through our MCP server. One impartial judge chat for the whole run.
-        var isClaudeCode = modelTag == "claudecode";
+        // drives the Revit tools through our MCP server. runViaSubscription does the same for any
+        // chosen model — the picked model is passed to the CLI via --model.
+        var isClaudeCode = modelTag == "claudecode" || runViaSubscription;
+        // The picked model → Claude Code --model alias (null = the CLI's default subscription model).
+        var ccModelAlias = modelTag == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(modelTag);
+        // The judge can run on the subscription too (same claude.exe, no tools) so grading costs
+        // nothing on the API — needed since the account may sit at $0. It still grades from the
+        // objective probe only, so it stays impartial.
         string ccConfig = "", ccWorkDir = "", ccExe = "";
+        if (isClaudeCode || judgeViaClaudeCode)
+        {
+            ccExe = SettingsStore.ClaudeCodeExe;
+            ccWorkDir = McpServer.ClientWorkDir();
+        }
         if (isClaudeCode)
         {
             McpServer.Start();
             ccConfig = McpServer.WriteClientConfig();
-            ccWorkDir = McpServer.ClientWorkDir();
-            ccExe = SettingsStore.ClaudeCodeExe;
         }
         var judgeChat = new ChatService(ephemeral: true);
 
@@ -85,6 +96,7 @@ public static class BenchmarkRunner
             // The model runs the task ONCE and recovers from any errors on its own — no judge hints.
             string finalText = "";
             string? error = null;
+            string? ccDiag = null;
             var budgetStopped = false;
             long inTok = 0, outTok = 0;
             var rounds = 0;
@@ -105,11 +117,19 @@ public static class BenchmarkRunner
                             "mcp__clauderevit__*",
                             onText: t => sb.Append(t),
                             onTool: name => onStatus($"{task.Id} · {task.Title} · {name}"),
-                            taskCts.Token);
+                            taskCts.Token, model: ccModelAlias);
                         finalText = !string.IsNullOrEmpty(res.Text) ? res.Text : sb.ToString();
                         error = res.Error;
                         inTok = res.InputTokens; outTok = res.OutputTokens; rounds = res.NumTurns;
-                        modelUsed = "claude-code";
+                        modelUsed = ccModelAlias != null ? $"claude-code:{ccModelAlias}" : "claude-code";
+                        // Surface WHY a run did nothing: MCP connection status + result flag. A launch
+                        // with no tool calls and no tokens usually means MCP never connected.
+                        ccDiag = $"MCP: {res.McpStatus ?? "no init event"}" +
+                                 (res.IsError ? "; result=ERROR" : res.Subtype is { } st ? $"; result={st}" : "");
+                        if ((res.McpStatus == null ||
+                             res.McpStatus.IndexOf("connect", StringComparison.OrdinalIgnoreCase) < 0) &&
+                            outTok == 0)
+                            ccDiag += " — no Revit tools reached, nothing built";
                     }
                     catch (OperationCanceledException)
                     {
@@ -152,9 +172,12 @@ public static class BenchmarkRunner
             onStatus($"{task.Id} · {task.Title} · grading…");
             var verdict = error != null
                 ? new Verdict(false, 0, "Run error: " + Truncate(error, 200), true)
-                : await JudgeAsync(judgeChat, judgeModel, task, before, after, finalText, ct);
+                : await JudgeAsync(judgeChat, judgeModel, task, before, after, finalText,
+                                   judgeViaClaudeCode, ccExe, ccWorkDir, ct);
             if (budgetStopped)
                 verdict = verdict with { Reason = "[stopped — task budget hit] " + verdict.Reason };
+            if (ccDiag != null)
+                verdict = verdict with { Reason = "[" + ccDiag + "] " + verdict.Reason };
 
             if (resetBetweenTasks)
                 await ResetAsync(baselineIds, ct);
@@ -208,7 +231,8 @@ public static class BenchmarkRunner
 
     private static async Task<Verdict> JudgeAsync(
         ChatService chat, string judgeModel, BenchmarkTask task,
-        string before, string after, string finalText, CancellationToken ct)
+        string before, string after, string finalText,
+        bool viaClaudeCode, string ccExe, string ccWorkDir, CancellationToken ct)
     {
         const string sys =
             "You are an impartial QA grader for a Revit modelling agent. Grade ONLY from the objective " +
@@ -226,7 +250,11 @@ public static class BenchmarkRunner
             $"AGENT'S CLAIMED RESULT (unverified):\n{Truncate(finalText, 1000)}\n\nGrade now.";
         try
         {
-            var raw = await chat.RawCompleteAsync(judgeModel, sys, user, ct);
+            // On the subscription (no API cost) the CLI has no system-prompt flag in the same shape,
+            // so fold the grader instructions into the prompt; ParseVerdict tolerates surrounding prose.
+            var raw = viaClaudeCode
+                ? await ClaudeCodeBackend.CompleteAsync(ccExe, sys + "\n\n" + user, ccWorkDir, ct)
+                : await chat.RawCompleteAsync(judgeModel, sys, user, ct);
             return ParseVerdict(raw);
         }
         catch (Exception ex)

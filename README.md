@@ -2,15 +2,21 @@
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit — a dockable chat pane with **153 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+Claude AI in Autodesk Revit — a dockable chat pane with **180+ tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+
+Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscription** (via a built-in MCP server + the Claude Code CLI — zero API cost), or on any **OpenAI-compatible** provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama…).
 
 ---
 
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **153 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **180+ tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: DeepSeek, Google Gemini, ChatGPT/OpenAI, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
+- **Auto (cost-optimized) mode** — the default: a cheap model (Sonnet 5) runs every turn and consults a stronger advisor (Opus 4.8, or Fable 5) mid-turn *only when it needs a plan*, via Anthropic's advisor tool. The cheap model's prompt cache stays warm all session; the advisor is billed only for the short consult. A legacy whole-turn model-switch is available in Settings.
+- **Subscription mode (MCP / Claude Code)** — drive Revit on your **Claude Pro/Max subscription** instead of the pay-per-token API. The plugin runs a local **MCP server** (127.0.0.1, token-protected) exposing the Revit tools; the **Claude Code CLI** runs headless in the background and drives them. Tick **Subscription** in the model dropdown (or connect the MCP server to the Claude Desktop app with the ready-made config in Settings). Zero API cost.
+- **Model benchmark (📊)** — run a graded task set (basics, composite, rebar, steel) on any model and compare pass rate, rounds, tokens and time. An independent judge grades strictly from an objective before/after probe (never the model's own claims); both the tested model and the judge can run on the subscription for a zero-API-cost benchmark.
+- **Lazy-loaded toolset** — only a core set of tools rides in each request; specialised groups (rebar, MEP, schedules, sheets, annotation, sections, family editing, export) are revealed on demand via `find_tools`, cutting the per-request tool-schema cost by ~⅔ (a big saving on non-caching alt models). `run_batch` repeats one tool over many items in a single transaction.
 - **Single-undo per prompt** — Ctrl+Z reverts everything Claude did in one turn
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
@@ -54,6 +60,34 @@ iwr https://raw.githubusercontent.com/debug23win/ClaudeRevit/main/install.ps1 | 
 Either way: launch Revit, open any project, look for the **Claude** tab in the ribbon. Click **Chat** → the pane opens on the right. First time? Click the **⚙** icon in the pane and paste your API key (or configure an alternative provider).
 
 To update later, re-run the installer or the one-liner — both pick up the latest release.
+
+---
+
+## Running on your Claude subscription (MCP)
+
+Instead of paying per token on the Anthropic API, you can drive Revit with your **Claude
+Pro/Max subscription**. The plugin runs a local **MCP server** that exposes the Revit tools,
+and the **Claude Code CLI** connects to it and does the work — the cost lands on your
+subscription, not the API.
+
+1. **Install the Claude Code CLI** (a terminal program, separate from the Claude Desktop app).
+   In PowerShell:
+   ```powershell
+   irm https://claude.ai/install.ps1 | iex
+   ```
+   Then run `claude` once and log in with your subscription. (A VPN is required if `claude.ai`
+   is blocked in your region — for install *and* for every run.)
+2. **Enable the MCP server** in Settings → MCP (set a port if you like; the plugin locates
+   `claude` automatically, or enter its full path).
+3. **In the chat**, tick **Subscription** in the model dropdown — the selected model
+   (Opus / Sonnet / Haiku) then runs on the subscription via the CLI. Or pick
+   **Claude Code (subscription)** to use the CLI's default model.
+
+You can also point the **Claude Desktop app** (or any MCP client) at the server — a
+ready-to-paste config is shown in Settings → MCP.
+
+> Note: the Auto advisor / haiku→opus escalation is an API-loop feature and does **not** apply
+> in subscription mode — Claude Code runs its own agent loop with the one chosen model.
 
 ---
 
@@ -124,7 +158,7 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **153 tools** to Claude across these categories:
+The plugin exposes **180+ tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls

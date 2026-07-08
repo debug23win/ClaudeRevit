@@ -56,6 +56,7 @@ public partial class SettingsWindow : Window
         TaskDiagBox.IsChecked = SettingsStore.ShowTaskDiagnostics;
         McpBox.IsChecked = SettingsStore.McpEnabled;
         McpPortBox.Text = SettingsStore.McpPort.ToString();
+        ClaudeCodeExeBox.Text = SettingsStore.ClaudeCodeExe;
         UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
@@ -206,6 +207,12 @@ public partial class SettingsWindow : Window
             "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings.",
             "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code.");
         McpPortLabel.Text = L("Port:", "Порт:");
+        ClaudeCodeExeLabel.Text = L(
+            "Claude Code executable (for the in-pane / benchmark subscription path)",
+            "Путь к Claude Code (для панели / бенчмарка по подписке)");
+        ClaudeCodeExeNote.Text = L(
+            "Leave as \"claude\" if it is on PATH. Revit’s process often can’t see it — if the benchmark says “Claude Code CLI not found”, put the full path here (run \"where claude\" in a terminal; usually %APPDATA%\\npm\\claude.cmd).",
+            "Оставьте \"claude\", если он в PATH. Процесс Revit часто его не видит — если бенчмарк пишет «Claude Code CLI not found», впишите полный путь (в терминале выполните \"where claude\"; обычно %APPDATA%\\npm\\claude.cmd).");
 
         ToolGroupsHeader.Text = L("Active tool groups (fewer = fewer tokens per request)", "Активные группы инструментов (меньше = меньше токенов на запрос)");
         ToolGroupsNote.Text = L(
@@ -365,6 +372,7 @@ public partial class SettingsWindow : Window
         if (int.TryParse(McpPortBox.Text, out var mcpPort) && mcpPort is > 0 and < 65536)
             SettingsStore.McpPort = mcpPort;
         SettingsStore.McpEnabled = McpBox.IsChecked == true;
+        SettingsStore.ClaudeCodeExe = ClaudeCodeExeBox.Text?.Trim() ?? "";
         try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Log.Error("MCP apply failed", ex); }
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;

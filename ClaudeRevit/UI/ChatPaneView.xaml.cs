@@ -286,11 +286,20 @@ public partial class ChatPaneView : UserControl
         }
     }
 
+    // "Subscription" toggle: route the selected model through the Claude Code CLI (subscription)
+    // instead of the API. Applies in both chat and — via its own checkbox — the benchmark.
+    private void SubscriptionBox_Changed(object sender, RoutedEventArgs e)
+    {
+        _service.SubscriptionMode = SubscriptionBox.IsChecked == true;
+        UpdateAssistantLabel();
+    }
+
     // Keep the assistant name shown in the chat in sync with the selected model, so an
     // alt-provider reply (Grok, Gemini, a local model…) isn't labelled "Claude".
     private void UpdateAssistantLabel() =>
-        ChatMessage.AssistantLabel = _selectedModel == "alt"
-            ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
+        ChatMessage.AssistantLabel =
+            (SubscriptionBox?.IsChecked == true || _selectedModel == "claudecode") ? "Claude Code"
+            : _selectedModel == "alt" ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
             : "Claude";
 
     private async Task SendAsync()
@@ -315,6 +324,7 @@ public partial class ChatPaneView : UserControl
 
         Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 
+        _service.SubscriptionMode = SubscriptionBox.IsChecked == true;
         _cts = new CancellationTokenSource();
         try
         {
