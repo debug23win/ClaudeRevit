@@ -209,6 +209,23 @@ public static class McpServer
         }
     }
 
+    // The static driving rules PLUS the user's saved memory (project standards) and the proven-script
+    // digest — so a subscription/MCP session gets the same accumulated knowledge the API path injects
+    // into its system prompt. Instructions are sent once at initialize, so memory saved mid-session
+    // appears on the next reconnect.
+    private static string BuildInstructions()
+    {
+        var sb = new StringBuilder(Instructions);
+        var memory = MemoryStore.Load();
+        if (!string.IsNullOrWhiteSpace(memory))
+            sb.Append("\n\nSAVED MEMORY — user preferences and project standards; apply them:\n")
+              .Append(memory.Trim());
+        var experience = ExperienceStore.Digest();
+        if (!string.IsNullOrWhiteSpace(experience))
+            sb.Append("\n\n").Append(experience!.Trim());
+        return sb.ToString();
+    }
+
     private static async Task<(JsonNode? value, JsonObject? error)> Dispatch(string? method, JsonNode? prms, CancellationToken ct)
     {
         switch (method)
@@ -220,8 +237,10 @@ public static class McpServer
                     ["protocolVersion"] = clientVer ?? "2025-06-18",
                     ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
                     ["serverInfo"] = new JsonObject { ["name"] = "ClaudeRevit", ["version"] = "1.0" },
-                    // Surfaced to the model by the client — the hard-won rules for driving Revit well.
-                    ["instructions"] = Instructions
+                    // Surfaced to the model by the client — the hard-won rules for driving Revit well,
+                    // plus the user's saved standards and proven-script digest (parity with the API path,
+                    // whose system prompt carries the same). Built at session start.
+                    ["instructions"] = BuildInstructions()
                 }, null);
 
             case "ping":

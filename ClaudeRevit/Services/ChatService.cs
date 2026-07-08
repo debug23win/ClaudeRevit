@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -181,7 +182,14 @@ public class ChatService
     public ChatService(bool ephemeral)
     {
         _ephemeral = ephemeral;
-        if (!ephemeral) _history.AddRange(HistoryStore.LoadApiHistory());
+        if (!ephemeral)
+        {
+            _history.AddRange(HistoryStore.LoadApiHistory());
+            // Restore the Claude Code (subscription) session so the conversation continues after a
+            // Revit restart, matching how the API history persists.
+            try { if (File.Exists(ClaudeCodeSessionFile)) _claudeCodeSessionId = File.ReadAllText(ClaudeCodeSessionFile).Trim(); }
+            catch { /* non-fatal */ }
+        }
 
         // A restored long history must be eligible for compaction on the very FIRST send
         // after a restart — otherwise an oversized persisted conversation is replayed
@@ -215,6 +223,28 @@ public class ChatService
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
     public bool SubscriptionMode;
 
+    private static string ClaudeCodeSessionFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClaudeRevit", "claudecode-session.txt");
+
+    private void PersistClaudeCodeSession()
+    {
+        if (_ephemeral) return;
+        try
+        {
+            if (string.IsNullOrEmpty(_claudeCodeSessionId))
+            {
+                if (File.Exists(ClaudeCodeSessionFile)) File.Delete(ClaudeCodeSessionFile);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(ClaudeCodeSessionFile)!);
+                File.WriteAllText(ClaudeCodeSessionFile, _claudeCodeSessionId);
+            }
+        }
+        catch { /* non-fatal */ }
+    }
+
     public void RecreateClient() => _client = null;
 
     public void ClearHistory()
@@ -229,6 +259,7 @@ public class ChatService
         _promoteNudged = false;
         _revealedCategories.Clear();
         _claudeCodeSessionId = null;
+        PersistClaudeCodeSession();
         if (!_ephemeral) HistoryStore.Clear();
     }
 
@@ -292,6 +323,26 @@ public class ChatService
         var workDir = McpServer.ClientWorkDir();
         var exe = SettingsStore.ClaudeCodeExe;
 
+        // Parity with the API path: give Claude Code the current document + selection so "this" /
+        // "the selected walls" resolve. The MCP session is long-lived, so we prepend this fresh each
+        // message (instructions, which carry memory/standards, are sent once at connect).
+        var contextedPrompt = prompt;
+        try
+        {
+            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+            var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
+            var sel = SelectionService.Current;
+            if (sel.Ids.Count > 0)
+            {
+                var idList = sel.Ids.Count > 30
+                    ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
+                    : string.Join(", ", sel.Ids);
+                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}. Element IDs: [{idList}]";
+            }
+            contextedPrompt = ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
+        }
+        catch { /* context is best-effort — fall back to the bare prompt */ }
+
         ChatMessage? bubble = null;
         void Append(string piece)
         {
@@ -305,13 +356,14 @@ public class ChatService
 
         var toolCount = 0;
         var res = await ClaudeCodeBackend.RunAsync(
-            exe, prompt, workDir, config, resumeSessionId: _claudeCodeSessionId,
+            exe, contextedPrompt, workDir, config, resumeSessionId: _claudeCodeSessionId,
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
             ct, model: modelAlias);
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
+        PersistClaudeCodeSession();
 
         if (!string.IsNullOrEmpty(res.Error))
         {
@@ -323,8 +375,13 @@ public class ChatService
             Append(res.Text);
 
         if (SettingsStore.ShowTaskDiagnostics && bubble != null)
-            Append($"\n\n— claude-code · {res.NumTurns} turns · {res.DurationMs / 1000.0:0.0}s" +
+        {
+            var tok = res.InputTokens + res.OutputTokens;
+            Append($"\n\n— claude-code (subscription — no API charge) · {res.NumTurns} turns · " +
+                   $"{res.DurationMs / 1000.0:0.0}s" +
+                   (tok > 0 ? $" · {tok:N0} tokens" : "") +
                    (res.McpStatus != null ? $" · MCP {res.McpStatus}" : ""));
+        }
     }
 
     public async Task SendAsync(
