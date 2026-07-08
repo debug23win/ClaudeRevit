@@ -196,8 +196,13 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" x:Name="StatusText"
-                       Foreground="#888" FontSize="11" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock x:Name="StatusText" Foreground="#888" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock x:Name="UpdateNotice" FontSize="11" Foreground="#1565C0" Margin="8,0,0,0"
+                           VerticalAlignment="Center" Cursor="Hand" Visibility="Collapsed"
+                           TextDecorations="Underline" MouseLeftButtonUp="UpdateNotice_Click"
+                           ToolTip="A newer version is on GitHub — click to download the installer." />
+            </StackPanel>
             <TextBlock Grid.Column="1" x:Name="UsageText"
                        Foreground="#888" FontSize="11"
                        FontFamily="Consolas" />

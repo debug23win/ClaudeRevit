@@ -50,7 +50,10 @@ jobs:
             Write-Host "=== Building for Revit $rv ==="
             # Clean between versions: 2025/2026 (net8) and 2027 (net10) share bin/obj.
             Remove-Item ClaudeRevit\bin, ClaudeRevit\obj -Recurse -Force -ErrorAction SilentlyContinue
-            dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:RevitVersion=$rv -p:SkipDeploy=true
+            # Stamp the numeric version onto the assembly so the running add-in can report it and
+            # compare against the latest GitHub release (the update check). "v1.97" -> "1.97".
+            $numver = $ver.TrimStart('v')
+            dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:RevitVersion=$rv -p:SkipDeploy=true -p:Version=$numver
             if ($LASTEXITCODE -ne 0) { throw "Build failed for Revit $rv" }
             $src = "ClaudeRevit\bin\Release\release"
             if (-not (Test-Path $src)) { throw "Staging folder not found for Revit $rv at $src" }
