@@ -193,16 +193,21 @@ public static class ClaudeCodeBackend
             if (type == "system" && root.TryGetProperty("mcp_servers", out var servers) &&
                 servers.ValueKind == JsonValueKind.Array)
             {
+                // Report ONLY our own server — the user's Claude Code may have many unrelated
+                // connectors (Gmail, Drive, Booking.com…) whose statuses would otherwise flood the
+                // diagnostic line.
                 var parts = new List<string>();
                 foreach (var s in servers.EnumerateArray())
                 {
                     var name = s.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
-                        ? n.GetString() : "?";
+                        ? n.GetString() ?? "" : "";
+                    if (name.IndexOf("clauderevit", StringComparison.OrdinalIgnoreCase) < 0) continue;
                     var status = s.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
                         ? st.GetString() : "?";
                     parts.Add($"{name}={status}");
                 }
                 if (parts.Count > 0) result.McpStatus = string.Join(", ", parts);
+                else if (result.McpStatus == null) result.McpStatus = "clauderevit=absent";
             }
 
             if (type == "result")

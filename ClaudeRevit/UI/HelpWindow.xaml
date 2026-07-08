@@ -62,6 +62,38 @@
                             • <Bold>Локальные модели</Bold> — упираются в вашу видеокарту и медленнее; для стабильной работы с большим числом инструментов подходят хуже всего.
                         </TextBlock>
 
+                        <TextBlock FontWeight="SemiBold" Text="Режим подписки (MCP / Claude Code)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            <Bold>Зачем:</Bold> гонять Revit не через потокенный API, а через вашу подписку Claude
+                            Pro/Max — тогда работа <Bold>ничего не стоит на API</Bold>. Плагин поднимает локальный
+                            MCP-сервер (только 127.0.0.1, с токеном), а Claude Code запускается в фоне и рулит
+                            инструментами Revit через него.&#10;&#10;
+                            <Bold>Как включить:</Bold>&#10;
+                            1. Установите Claude Code CLI: в PowerShell выполните <Bold>irm https://claude.ai/install.ps1 | iex</Bold>, затем запустите <Bold>claude</Bold> и войдите своей подпиской (нужен VPN, если claude.ai недоступен в вашем регионе). Это отдельная консольная программа — приложение Claude Desktop ею не является.&#10;
+                            2. В настройках включите «MCP-сервер» (можно задать порт; путь к claude плагин находит сам, иначе впишите его вручную).&#10;
+                            3. В списке моделей над чатом поставьте галочку <Bold>Subscription</Bold> — выбранная модель (Opus / Sonnet / Haiku) пойдёт через подписку. Либо выберите пункт «Claude Code (subscription)» — это модель CLI по умолчанию.&#10;&#10;
+                            <Bold>Важно:</Bold> «умная» связка Auto (Sonnet + advisor Opus, авто-переключение haiku→opus) работает
+                            только на API — это наш цикл. В режиме подписки Claude Code ведёт <Bold>свой</Bold> цикл одной
+                            выбранной моделью, advisor туда не переносится (Auto = модель CLI по умолчанию).&#10;
+                            Диалог продолжается между сообщениями; кнопка Clear сбрасывает сессию. VPN нужен и на прогон,
+                            а не только на установку. Наш MCP-сервер можно также подключить к приложению Claude Desktop —
+                            готовый конфиг лежит в настройках.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Бенчмарк моделей (кнопка 📊)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            Прогоняет набор одинаковых задач на выбранной модели и сравнивает их. Оценивает
+                            <Bold>независимый судья</Bold> строго по объективному «зонду» (probe) — счётчикам до/после
+                            (стены с длинами, полы с площадями, уровни, колонны, арматура, узлы, DirectShape…), а не по
+                            словам модели. Модель исправляется сама, судья только оценивает (без подсказок).&#10;
+                            • Наборы задач: Basics (простые), Composite (составные), арматура/сталь, «hard».&#10;
+                            • Лимиты по раундам и времени, сброс модели между задачами (честный старт).&#10;
+                            • «Run on subscription» — гонять тестируемую модель через подписку; «Judge on subscription» — и судью тоже (тогда бенчмарк <Bold>ничего не стоит на API</Bold>).&#10;
+                            • Результаты пишутся в benchmark_results.jsonl (в %AppData%\ClaudeRevit).&#10;
+                            Отдельно: галочка «Показывать диагностику по задаче» в настройках выводит после каждого
+                            ответа строку — модель, раунды, токены, время — чтобы сравнивать эффективность.
+                        </TextBlock>
+
                         <TextBlock FontWeight="SemiBold" Text="Эффективные приёмы" Margin="0,12,0,4" />
                         <TextBlock TextWrapping="Wrap">
                             • Начинайте сессию с фразы «изучи проект» — ассистент вызовет get_project_catalog и за один запрос узнает все уровни, семейства, типы, шаблоны видов и арматурный каталог.&#10;
@@ -145,6 +177,38 @@
                             • <Bold>Gemini free</Bold> — a hard daily quota; on a complex task one or two requests may be all you get.&#10;
                             • <Bold>Grok</Bold> — needs credits in the same team as the key; grok-build-0.1 is incompatible (Responses API).&#10;
                             • <Bold>Local models</Bold> — limited by your GPU and slower; the weakest fit for reliable work across many tools.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Subscription mode (MCP / Claude Code)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            <Bold>Why:</Bold> drive Revit through your Claude Pro/Max subscription instead of the
+                            pay-per-token API — so the work <Bold>costs nothing on the API</Bold>. The plugin runs a
+                            local MCP server (127.0.0.1 only, token-protected) and the Claude Code CLI runs in the
+                            background, driving the Revit tools through it.&#10;&#10;
+                            <Bold>How to enable:</Bold>&#10;
+                            1. Install the Claude Code CLI: in PowerShell run <Bold>irm https://claude.ai/install.ps1 | iex</Bold>, then run <Bold>claude</Bold> and log in with your subscription (you need a VPN if claude.ai is blocked in your region). This is a separate terminal program — the Claude Desktop app is not it.&#10;
+                            2. In Settings enable “MCP server” (you can set the port; the plugin finds claude automatically, otherwise enter its full path).&#10;
+                            3. In the model dropdown above the chat tick <Bold>Subscription</Bold> — the selected model (Opus / Sonnet / Haiku) then runs on the subscription. Or pick “Claude Code (subscription)” to use the CLI's default model.&#10;&#10;
+                            <Bold>Note:</Bold> the smart Auto path (Sonnet + Opus advisor, haiku→opus escalation) is an API-loop
+                            feature only. In subscription mode Claude Code runs its <Bold>own</Bold> loop with the one chosen
+                            model — the advisor does not carry over (Auto = the CLI's default model).&#10;
+                            The conversation continues between messages; Clear resets the session. The VPN is needed for
+                            runs too, not just install. You can also connect our MCP server to the Claude Desktop app —
+                            a ready-to-paste config is in Settings.
+                        </TextBlock>
+
+                        <TextBlock FontWeight="SemiBold" Text="Model benchmark (the 📊 button)" Margin="0,12,0,4" />
+                        <TextBlock TextWrapping="Wrap">
+                            Runs a set of identical tasks on the chosen model and compares them. An
+                            <Bold>independent judge</Bold> grades strictly from the objective probe — before/after counts
+                            (walls with lengths, floors with areas, levels, columns, rebar, connections, DirectShapes…),
+                            not the model's own words. The model self-corrects; the judge only grades (no hints).&#10;
+                            • Task sets: Basics, Composite, rebar/steel, “hard”.&#10;
+                            • Round and time budgets, model reset between tasks (a fair start).&#10;
+                            • “Run on subscription” runs the tested model on the subscription; “Judge on subscription” does the same for the judge (so the benchmark <Bold>costs nothing on the API</Bold>).&#10;
+                            • Results are appended to benchmark_results.jsonl (in %AppData%\ClaudeRevit).&#10;
+                            Separately: the “Show per-task diagnostics” setting prints a line after each answer — model,
+                            rounds, tokens, time — to compare efficiency.
                         </TextBlock>
 
                         <TextBlock FontWeight="SemiBold" Text="Effective habits" Margin="0,12,0,4" />
