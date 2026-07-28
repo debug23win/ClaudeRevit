@@ -32,6 +32,12 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetRebarShapeSketch());
             ToolRegistry.Instance.Register(new DiagnoseModel());
             ToolRegistry.Instance.Register(new ExportElementCoordinates());
+            ToolRegistry.Instance.Register(new CleanModel());
+            ToolRegistry.Instance.Register(new AssignWorksets());
+            ToolRegistry.Instance.Register(new BatchExportSheets());
+            ToolRegistry.Instance.Register(new GenerateSheetSet());
+            ToolRegistry.Instance.Register(new CreateAssembly());
+            ToolRegistry.Instance.Register(new QueryLinkedElements());
             ToolRegistry.Instance.Register(new CreateWall());
             ToolRegistry.Instance.Register(new CreateWallType());
             ToolRegistry.Instance.Register(new CreateFloor());
