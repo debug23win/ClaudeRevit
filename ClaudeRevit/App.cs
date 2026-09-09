@@ -207,6 +207,7 @@ public class App : IExternalApplication
             // scripts and proven community snippets; registered after C# on purpose.
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolRegistry.Instance.Register(new RunDynamoPython());
+            ToolRegistry.Instance.Register(new RunPython());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
