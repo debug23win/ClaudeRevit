@@ -2,7 +2,7 @@
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit — a dockable chat pane with **180+ tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+Claude AI in Autodesk Revit — a dockable chat pane with **185+ tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
 
 Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscription** (via a built-in MCP server + the Claude Code CLI — zero API cost), or on any **OpenAI-compatible** provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama…).
 
@@ -11,8 +11,8 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **180+ tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
-- **Multiple AI providers** — Claude (Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: DeepSeek, Google Gemini, ChatGPT/OpenAI, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
+- **185+ tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **Auto (cost-optimized) mode** — the default: a cheap model (Sonnet 5) runs every turn and consults a stronger advisor (Opus 4.8, or Fable 5) mid-turn *only when it needs a plan*, via Anthropic's advisor tool. The cheap model's prompt cache stays warm all session; the advisor is billed only for the short consult. A legacy whole-turn model-switch is available in Settings.
 - **Subscription mode (MCP / Claude Code)** — drive Revit on your **Claude Pro/Max subscription** instead of the pay-per-token API. The plugin runs a local **MCP server** (127.0.0.1, token-protected) exposing the Revit tools; the **Claude Code CLI** runs headless in the background and drives them. Tick **Subscription** in the model dropdown (or connect the MCP server to the Claude Desktop app with the ready-made config in Settings). Zero API cost.
 - **Model benchmark (📊)** — run a graded task set (basics, composite, rebar, steel) on any model and compare pass rate, rounds, tokens and time. An independent judge grades strictly from an objective before/after probe (never the model's own claims); both the tested model and the judge can run on the subscription for a zero-API-cost benchmark.
@@ -20,6 +20,9 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Smart element filter** — `filter_elements` answers "all walls taller than 3 m on Level 2, and total their length" in one call: unit-aware predicates (mm/m²/m³ pseudo-parameters computed from geometry), AND/OR logic, level/active-view scoping, and an optional count/sum/avg/min/max aggregate.
 - **Version & update check** — the pane shows a clickable "update available" link (and the Settings → About tab a "Check for updates" button) when a newer GitHub release exists; notify-only, since a loaded add-in can't replace its own DLL while Revit runs.
 - **Tabbed settings** — General · Models · Subscription (MCP) · Tools · About.
+- **Documentation & QA workflows** — the chores that normally need a one-off script: `autonumber_elements` (numbering in drawing reading order, with tolerance-banded rows so a ragged grid still reads left-to-right), `derive_parameters` (fill a parameter from geometry/identity or a `{placeholder}` template), `auto_join_geometry` (find intersecting pairs and join them — the fix for double-counted concrete), `calculate_weight` (mass from real volume × material density; rebar weighed from length × nominal diameter), `get_element_hosts`, `diagnose_model` (warnings, in-place families, exploded CAD imports, oversized groups — each with a recommendation), `clean_model` (removes them; **dry-run by default**), `assign_worksets`, `generate_sheet_set`, `batch_export_sheets`, `create_assembly`, `export_element_coordinates` (setting-out points in **shared/site** coordinates) and `query_linked_elements` (reads linked models, applying the link transform so coordinates land in host space).
+- **Bar bending data** — `get_rebar_shape_sketch` returns ordered leg lengths and bend angles per bar, groups identical bars into schedule positions, and can emit an SVG sketch of each distinct shape.
+- **Works with non-Claude MCP clients** — the MCP server detects the connecting client and emits a portable tool schema for it. OpenAI's function-calling validator rejects the constraint keywords used across these tools (`minimum`/`maximum`, `minItems`, `oneOf`) and refuses such a tool list *wholesale*, so those constraints are folded into each parameter's description instead of dropped. Claude clients keep the richer schemas. *(OpenAI models reach MCP only through the Responses API, not chat completions.)*
 - **Single-undo per prompt** — Ctrl+Z reverts everything Claude did in one turn
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
@@ -29,7 +32,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Automatic compaction** — when the conversation outgrows the model's context budget, older turns are summarized instead of overflowing the window
 - **Tool-result aging** — old tool results are truncated in place (and archived) to save tokens in long sessions; `get_full_result` retrieves an archived one on demand
 - **Local learning layer** — `save_memory` persists your preferences and project standards; every script run is journaled with the model delta it produced, proven patterns are injected into the system prompt and **survive clearing the chat**, and a diagnostic report of recurring scripts is written when Revit closes (or on demand via `generate_diagnostic_report`) so they can be promoted into dedicated tools
-- **Full Revit API escape hatch (opt-in)** — for anything no built-in tool covers, Claude can run scripts against the full Revit API: `execute_csharp` (the default — compiled C#, runs in a managed transaction) or `run_dynamo_python` (for Python snippets). **Off by default**: enable it with a checkbox in settings.
+- **Full Revit API escape hatch (opt-in)** — for anything no built-in tool covers, Claude can run scripts against the full Revit API: `execute_csharp` (the default — compiled C#, runs in a managed transaction), `run_python` (in-process Python through pyRevit's or RevitPythonShell's IronPython engine — no Dynamo boot, so it starts instantly), or `run_dynamo_python` (Dynamo's Python engine, for proven Dynamo-community snippets). **Off by default**: enable it with a checkbox in settings.
 - **Configurable tool-round limit** — cap how many tool-call rounds Claude may take per message (default 24), raise it in Settings for long automated jobs
 - **Optional confirmation for destructive / code ops** — off by default (every turn is one undo step); turn on an Allow/Deny dialog in settings
 - **In-pane API key entry** — gear icon; keys are stored encrypted with Windows DPAPI (no plain-text env var)
@@ -161,13 +164,17 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **180+ tools** to Claude across these categories:
+The plugin exposes **185+ tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls
-- **Reinforcement** — rebar sets (straight bars with count/spacing), area (mesh) & path reinforcement, rebar cover types, type listing and host inspection
+- **Reinforcement** — rebar sets (straight bars with count/spacing), area (mesh) & path reinforcement, rebar cover types, type listing and host inspection, bar-bending data (leg lengths, bend angles, schedule positions, SVG shape sketches)
+- **Documentation & QA** — spatial auto-numbering, rule-based parameter fill, bulk geometry join/unjoin, host ↔ hosted navigation, mass take-off by material density, drawing-set generation (view + sheet per level), batch PDF/DWG export with filename templates, assemblies with shop-drawing views
+- **Model health** — `diagnose_model` (warnings by kind, in-place families, exploded CAD imports, unplaced rooms, oversized groups, design options, views without templates — each with severity and a recommendation) and `clean_model` to remove them, dry-run by default
+- **Coordination** — worksets assignment by rule, and reading elements out of linked models in host coordinates
+- **Setting-out** — element coordinates in shared/site or internal system, N/E ordering, natural-sorted marks, optional CSV
 - **Family Editor** — author parametric families natively: list/add/remove family parameters, set formulas, set values (mm), flip instance/type, associate nested-element parameters, create linear arrays with parametric counts, create labeled dimensions between references
-- **Learning & escape hatch** — `save_memory`, `get_script_journal`, `generate_diagnostic_report`; `execute_csharp` / `run_dynamo_python` (full-API code for actions no tool covers — off by default, enable via a settings checkbox)
+- **Learning & escape hatch** — `save_memory`, `get_script_journal`, `generate_diagnostic_report`; `execute_csharp` / `run_python` / `run_dynamo_python` (full-API code for actions no tool covers — off by default, enable via a settings checkbox)
 - **Element ops** — move, rotate, copy, mirror, array, delete, set_parameter, pin/unpin, join/unjoin
 - **Views** — 3D, floor plan, ceiling plan, section, elevation, callouts, duplicate, dependent views, set scale, apply template, crop/section box
 - **Sheets** — create sheets, place views/schedules on sheets, move viewports
@@ -180,7 +187,7 @@ The plugin exposes **180+ tools** to Claude across these categories:
 - **Export & IO** — export view image, PDF, DWG, schedule CSV, save document
 - **Selection** — `select_similar` for "select all instances of this type"
 
-See the [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) folder for the full list — every `.cs` file there is one tool.
+See the [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) folder for the full list — almost every `.cs` file there is one tool (a handful, such as `Units.cs`, `CategoryResolve.cs` and `ToolRegistry.cs`, are shared helpers). The authoritative list is the registration block in [`App.cs`](ClaudeRevit/App.cs).
 
 ---
 
