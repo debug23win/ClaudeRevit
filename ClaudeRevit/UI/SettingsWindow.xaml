@@ -102,6 +102,8 @@
                             <ComboBox x:Name="AutoAdvBox" Grid.Row="1" Grid.Column="1" Height="26">
                                 <ComboBoxItem Tag="opus-4-8">Opus 4.8 (default)</ComboBoxItem>
                                 <ComboBoxItem Tag="fable-5">Fable 5 (hardest tasks)</ComboBoxItem>
+                                <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
+                                <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
                             </ComboBox>
                         </Grid>
 

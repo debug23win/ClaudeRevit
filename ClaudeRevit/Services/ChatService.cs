@@ -1094,6 +1094,10 @@ public class ChatService
     private static string TagFromModel(string s)
     {
         s = s.ToLowerInvariant().Replace("_", "-");
+        // Most specific first: "claude-opus-5" must not fall into the generic opus branch, and
+        // "claude-fable-5-1" must not collapse into "fable-5".
+        if (s.Contains("opus-5")) return "opus-5";
+        if (s.Contains("fable-5-1")) return "fable-5-1";
         if (s.Contains("opus") && s.Contains("4-7")) return "opus-4-7";
         if (s.Contains("opus")) return "opus-4-8";
         if (s.Contains("sonnet") && s.Contains("4-6")) return "sonnet-4-6";
@@ -1487,12 +1491,14 @@ public class ChatService
     private static Effort? EffortFor(string model) => model switch
     {
         "haiku-4-5" => null,
-        "fable-5" => Effort.High,
+        "fable-5" or "fable-5-1" => Effort.High,
         _ => Effort.Medium
     };
 
     private static string ResolveModel(string model) => model switch
     {
+        "opus-5" => "claude-opus-5",
+        "fable-5-1" => "claude-fable-5-1",
         "opus-4-8" => "claude-opus-4-8",
         "fable-5" => "claude-fable-5",
         "haiku-4-5" => "claude-haiku-4-5",

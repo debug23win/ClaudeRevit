@@ -16,6 +16,8 @@
                 <ComboBoxItem Tag="sonnet-5">Sonnet 5</ComboBoxItem>
                 <ComboBoxItem Tag="opus-4-8">Opus 4.8</ComboBoxItem>
                 <ComboBoxItem Tag="fable-5">Fable 5</ComboBoxItem>
+                <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
+                <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
                 <ComboBoxItem Tag="haiku-4-5">Haiku 4.5</ComboBoxItem>
                 <ComboBoxItem Tag="alt">Alt model</ComboBoxItem>
                 <ComboBoxItem Tag="claudecode">Claude Code (MCP / subscription)</ComboBoxItem>

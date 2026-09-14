@@ -298,6 +298,15 @@ public static class McpServer
         {
             case "initialize":
                 var clientVer = prms?["protocolVersion"]?.GetValue<string>();
+                // Remember who connected: tool schemas are tailored to the client's validator
+                // (see McpSchema).
+                try
+                {
+                    _clientName = prms?["clientInfo"]?["name"]?.GetValue<string>() ?? "";
+                    Log.Info($"MCP client connected: '{_clientName}' (protocol {clientVer ?? "unset"}); " +
+                             $"schemas: {(NeedsPortableSchemas ? "portable/OpenAI-safe" : "full JSON Schema")}");
+                }
+                catch { _clientName = ""; }
                 return (new JsonObject
                 {
                     ["protocolVersion"] = clientVer ?? "2025-06-18",
@@ -337,20 +346,29 @@ public static class McpServer
             foreach (var r in t.InputSchema.Required ?? Array.Empty<string>())
                 required.Add(r);
 
+            var schema = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = props,
+                ["required"] = required
+            };
+            if (NeedsPortableSchemas) McpSchema.MakePortable(schema);
+
             arr.Add(new JsonObject
             {
                 ["name"] = t.Name,
                 ["description"] = t.Description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = props,
-                    ["required"] = required
-                }
+                ["inputSchema"] = schema
             });
         }
         return arr;
     }
+
+    // The MCP client that connected (from initialize's clientInfo.name).
+    private static string _clientName = "";
+
+    private static bool NeedsPortableSchemas => McpSchema.NeedsPortableSchemas(_clientName);
+
 
     private static async Task<(JsonNode? value, JsonObject? error)> CallTool(JsonNode? prms, CancellationToken ct)
     {
