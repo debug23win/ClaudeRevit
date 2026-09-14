@@ -136,6 +136,10 @@
                                 <ComboBoxItem Tag="">— not used —</ComboBoxItem>
                                 <ComboBoxItem Tag="gemini">Google Gemini (free tier)</ComboBoxItem>
                                 <ComboBoxItem Tag="openai">ChatGPT / OpenAI (paid)</ComboBoxItem>
+                                <ComboBoxItem Tag="astra">OpenAI GPT-6 Astra (most capable)</ComboBoxItem>
+                                <ComboBoxItem Tag="sol">OpenAI GPT-5.6 Sol</ComboBoxItem>
+                                <ComboBoxItem Tag="terra">OpenAI GPT-5.6 Terra</ComboBoxItem>
+                                <ComboBoxItem Tag="luna">OpenAI GPT-5.6 Luna (cheapest)</ComboBoxItem>
                                 <ComboBoxItem Tag="grok">xAI Grok</ComboBoxItem>
                                 <ComboBoxItem Tag="deepseek">DeepSeek (cheap)</ComboBoxItem>
                                 <ComboBoxItem Tag="qwen">Qwen (DashScope)</ComboBoxItem>

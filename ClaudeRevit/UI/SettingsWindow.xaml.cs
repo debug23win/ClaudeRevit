@@ -26,6 +26,12 @@ public partial class SettingsWindow : Window
     {
         "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash", 1000),
         "openai" => ("https://api.openai.com/v1", "gpt-5-mini", 400),
+        // GPT-5.6 / GPT-6 family: 1,050,000-token context, 128,000 max output. Identifiers are
+        // used as-is — this family publishes no dated snapshot suffixes.
+        "astra" => ("https://api.openai.com/v1", "gpt-6-astra", 1050),
+        "sol" => ("https://api.openai.com/v1", "gpt-5.6-sol", 1050),
+        "terra" => ("https://api.openai.com/v1", "gpt-5.6-terra", 1050),
+        "luna" => ("https://api.openai.com/v1", "gpt-5.6-luna", 1050),
         "grok" => ("https://api.x.ai/v1", "grok-4.3", 256),
         "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat", 64),
         "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus", 128),
@@ -204,8 +210,8 @@ public partial class SettingsWindow : Window
             "Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)",
             "Эксперимент: MCP-сервер (рулить Revit из Claude Code / Desktop по подписке)");
         McpNote.Text = L(
-            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings.",
-            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code.");
+            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
+            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
         McpPortLabel.Text = L("Port:", "Порт:");
         ClaudeCodeExeLabel.Text = L(
             "Claude Code executable (for the in-pane / benchmark subscription path)",
