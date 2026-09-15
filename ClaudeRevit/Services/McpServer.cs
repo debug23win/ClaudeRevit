@@ -28,6 +28,7 @@ public static class McpServer
     private static HttpListener? _listener;
     private static CancellationTokenSource? _cts;
     private static readonly object Gate = new();
+    private static int _listeningPort;
 
     public static bool IsRunning { get { lock (Gate) return _listener?.IsListening == true; } }
     public static string? LastError { get; private set; }
@@ -101,7 +102,7 @@ public static class McpServer
     {
         lock (Gate)
         {
-            if (_listener?.IsListening == true) return;
+            if (_listener?.IsListening == true && _listeningPort == SettingsStore.McpPort) return;
             Stop_NoLock();
             try
             {
@@ -110,6 +111,7 @@ public static class McpServer
                 listener.Prefixes.Add($"http://127.0.0.1:{SettingsStore.McpPort}/");
                 listener.Start();
                 _listener = listener;
+                _listeningPort = SettingsStore.McpPort;
                 _cts = new CancellationTokenSource();
                 LastError = null;
                 _ = Task.Run(() => AcceptLoop(listener, _cts.Token));
@@ -153,6 +155,12 @@ public static class McpServer
     {
         try
         {
+            if (ctx.Request.Url?.AbsolutePath is not ("/mcp" or "/health"))
+            { Write(ctx, 404, "{\"error\":\"not_found\"}"); return; }
+            var origin = ctx.Request.Headers["Origin"];
+            if (origin != null && (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri) ||
+                originUri.Host != "127.0.0.1" || originUri.Port != SettingsStore.McpPort))
+            { Write(ctx, 403, "{\"error\":\"invalid_origin\"}"); return; }
             // Bearer-token auth (skip only if no token is configured).
             var token = SettingsStore.McpToken;
             if (!string.IsNullOrEmpty(token))
@@ -161,11 +169,9 @@ public static class McpServer
                 if (auth != $"Bearer {token}") { Write(ctx, 401, "{\"error\":\"unauthorized\"}"); return; }
             }
 
-            if (ctx.Request.HttpMethod == "GET")
+            if (ctx.Request.HttpMethod == "GET" && ctx.Request.Url?.AbsolutePath == "/health")
             {
-                // Unauthenticated health check — lets the user verify with a browser/curl that the
-                // server actually came up (the usual failure is a Windows URL-ACL, silent otherwise).
-                // The MCP protocol itself (POST) still requires the bearer token.
+                // Authenticated health endpoint, separate from the MCP SSE transport.
                 var toolCount = ToolRegistry.Instance.All.Count(t =>
                     !t.RequiresCodeExecutionOptIn || SettingsStore.AllowCodeExecution);
                 Write(ctx, 200, new JsonObject
@@ -177,6 +183,10 @@ public static class McpServer
                 }.ToJsonString());
                 return;
             }
+
+            // This stateless server has no server-initiated SSE stream or sessions to delete.
+            if (ctx.Request.HttpMethod != "POST" || ctx.Request.Url?.AbsolutePath != "/mcp")
+            { ctx.Response.Headers["Allow"] = "POST"; Write(ctx, 405, "{\"error\":\"method_not_allowed\"}"); return; }
 
             string body;
             using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8))

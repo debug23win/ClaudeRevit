@@ -110,6 +110,7 @@ public static class HistoryStore
         t.Role,
         t.Blocks.Select(b => b switch
         {
+            ChatOpenAIReasoningBlock x => new BlockDto("openai_reasoning", null, null, x.Model, x.ItemJson, null, null, false, null, null),
             ChatToolUseBlock x => new BlockDto("tool_use", null, x.Id, x.Name, x.InputJson, null, null, false, null, null),
             ChatToolResultBlock x => new BlockDto("tool_result", null, null, null, null, x.ToolUseId, x.Content, x.IsError, null, null),
             ChatThinkingBlock x => new BlockDto("thinking", null, null, null, null, null, null, false, x.Thinking, x.Signature),
@@ -126,6 +127,7 @@ public static class HistoryStore
         Role = d.Role,
         Blocks = d.Blocks.Select(b => (ChatBlock)(b.Type switch
         {
+            "openai_reasoning" => new ChatOpenAIReasoningBlock(b.Name ?? "", b.InputJson ?? "{}"),
             "tool_use" => new ChatToolUseBlock(b.Id ?? "", b.Name ?? "", b.InputJson ?? "{}"),
             "tool_result" => new ChatToolResultBlock(b.ToolUseId ?? "", b.Content ?? "", b.IsError),
             "thinking" => new ChatThinkingBlock(b.Thinking ?? "", b.Signature ?? ""),

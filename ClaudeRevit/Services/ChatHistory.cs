@@ -13,6 +13,9 @@ public sealed class ApiTurn
 
 public abstract record ChatBlock;
 
+// Opaque provider reasoning is replayed only to the model that produced it.
+public sealed record ChatOpenAIReasoningBlock(string Model, string ItemJson) : ChatBlock;
+
 public sealed record ChatTextBlock(string Text) : ChatBlock;
 
 // Thinking blocks must be replayed verbatim (text + signature) when the conversation

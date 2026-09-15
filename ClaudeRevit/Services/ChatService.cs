@@ -1265,6 +1265,7 @@ public class ChatService
             var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
             for (int j = 0; j < turn.Blocks.Count; j++)
             {
+                if (turn.Blocks[j] is ChatOpenAIReasoningBlock) continue;
                 var cache = isLast && j == turn.Blocks.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;

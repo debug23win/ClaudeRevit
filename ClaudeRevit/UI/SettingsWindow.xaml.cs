@@ -26,6 +26,7 @@ public partial class SettingsWindow : Window
     {
         "gemini" => ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash", 1000),
         "openai" => ("https://api.openai.com/v1", "gpt-5-mini", 400),
+        "openai-astra" => ("https://api.openai.com/v1", "gpt-6-astra", 1050),
         "grok" => ("https://api.x.ai/v1", "grok-4.3", 256),
         "deepseek" => ("https://api.deepseek.com/v1", "deepseek-chat", 64),
         "qwen" => ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen-plus", 128),

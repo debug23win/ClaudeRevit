@@ -22,6 +22,7 @@
   <ItemGroup>
     <!-- Compile the pure-logic sources directly (they use only System.*), so the tests need no
          Revit runtime. Keep this list to files with no Autodesk.Revit dependency. -->
+    <Compile Include="..\ClaudeRevit\Services\OpenAIResponses.cs" Link="src\OpenAIResponses.cs" />
     <Compile Include="..\ClaudeRevit\Services\PatternArchive.cs" Link="src\PatternArchive.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolSearchLogic.cs" Link="src\ToolSearchLogic.cs" />
     <Compile Include="..\ClaudeRevit\Tools\Units.cs" Link="src\Units.cs" />

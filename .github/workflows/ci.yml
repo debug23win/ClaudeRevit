@@ -22,3 +22,12 @@ jobs:
         run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true --no-restore
       - name: Unit tests (pure logic, no Revit)
         run: dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release
+      - name: Upload Revit 2027 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeRevit-Revit2027
+          path: |
+            ClaudeRevit/bin/Release/release/**
+            scripts/revit-mcp-bridge.ps1
+          if-no-files-found: error
+          retention-days: 14
