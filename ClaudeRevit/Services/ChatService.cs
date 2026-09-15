@@ -373,11 +373,18 @@ public class ChatService
         }
 
         var toolCount = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var res = await CodexBackend.RunAsync(
             SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
             ct);
+
+        // The benchmark reads its per-task numbers from LastTask. Without this every CLI-driven run
+        // was recorded as 0 rounds / 0 tokens, which reads as "the run did nothing".
+        LastTask = new TaskMetrics(
+            "codex" + (model != null ? ":" + model : ""),
+            toolCount, res.InputTokens, res.OutputTokens, 0, sw.Elapsed.TotalSeconds);
 
         if (!string.IsNullOrEmpty(res.Error))
         {
@@ -447,6 +454,10 @@ public class ChatService
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();
+
+        LastTask = new TaskMetrics(
+            modelAlias != null ? "claude-code:" + modelAlias : "claude-code",
+            res.NumTurns, res.InputTokens, res.OutputTokens, 0, res.DurationMs / 1000.0);
 
         if (!string.IsNullOrEmpty(res.Error))
         {
