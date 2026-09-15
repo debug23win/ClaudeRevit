@@ -65,6 +65,8 @@ public partial class SettingsWindow : Window
         ClaudeCodeExeBox.Text = SettingsStore.ClaudeCodeExe;
         CodexExeBox.Text = SettingsStore.CodexExe;
         CodexConfigBox.Text = CodexBackend.ConfigSnippet();
+        McpModelOverrideBox.Text = SettingsStore.McpModelOverride;
+        McpWhoText.Text = McpSession.Describe();
         UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
@@ -215,6 +217,8 @@ public partial class SettingsWindow : Window
             "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
             "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
         McpPortLabel.Text = L("Port:", "Порт:");
+        McpWhoLabel.Text = L("Currently driving Revit", "Кто сейчас управляет Revit");
+        McpWhoText.Text = McpSession.Describe(_lang == "ru");
         ClaudeCodeExeLabel.Text = L(
             "Claude Code executable (for the in-pane / benchmark subscription path)",
             "Путь к Claude Code (для панели / бенчмарка по подписке)");
@@ -415,6 +419,7 @@ public partial class SettingsWindow : Window
         SettingsStore.McpEnabled = McpBox.IsChecked == true;
         SettingsStore.ClaudeCodeExe = ClaudeCodeExeBox.Text?.Trim() ?? "";
         SettingsStore.CodexExe = CodexExeBox.Text?.Trim() ?? "";
+        SettingsStore.McpModelOverride = McpModelOverrideBox.Text?.Trim() ?? "";
         try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Log.Error("MCP apply failed", ex); }
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;

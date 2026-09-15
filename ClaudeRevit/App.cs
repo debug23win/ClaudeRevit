@@ -38,6 +38,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GenerateSheetSet());
             ToolRegistry.Instance.Register(new CreateAssembly());
             ToolRegistry.Instance.Register(new QueryLinkedElements());
+            ToolRegistry.Instance.Register(new ReportDrivingModel());
             ToolRegistry.Instance.Register(new CreateWall());
             ToolRegistry.Instance.Register(new CreateWallType());
             ToolRegistry.Instance.Register(new CreateFloor());

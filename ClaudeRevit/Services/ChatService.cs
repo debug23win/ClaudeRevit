@@ -495,7 +495,10 @@ public class ChatService
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
             // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
-            var alias = model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
+            // A free-text override in Settings wins, so a model newer than this release can be used.
+            var over = SettingsStore.McpModelOverride;
+            var alias = !string.IsNullOrWhiteSpace(over) ? over.Trim()
+                      : model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
             await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
             return;
         }
@@ -507,7 +510,9 @@ public class ChatService
         {
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
-            var codexModel = model.Length > 6 ? model.Substring(6) : null;
+            var codexOver = SettingsStore.McpModelOverride;
+            var codexModel = !string.IsNullOrWhiteSpace(codexOver) ? codexOver.Trim()
+                           : model.Length > 6 ? model.Substring(6) : null;
             await SendViaCodexAsync(conversation, userText, ui, codexModel, ct);
             return;
         }

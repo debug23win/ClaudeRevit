@@ -65,6 +65,9 @@ public static class McpServer
         "broad. If a request is ambiguous (missing level, type or units), ask ONE clarifying question " +
         "instead of guessing. If a tool errors, report it verbatim, explain the likely cause, and fix the " +
         "input — never blindly repeat the same call.\n\n" +
+        "IDENTIFY YOURSELF — call report_driving_model once, first thing, with your specific model " +
+        "id. MCP gives this add-in no way to know which model is driving it, so without that call " +
+        "the user cannot tell who did the work.\n\n" +
         "ANSWERS — be concise. After acting, say what changed, which IDs/types were affected, and what to " +
         "check. Take numbers (areas, volumes, counts) from tools — never estimate.";
 
@@ -303,6 +306,7 @@ public static class McpServer
                 try
                 {
                     _clientName = prms?["clientInfo"]?["name"]?.GetValue<string>() ?? "";
+                    McpSession.OnConnect(_clientName, prms?["clientInfo"]?["version"]?.GetValue<string>());
                     Log.Info($"MCP client connected: '{_clientName}' (protocol {clientVer ?? "unset"}); " +
                              $"schemas: {(NeedsPortableSchemas ? "portable/OpenAI-safe" : "full JSON Schema")}");
                 }

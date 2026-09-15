@@ -168,6 +168,15 @@ public static class SettingsStore
         set { Current.CodexExe = value; Save(); }
     }
 
+    // Free-text model id for MCP-driven runs (Claude Code / Codex). The dropdowns only carry the
+    // models shipped with a release; this lets a newly released id be used without an update. Empty
+    // = use whatever the picker selected.
+    public static string McpModelOverride
+    {
+        get => Current.McpModelOverride ?? "";
+        set { Current.McpModelOverride = value; Save(); }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -292,6 +301,7 @@ public static class SettingsStore
         public string McpToken { get; set; } = "";
         public string ClaudeCodeExe { get; set; } = "claude";
         public string CodexExe { get; set; } = "codex";
+        public string McpModelOverride { get; set; } = "";
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";
