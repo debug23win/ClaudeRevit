@@ -327,6 +327,8 @@ public partial class ChatPaneView : UserControl
     // alt-provider reply (Grok, Gemini, a local model…) isn't labelled "Claude".
     private void UpdateAssistantLabel() =>
         ChatMessage.AssistantLabel =
+            _selectedModel == "codex" ? "OpenAI / Codex"
+            :
             (SubscriptionBox?.IsChecked == true || _selectedModel == "claudecode") ? "Claude Code"
             : _selectedModel == "alt" ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
             : "Claude";

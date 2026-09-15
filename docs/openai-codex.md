@@ -26,6 +26,24 @@ Official references:
 
 ## Drive Revit from Codex
 
+### OpenAI subscription inside the Revit pane
+
+Choose **Подписка OpenAI / Codex** in the model menu. The plugin finds the installed
+Codex executable, verifies existing ChatGPT login, starts its MCP server as needed,
+and configures the local connection for that process automatically. No API key or
+manual MCP registration is required for this menu option. Subsequent messages
+resume the Codex conversation; Clear resets it. The Claude subscription menu,
+checkbox, CLI backend, and stored session remain unchanged.
+
+This mode requires a current native Codex CLI (included in the desktop app) with
+ChatGPT login. It uses Codex's default model and account limits. Sign-in itself
+remains in Codex; the plugin never reads or copies account credentials. The Revit
+MCP token is passed only in the child's environment, with a required local server.
+Shell access is disabled and the process uses a read-only filesystem sandbox;
+model edits are performed by the Revit MCP tools.
+
+### External Codex app / CLI
+
 1. Install the CI build for Revit 2027, then start Revit. In Settings → Subscription
    (MCP), enable the local MCP server. Save. Arbitrary code execution is optional
    and is not needed for ordinary modeling tools or the connection test.
