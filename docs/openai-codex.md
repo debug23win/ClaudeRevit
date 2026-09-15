@@ -1,5 +1,9 @@
 # OpenAI and Codex with Revit 2027
 
+This integration includes the published `v2.4` release and is built as
+`2.4.0-codex-mcp` (assembly version `2.4.0.0`). The released tag is included in
+the branch history; the default branch alone did not yet contain that release.
+
 ## Chat inside Revit
 
 In Settings → Models choose OpenAI (the economical GPT-5 Mini preset) or

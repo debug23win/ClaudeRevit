@@ -19,7 +19,7 @@ jobs:
       - name: Restore
         run: dotnet restore ClaudeRevit\ClaudeRevit.csproj
       - name: Build (Release, no deploy)
-        run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true --no-restore
+        run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true -p:Version=2.4.0-codex-mcp --no-restore
       - name: Unit tests (pure logic, no Revit)
         run: dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release
       - name: Upload Revit 2027 build
