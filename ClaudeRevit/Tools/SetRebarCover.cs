@@ -89,7 +89,7 @@ public class SetRebarCover : IRevitTool
                 face = label,
                 parameter = param.Definition.Name,
                 cover_type = coverType.Name,
-                cover_mm = Math.Round(coverType.CoverDistance * 304.8, 1)
+                cover_mm = Math.Round(coverType.CoverDistance * Units.MmPerFoot, 1)
             });
         }
 
@@ -103,7 +103,7 @@ public class SetRebarCover : IRevitTool
 
     private static RebarCoverType FindOrCreateCoverType(Document doc, double mm, List<RebarCoverType> known)
     {
-        var existing = known.FirstOrDefault(t => Math.Abs(t.CoverDistance * 304.8 - mm) < 0.05);
+        var existing = known.FirstOrDefault(t => Math.Abs(t.CoverDistance * Units.MmPerFoot - mm) < 0.05);
         if (existing != null) return existing;
 
         var baseName = $"Cover {mm:0.#} mm";
@@ -111,7 +111,7 @@ public class SetRebarCover : IRevitTool
         var taken = known.Select(t => t.Name).ToHashSet();
         for (int i = 2; taken.Contains(name); i++)
             name = $"{baseName} ({i})";
-        var created = RebarCoverType.Create(doc, name, mm / 304.8);
+        var created = RebarCoverType.Create(doc, name, mm / Units.MmPerFoot);
         known.Add(created);
         return created;
     }
