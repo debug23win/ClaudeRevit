@@ -160,6 +160,14 @@ public static class SettingsStore
         set { Current.ClaudeCodeExe = value; Save(); }
     }
 
+    // Path to the `codex` CLI, for the OpenAI-via-MCP path. Same reason as ClaudeCodeExe: Revit's
+    // process often can't see the user's PATH, so a full path is usually required.
+    public static string CodexExe
+    {
+        get => string.IsNullOrWhiteSpace(Current.CodexExe) ? "codex" : Current.CodexExe;
+        set { Current.CodexExe = value; Save(); }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -283,6 +291,7 @@ public static class SettingsStore
         public int McpPort { get; set; } = 8788;
         public string McpToken { get; set; } = "";
         public string ClaudeCodeExe { get; set; } = "claude";
+        public string CodexExe { get; set; } = "codex";
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";

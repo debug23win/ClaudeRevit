@@ -315,6 +315,93 @@ public class ChatService
     // Subscription mode: run the local Claude Code CLI headless, letting it drive the Revit tools
     // through our in-process MCP server. Streams its narration into the pane and keeps the CLI's
     // session id so follow-up messages continue the same conversation (--resume). Costs nothing on
+    // Both CLI paths need the same framing the API path gets: the current document and selection,
+    // so "this" / "the selected walls" resolve. The MCP session is long-lived, so this is prepended
+    // fresh each message (instructions, which carry memory/standards, are sent once at connect).
+    private static async Task<string> BuildContextedPromptAsync(string prompt, CancellationToken ct)
+    {
+        try
+        {
+            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+            var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
+            var sel = SelectionService.Current;
+            if (sel.Ids.Count > 0)
+            {
+                var idList = sel.Ids.Count > 30
+                    ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
+                    : string.Join(", ", sel.Ids);
+                // Inline the per-category breakdown so "what's selected?" needs no tool call.
+                var cats = sel.CategoryCounts.Count > 0
+                    ? " — " + string.Join(", ", sel.CategoryCounts.Select(kv => $"{kv.Value}× {kv.Key}"))
+                    : "";
+                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
+            }
+            return ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
+        }
+        catch { return prompt; }   // context is best-effort
+    }
+
+    // OpenAI models driving Revit through our MCP server, via the local Codex CLI. Unlike the
+    // Claude Code path there is no --mcp-config flag: Codex reads its servers from the user's own
+    // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
+    private async Task SendViaCodexAsync(
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
+        string? model, CancellationToken ct)
+    {
+        if (!McpServer.IsRunning)
+        {
+            try { McpServer.Start(); }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "Couldn't start the MCP server that Codex needs — free the port in " +
+                    "Settings → MCP and try again. (" + ex.Message + ")");
+            }
+        }
+
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
+
+        ChatMessage? bubble = null;
+        void Append(string piece)
+        {
+            if (string.IsNullOrEmpty(piece)) return;
+            ui.InvokeAsync(() =>
+            {
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", Text = "" }; conversation.Add(bubble); }
+                bubble.Text += piece;
+            });
+        }
+
+        var toolCount = 0;
+        var res = await CodexBackend.RunAsync(
+            SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
+            onText: Append,
+            onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
+            ct);
+
+        if (!string.IsNullOrEmpty(res.Error))
+        {
+            Append((bubble == null ? "" : "\n\n") + "⚠ " + res.Error);
+            return;
+        }
+        if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
+
+        // A run that answered without touching a single Revit tool almost always means Codex never
+        // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads
+        // as the model refusing the task.
+        if (toolCount == 0 && bubble != null)
+            Append("\n\n⚠ No Revit tools were called. Check that the clauderevit MCP server is " +
+                   "registered in your Codex config.toml (Settings → MCP shows the snippet) and that " +
+                   "the MCP server is enabled here.");
+
+        if (SettingsStore.ShowTaskDiagnostics && bubble != null)
+        {
+            var tok = res.InputTokens + res.OutputTokens;
+            Append($"\n\n— codex{(model != null ? " (" + model + ")" : "")} · {toolCount} tool calls" +
+                   (tok > 0 ? $" · {tok:N0} tokens" : ""));
+        }
+    }
+
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
@@ -337,26 +424,7 @@ public class ChatService
         // Parity with the API path: give Claude Code the current document + selection so "this" /
         // "the selected walls" resolve. The MCP session is long-lived, so we prepend this fresh each
         // message (instructions, which carry memory/standards, are sent once at connect).
-        var contextedPrompt = prompt;
-        try
-        {
-            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
-            var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
-            var sel = SelectionService.Current;
-            if (sel.Ids.Count > 0)
-            {
-                var idList = sel.Ids.Count > 30
-                    ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
-                    : string.Join(", ", sel.Ids);
-                // Inline the per-category breakdown so "what's selected?" is answerable with no tool call.
-                var cats = sel.CategoryCounts.Count > 0
-                    ? " — " + string.Join(", ", sel.CategoryCounts.Select(kv => $"{kv.Value}× {kv.Key}"))
-                    : "";
-                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
-            }
-            contextedPrompt = ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
-        }
-        catch { /* context is best-effort — fall back to the bare prompt */ }
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
 
         ChatMessage? bubble = null;
         void Append(string piece)
@@ -418,6 +486,18 @@ public class ChatService
             // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
             var alias = model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
             await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
+            return;
+        }
+
+        // The OpenAI counterpart: the local Codex CLI drives the same MCP server. Same shape as
+        // above — Codex runs its own loop, so the API pipeline is bypassed entirely.
+        // "codex" uses whatever model Codex is configured with; "codex:<model-id>" pins one.
+        if (model == "codex" || model.StartsWith("codex:", StringComparison.Ordinal))
+        {
+            var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(userText)) return;
+            var codexModel = model.Length > 6 ? model.Substring(6) : null;
+            await SendViaCodexAsync(conversation, userText, ui, codexModel, ct);
             return;
         }
 

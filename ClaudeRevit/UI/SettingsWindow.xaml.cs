@@ -63,6 +63,8 @@ public partial class SettingsWindow : Window
         McpBox.IsChecked = SettingsStore.McpEnabled;
         McpPortBox.Text = SettingsStore.McpPort.ToString();
         ClaudeCodeExeBox.Text = SettingsStore.ClaudeCodeExe;
+        CodexExeBox.Text = SettingsStore.CodexExe;
+        CodexConfigBox.Text = CodexBackend.ConfigSnippet();
         UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
@@ -412,6 +414,7 @@ public partial class SettingsWindow : Window
             SettingsStore.McpPort = mcpPort;
         SettingsStore.McpEnabled = McpBox.IsChecked == true;
         SettingsStore.ClaudeCodeExe = ClaudeCodeExeBox.Text?.Trim() ?? "";
+        SettingsStore.CodexExe = CodexExeBox.Text?.Trim() ?? "";
         try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Log.Error("MCP apply failed", ex); }
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
         SettingsStore.UiLanguage = _lang;

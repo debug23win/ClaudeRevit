@@ -267,7 +267,9 @@ public static class ClaudeCodeBackend
     // Find the `claude` executable. Honours an explicit path, then PATH (+ Windows extensions),
     // then the well-known npm-global and native-install locations that Revit's PATH usually misses.
     // Returns a full path, or null if nothing exists.
-    private static string? Resolve(string exe)
+    // Shared with CodexBackend: the search is generic in `exe` (the couple of claude-specific
+    // directories below simply never match another CLI's name).
+    internal static string? Resolve(string exe)
     {
         if (string.IsNullOrWhiteSpace(exe)) exe = "claude";
 

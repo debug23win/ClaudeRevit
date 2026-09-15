@@ -27,6 +27,10 @@
                 <ComboBoxItem Tag="alt:gpt-5.6-terra">OpenAI GPT-5.6 Terra</ComboBoxItem>
                 <ComboBoxItem Tag="alt:gpt-5.6-luna">OpenAI GPT-5.6 Luna</ComboBoxItem>
                 <ComboBoxItem Tag="claudecode">Claude Code (MCP / subscription)</ComboBoxItem>
+                <ComboBoxItem Tag="codex">Codex / OpenAI via MCP</ComboBoxItem>
+                <ComboBoxItem Tag="codex:gpt-6-astra">Codex · GPT-6 Astra (MCP)</ComboBoxItem>
+                <ComboBoxItem Tag="codex:gpt-5.6-sol">Codex · GPT-5.6 Sol (MCP)</ComboBoxItem>
+                <ComboBoxItem Tag="codex:gpt-5.6-terra">Codex · GPT-5.6 Terra (MCP)</ComboBoxItem>
             </ComboBox>
             <TextBlock Text="Judge:" VerticalAlignment="Center" Margin="12,0,8,0" />
             <ComboBox x:Name="JudgeBox" Width="120" Height="26" VerticalContentAlignment="Center"
