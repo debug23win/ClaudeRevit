@@ -29,7 +29,7 @@ Official references:
    Codex (replace the example path with its actual absolute path):
 
    ```powershell
-   codex mcp add clauderevit -- powershell.exe -NoProfile -NonInteractive -File "C:\path\to\revit-mcp-bridge.ps1"
+   codex mcp add clauderevit -- powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "C:\path\to\revit-mcp-bridge.ps1"
    ```
 
 3. Reconnect MCP / start a fresh Codex session so the tools load. Revit must remain
