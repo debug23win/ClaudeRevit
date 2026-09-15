@@ -269,7 +269,18 @@ public class ChatService
         HistoryStore.Save(uiMessages, _history);
     }
 
-    private static bool IsAlt(string model) => model == "alt";
+    // "alt" uses the alternative provider exactly as configured in Settings. "alt:<model-id>"
+    // additionally pins the model for this run, reusing the configured base URL and key — that is
+    // what lets the benchmark compare several models of one provider (gpt-5.6-sol vs -terra vs
+    // gpt-6-astra) without rewriting Settings between runs.
+    private static bool IsAlt(string model) =>
+        model == "alt" || model.StartsWith("alt:", StringComparison.Ordinal);
+
+    // The pinned model id from an "alt:<model-id>" tag, or null for a plain "alt".
+    private static string? AltModelOverride(string model) =>
+        model.StartsWith("alt:", StringComparison.Ordinal) && model.Length > 4
+            ? model.Substring(4)
+            : null;
 
     private AnthropicClient GetClient()
     {
@@ -568,7 +579,9 @@ public class ChatService
                     await ui.InvokeAsync(() => OnRound(r, maxIterations));
                 }
 
-                var altModelForTurn = escalate ? reasoningModel : null;
+                // An explicit "alt:<model-id>" pin wins over the configured default; escalation to
+                // the reasoning model still takes precedence, since that is a deliberate switch.
+                var altModelForTurn = escalate ? reasoningModel : AltModelOverride(model);
                 // Claude Auto: in advisor mode the executor is the configured cheap/fast model
                 // (Sonnet 5 default, or Haiku 4.5 for the cheapest tier); the advisor is reached
                 // via the tool, not by switching. In legacy mode: Sonnet until escalated to Opus.

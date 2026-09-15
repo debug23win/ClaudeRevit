@@ -19,8 +19,23 @@
                 <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
                 <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
                 <ComboBoxItem Tag="haiku-4-5">Haiku 4.5</ComboBoxItem>
-                <ComboBoxItem Tag="alt">Alt model</ComboBoxItem>
+                <ComboBoxItem Tag="alt">Alt model (as configured)</ComboBoxItem>
+                <!-- Pin a specific model of the configured alt provider, so several can be compared
+                     without rewriting Settings between runs. Needs the alt provider set to OpenAI. -->
+                <ComboBoxItem Tag="alt:gpt-6-astra">OpenAI GPT-6 Astra</ComboBoxItem>
+                <ComboBoxItem Tag="alt:gpt-5.6-sol">OpenAI GPT-5.6 Sol</ComboBoxItem>
+                <ComboBoxItem Tag="alt:gpt-5.6-terra">OpenAI GPT-5.6 Terra</ComboBoxItem>
+                <ComboBoxItem Tag="alt:gpt-5.6-luna">OpenAI GPT-5.6 Luna</ComboBoxItem>
                 <ComboBoxItem Tag="claudecode">Claude Code (MCP / subscription)</ComboBoxItem>
+            </ComboBox>
+            <TextBlock Text="Judge:" VerticalAlignment="Center" Margin="12,0,8,0" />
+            <ComboBox x:Name="JudgeBox" Width="120" Height="26" VerticalContentAlignment="Center"
+                      ToolTip="The model that grades each task from an objective before/after probe. Keep it FIXED when comparing runs — changing the judge changes the yardstick.">
+                <ComboBoxItem Tag="opus-4-8" IsSelected="True">Opus 4.8</ComboBoxItem>
+                <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
+                <ComboBoxItem Tag="fable-5">Fable 5</ComboBoxItem>
+                <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
+                <ComboBoxItem Tag="sonnet-5">Sonnet 5</ComboBoxItem>
             </ComboBox>
             <TextBlock Text="Tasks:" VerticalAlignment="Center" Margin="12,0,8,0" />
             <ComboBox x:Name="TaskSetBox" Width="150" Height="26" VerticalContentAlignment="Center"

@@ -82,7 +82,9 @@ public partial class BenchmarkWindow : Window
         try
         {
             await BenchmarkRunner.RunAsync(
-                model, tasks, judgeModel: "opus-4-8", runStamp: stamp,
+                model, tasks,
+                judgeModel: (JudgeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "opus-4-8",
+                runStamp: stamp,
                 resetBetweenTasks: ResetBox.IsChecked == true,
                 maxRoundsPerTask: maxRounds, maxSecondsPerTask: maxSeconds,
                 judgeViaClaudeCode: JudgeViaCCBox.IsChecked == true,
