@@ -35,7 +35,7 @@ public class GetElementLocations : IRevitTool
 
     public bool RequiresTransaction => false;
 
-    private const double FeetToMm = 304.8;
+    private const double FeetToMm = Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {

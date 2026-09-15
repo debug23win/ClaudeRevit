@@ -41,6 +41,11 @@ public sealed class OpenAIBackend
         CancellationToken ct,
         string? modelOverride = null)
     {
+        var baseUrl = NormalizeBaseUrl(SettingsStore.AltBaseUrl);
+        if (OpenAIResponses.UsesResponses(baseUrl))
+            return await OpenAIResponses.SendAsync(baseUrl, ApiKeyStore.LoadAlt(),
+                OpenAIResponses.BuildRequest(string.IsNullOrWhiteSpace(modelOverride) ? SettingsStore.AltModel : modelOverride,
+                    systemPrompt, history, dynamicContext, toolsJson), onTextDelta, ct);
         var body = new JsonObject
         {
             ["model"] = string.IsNullOrWhiteSpace(modelOverride) ? SettingsStore.AltModel : modelOverride,
@@ -131,6 +136,15 @@ public sealed class OpenAIBackend
     // Single non-streamed completion with no tools — used for history compaction.
     public async Task<string?> CompleteOnceAsync(string userContent, CancellationToken ct)
     {
+        var baseUrl = NormalizeBaseUrl(SettingsStore.AltBaseUrl);
+        if (OpenAIResponses.UsesResponses(baseUrl))
+        {
+            var turn = await OpenAIResponses.SendAsync(baseUrl, ApiKeyStore.LoadAlt(),
+                OpenAIResponses.BuildRequest(SettingsStore.AltModel, "", new[] {
+                    new ApiTurn { Blocks = new() { new ChatTextBlock(userContent) } }
+                }, "", new JsonArray(), stream: false), _ => Task.CompletedTask, ct);
+            return string.Join("\n", turn.Blocks.OfType<ChatTextBlock>().Select(b => b.Text));
+        }
         var body = new JsonObject
         {
             ["model"] = SettingsStore.AltModel,

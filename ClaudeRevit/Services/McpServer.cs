@@ -28,6 +28,7 @@ public static class McpServer
     private static HttpListener? _listener;
     private static CancellationTokenSource? _cts;
     private static readonly object Gate = new();
+    private static int _listeningPort;
 
     public static bool IsRunning { get { lock (Gate) return _listener?.IsListening == true; } }
     public static string? LastError { get; private set; }
@@ -36,18 +37,37 @@ public static class McpServer
     // to the in-Revit chat pane's system prompt, so the key rules for working Revit efficiently and
     // correctly go here. Distilled from real field runs.
     private const string Instructions =
-        "You are editing a LIVE Autodesk Revit model through these tools. UNITS: all spatial inputs " +
-        "are in FEET (Revit's internal unit) — convert first: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, " +
-        "1 in ≈ 0.0833333 ft.\n" +
-        "EFFICIENCY: the MCP round-trip is the main cost, so batch aggressively. For heavy or " +
-        "multi-step work write ONE execute_csharp call against the Revit API instead of many separate " +
-        "tool calls; to repeat one tool over many items use run_batch. (execute_csharp / run_dynamo_python " +
-        "run only if the user enabled code execution — if they aren't offered, it's off.)\n" +
-        "PERFORMANCE: creating elements is cheap (~2000/sec) but doc.Regenerate() is SUPER-LINEAR — call " +
-        "it ONCE at the end of a batch, never inside a loop.\n" +
-        "REVIT API: on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
-        "RequestViewChange inside a transaction — use the set_active_view tool. Prefer a dedicated tool " +
-        "when one exists; execute_csharp is the escape hatch for anything else. Every change is undoable.";
+        "You are a senior BIM engineer and Revit-API expert driving a LIVE Autodesk Revit model through " +
+        "these tools. Work precisely and safely.\n\n" +
+        "WORKFLOW — read before you act. Gather context first: get_project_catalog (levels, family types, " +
+        "view templates and the rebar catalogue in one call), get_active_view_info, get_selection, " +
+        "query_elements / filter_elements, get_model_statistics. NEVER invent element IDs, family/type " +
+        "names, or levels — use only values returned by tools. For a non-trivial task, state a 2–4 step " +
+        "plan first, then execute. Work in small steps: prove an operation on ONE element, then scale to " +
+        "the floor/building — don't run a large batch before verifying one.\n\n" +
+        "UNITS — all spatial inputs are in FEET (Revit's internal unit). Convert metric first: 1 m ≈ " +
+        "3.28084 ft, 1 mm ≈ 0.00328084 ft. Always confirm the target level and view; state the conversion " +
+        "you used.\n\n" +
+        "TOOL CHOICE — prefer a dedicated tool when one exists (the full tool index is included below; " +
+        "native tools cover walls, floors, roofs, levels, grids, doors, columns, framing, rebar & " +
+        "reinforcement, steel connections, family authoring, views, sheets, schedules, annotation, " +
+        "filters and export). Use filter_elements for \"find all X where Y\" (unit-aware predicates + " +
+        "count/sum/avg aggregate) instead of scanning. Use run_batch to repeat one tool over many items " +
+        "in a single transaction. execute_csharp / run_dynamo_python are the escape hatch for what no tool " +
+        "covers — only if code execution is enabled (if they aren't offered, it's off); make code " +
+        "idempotent, null-checked, and in one transaction.\n\n" +
+        "EFFICIENCY — the MCP round-trip is the main cost, so batch aggressively; for heavy multi-step " +
+        "work write ONE execute_csharp instead of many tool calls. Creating elements is cheap (~2000/sec) " +
+        "but doc.Regenerate() is SUPER-LINEAR — call it ONCE at the end of a batch, never in a loop.\n\n" +
+        "REVIT API — on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
+        "RequestViewChange inside a transaction — use the set_active_view tool.\n\n" +
+        "SAFETY & ERRORS — every change is one undo step (Ctrl+Z). Do destructive actions (delete, mass " +
+        "edits, arbitrary code) on the smallest possible set, and confirm intent when the request is " +
+        "broad. If a request is ambiguous (missing level, type or units), ask ONE clarifying question " +
+        "instead of guessing. If a tool errors, report it verbatim, explain the likely cause, and fix the " +
+        "input — never blindly repeat the same call.\n\n" +
+        "ANSWERS — be concise. After acting, say what changed, which IDs/types were affected, and what to " +
+        "check. Take numbers (areas, volumes, counts) from tools — never estimate.";
 
     // The URL and header a user pastes into their Claude Code / Desktop MCP config.
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
@@ -101,7 +121,7 @@ public static class McpServer
     {
         lock (Gate)
         {
-            if (_listener?.IsListening == true) return;
+            if (_listener?.IsListening == true && _listeningPort == SettingsStore.McpPort) return;
             Stop_NoLock();
             try
             {
@@ -110,6 +130,7 @@ public static class McpServer
                 listener.Prefixes.Add($"http://127.0.0.1:{SettingsStore.McpPort}/");
                 listener.Start();
                 _listener = listener;
+                _listeningPort = SettingsStore.McpPort;
                 _cts = new CancellationTokenSource();
                 LastError = null;
                 _ = Task.Run(() => AcceptLoop(listener, _cts.Token));
@@ -153,6 +174,12 @@ public static class McpServer
     {
         try
         {
+            if (ctx.Request.Url?.AbsolutePath is not ("/mcp" or "/health"))
+            { Write(ctx, 404, "{\"error\":\"not_found\"}"); return; }
+            var origin = ctx.Request.Headers["Origin"];
+            if (origin != null && (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri) ||
+                originUri.Host != "127.0.0.1" || originUri.Port != SettingsStore.McpPort))
+            { Write(ctx, 403, "{\"error\":\"invalid_origin\"}"); return; }
             // Bearer-token auth (skip only if no token is configured).
             var token = SettingsStore.McpToken;
             if (!string.IsNullOrEmpty(token))
@@ -161,11 +188,9 @@ public static class McpServer
                 if (auth != $"Bearer {token}") { Write(ctx, 401, "{\"error\":\"unauthorized\"}"); return; }
             }
 
-            if (ctx.Request.HttpMethod == "GET")
+            if (ctx.Request.HttpMethod == "GET" && ctx.Request.Url?.AbsolutePath == "/health")
             {
-                // Unauthenticated health check — lets the user verify with a browser/curl that the
-                // server actually came up (the usual failure is a Windows URL-ACL, silent otherwise).
-                // The MCP protocol itself (POST) still requires the bearer token.
+                // Authenticated health endpoint, separate from the MCP SSE transport.
                 var toolCount = ToolRegistry.Instance.All.Count(t =>
                     !t.RequiresCodeExecutionOptIn || SettingsStore.AllowCodeExecution);
                 Write(ctx, 200, new JsonObject
@@ -177,6 +202,10 @@ public static class McpServer
                 }.ToJsonString());
                 return;
             }
+
+            // This stateless server has no server-initiated SSE stream or sessions to delete.
+            if (ctx.Request.HttpMethod != "POST" || ctx.Request.Url?.AbsolutePath != "/mcp")
+            { ctx.Response.Headers["Allow"] = "POST"; Write(ctx, 405, "{\"error\":\"method_not_allowed\"}"); return; }
 
             string body;
             using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8))

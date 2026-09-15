@@ -1,0 +1,74 @@
+# OpenAI and Codex with Revit 2027
+
+This integration includes the published `v2.4` release and is built as
+`2.4.0-codex-mcp` (assembly version `2.4.0.0`). The released tag is included in
+the branch history; the default branch alone did not yet contain that release.
+
+## Chat inside Revit
+
+In Settings → Models choose OpenAI (the economical GPT-5 Mini preset) or
+OpenAI GPT-6 Astra. Enter your OpenAI API key in the password field and choose
+Alt in the chat model menu. The key uses the existing Windows DPAPI encrypted
+storage. ChatGPT subscription access and OpenAI API billing are separate.
+
+Requests to the official `https://api.openai.com/v1` endpoint use Responses API.
+This is required for Astra function calls. Other compatible providers continue
+using Chat Completions. Claude's existing API and subscription modes are retained.
+Responses use `store: false`; encrypted reasoning is retained in conversation
+history and replayed only to the same model. Incomplete streams never execute
+the partially received tool calls.
+
+Official references:
+
+- https://developers.openai.com/api/docs/guides/latest-model
+- https://developers.openai.com/api/docs/guides/migrate-to-responses
+- https://developers.openai.com/api/docs/guides/reasoning
+
+## Drive Revit from Codex
+
+### OpenAI subscription inside the Revit pane
+
+Choose **Подписка OpenAI / Codex** in the model menu. The plugin finds the installed
+Codex executable, verifies existing ChatGPT login, starts its MCP server as needed,
+and configures the local connection for that process automatically. No API key or
+manual MCP registration is required for this menu option. Subsequent messages
+resume the Codex conversation; Clear resets it. The Claude subscription menu,
+checkbox, CLI backend, and stored session remain unchanged.
+
+This mode requires a current native Codex CLI (included in the desktop app) with
+ChatGPT login. It uses Codex's default model and account limits. Sign-in itself
+remains in Codex; the plugin never reads or copies account credentials. The Revit
+MCP token is passed only in the child's environment, with a required local server.
+Shell access is disabled and the process uses a read-only filesystem sandbox;
+model edits are performed by the Revit MCP tools.
+
+### External Codex app / CLI
+
+1. Install the CI build for Revit 2027, then start Revit. In Settings → Subscription
+   (MCP), enable the local MCP server. Save. Arbitrary code execution is optional
+   and is not needed for ordinary modeling tools or the connection test.
+2. Keep `scripts/revit-mcp-bridge.ps1` at a stable local path. Register it with
+   Codex (replace the example path with its actual absolute path):
+
+   ```powershell
+   codex mcp add clauderevit -- powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "C:\path\to\revit-mcp-bridge.ps1"
+   ```
+
+3. Reconnect MCP / start a fresh Codex session so the tools load. Revit must remain
+   running. The bridge reads the token and port from `%APPDATA%\ClaudeRevit\settings.json`
+   for every request; the token is never put in Codex configuration or arguments.
+4. Call `test_revit_connection`. It reports the Revit version and the active
+   document title, then creates a level in a separate unsaved test document,
+   verifies it, rolls back, verifies removal, and closes that test document.
+   A null active document means no project was open; open a project and repeat
+   if verification of an open project is required.
+
+The MCP endpoint is local and authenticated. `POST /mcp` serves JSON-RPC;
+authenticated `GET /health` serves diagnostics. `GET /mcp` returns 405 because
+this stateless implementation has no server-initiated SSE stream.
+
+Codex's selected model drives the MCP tools using Codex's own authentication.
+This route does not require an OpenAI API key inside Revit. The in-Revit OpenAI
+chat route above does require a separately billed API key.
+
+Codex reference: https://learn.chatgpt.com/docs/extend/mcp?surface=cli

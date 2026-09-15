@@ -189,6 +189,8 @@ public class ChatService
             // Revit restart, matching how the API history persists.
             try { if (File.Exists(ClaudeCodeSessionFile)) _claudeCodeSessionId = File.ReadAllText(ClaudeCodeSessionFile).Trim(); }
             catch { /* non-fatal */ }
+            try { if (File.Exists(CodexSessionFile)) _codexSessionId = File.ReadAllText(CodexSessionFile).Trim(); }
+            catch { /* non-fatal */ }
         }
 
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -217,6 +219,9 @@ public class ChatService
     // Claude Code (subscription) mode keeps the CLI's session id so follow-up messages continue the
     // same conversation via --resume. Reset on ClearHistory.
     private string? _claudeCodeSessionId;
+    private string? _codexSessionId;
+    private static string CodexSessionFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit", "codex-session.txt");
 
     // Set by the chat pane: when true, the selected model runs through the Claude Code CLI on the
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
@@ -259,6 +264,8 @@ public class ChatService
         _promoteNudged = false;
         _revealedCategories.Clear();
         _claudeCodeSessionId = null;
+        _codexSessionId = null;
+        if (!_ephemeral) { try { File.Delete(CodexSessionFile); } catch { } }
         PersistClaudeCodeSession();
         if (!_ephemeral) HistoryStore.Clear();
     }
@@ -388,6 +395,41 @@ public class ChatService
         }
     }
 
+    private async Task SendViaCodexAsync(ObservableCollection<ChatMessage> conversation, Dispatcher ui,
+        CancellationToken ct, string? imageBase64, string? imageMime)
+    {
+        if (!McpServer.IsRunning) McpServer.Start();
+        if (!McpServer.IsRunning) throw new InvalidOperationException("MCP could not start: " + McpServer.LastError);
+        var context = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+        var prompt = "Work on Revit using the clauderevit MCP tools. Read the model before editing; verify changes.\n" +
+            "CURRENT DOCUMENT:\n" + context + "\nUSER REQUEST:\n" +
+            (conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "");
+        var workDir = Path.Combine(Path.GetDirectoryName(CodexSessionFile)!, "codexwork");
+        Directory.CreateDirectory(workDir);
+        string? imagePath = null;
+        if (imageBase64 != null)
+        {
+            imagePath = Path.Combine(workDir, "attachment-" + Guid.NewGuid().ToString("N") +
+                (imageMime == "image/jpeg" ? ".jpg" : ".png"));
+            File.WriteAllBytes(imagePath, Convert.FromBase64String(imageBase64));
+        }
+        var bubble = new ChatMessage { Role = "assistant", Text = "" };
+        conversation.Add(bubble);
+        var rounds = 0;
+        try
+        {
+            var result = await CodexBackend.RunAsync(prompt, workDir, McpServer.Url, SettingsStore.McpToken,
+                _codexSessionId, text => ui.Invoke(() => bubble.Text += text),
+                _ => ui.Invoke(() => { rounds++; OnRound?.Invoke(rounds, rounds); }), ct, imagePath);
+            _codexSessionId = result.SessionId ?? _codexSessionId;
+            if (!_ephemeral && _codexSessionId != null) File.WriteAllText(CodexSessionFile, _codexSessionId);
+            if (result.Error != null) bubble.Text += "\n\n⚠ " + result.Error;
+            if (SettingsStore.ShowTaskDiagnostics)
+                bubble.Text += $"\n\n— OpenAI / Codex subscription · {rounds} tool calls · {result.InputTokens + result.OutputTokens:N0} tokens";
+        }
+        finally { if (imagePath != null) File.Delete(imagePath); }
+    }
+
     public async Task SendAsync(
         ObservableCollection<ChatMessage> conversation,
         string model,
@@ -396,6 +438,13 @@ public class ChatService
         string? imageMime = null)
     {
         var ui = Dispatcher.CurrentDispatcher;
+
+        // A separate subscription path; the Claude checkbox and backend retain their behavior.
+        if (model == "codex")
+        {
+            await SendViaCodexAsync(conversation, ui, ct, imageBase64, imageMime);
+            return;
+        }
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
@@ -1265,6 +1314,7 @@ public class ChatService
             var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
             for (int j = 0; j < turn.Blocks.Count; j++)
             {
+                if (turn.Blocks[j] is ChatOpenAIReasoningBlock) continue;
                 var cache = isLast && j == turn.Blocks.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;
