@@ -269,14 +269,20 @@ public static class ClaudeCodeBackend
         catch { /* non-JSON or partial line — ignore */ }
     }
 
-    // Find the `claude` executable. Honours an explicit path, then PATH (+ Windows extensions),
+    // Find a CLI executable by name. Honours an explicit path, then PATH (+ Windows extensions),
     // then the well-known npm-global and native-install locations that Revit's PATH usually misses.
     // Returns a full path, or null if nothing exists.
-    // Shared with CodexBackend: the search is generic in `exe` (the couple of claude-specific
-    // directories below simply never match another CLI's name).
+    //
+    // Shared with CodexBackend, so the tool-specific locations below are gated on the name being
+    // asked for. That gating is not cosmetic: the Claude Desktop branch used to return claude.exe
+    // whatever it was asked for, so a machine with Claude Desktop and no Codex "found" Codex and
+    // ran `claude.exe exec --json ...`, whose reply ("error: unknown option") reads like a broken
+    // Codex install rather than like the wrong program being launched.
     internal static string? Resolve(string exe)
     {
         if (string.IsNullOrWhiteSpace(exe)) exe = "claude";
+        var wantsClaude = string.Equals(exe, "claude", StringComparison.OrdinalIgnoreCase);
+        var wantsCodex = string.Equals(exe, "codex", StringComparison.OrdinalIgnoreCase);
 
         // Explicit path (has a directory separator) — trust it if it exists.
         if (exe.IndexOf(Path.DirectorySeparatorChar) >= 0 || exe.IndexOf('/') >= 0)
@@ -307,9 +313,12 @@ public static class ClaudeCodeBackend
             Env("USERPROFILE") is { } upn ? Path.Combine(upn, ".local", "bin", exe + ".exe") : null,
             Env("USERPROFILE") is { } up3 ? Path.Combine(up3, ".local", "bin", exe) : null,
             // other local installs
-            Env("LOCALAPPDATA") is { } la ? Path.Combine(la, "Programs", "claude", exe + ".exe") : null,
-            Env("USERPROFILE") is { } up ? Path.Combine(up, ".claude", "local", exe + ".exe") : null,
-            Env("USERPROFILE") is { } up2 ? Path.Combine(up2, ".claude", "local", exe) : null,
+            Env("LOCALAPPDATA") is { } la ? Path.Combine(la, "Programs", exe, exe + ".exe") : null,
+            wantsClaude && Env("USERPROFILE") is { } up ? Path.Combine(up, ".claude", "local", exe + ".exe") : null,
+            wantsClaude && Env("USERPROFILE") is { } up2 ? Path.Combine(up2, ".claude", "local", exe) : null,
+            // Codex's own installer keeps the binary out of PATH in the same way Claude's does.
+            wantsCodex && Env("USERPROFILE") is { } cx ? Path.Combine(cx, ".codex", "bin", exe + ".exe") : null,
+            wantsCodex && Env("USERPROFILE") is { } cx2 ? Path.Combine(cx2, ".codex", "bin", exe) : null,
             // unix-y (in case Revit ever runs elsewhere)
             "/usr/local/bin/" + exe,
             "/usr/bin/" + exe,
@@ -323,8 +332,12 @@ public static class ClaudeCodeBackend
         //   %LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code\<version>\claude.exe
         // Users who only have the desktop app still have a working headless claude.exe here — it's just
         // not on PATH. Glob for it and take the newest version folder.
+        //
+        // Only when claude is what was asked for: this branch hard-codes claude.exe, so without the
+        // guard it answers every lookup with the wrong program.
         try
         {
+            if (!wantsClaude) return null;
             var packages = Env("LOCALAPPDATA") is { } lad ? Path.Combine(lad, "Packages") : null;
             if (packages != null && Directory.Exists(packages))
             {
