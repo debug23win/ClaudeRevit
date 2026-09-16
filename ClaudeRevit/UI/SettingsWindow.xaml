@@ -211,7 +211,7 @@
                         <TextBox x:Name="CodexExeBox" Margin="0,4,0,0" Height="26" Padding="4"
                                  VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11" />
                         <TextBlock x:Name="CodexNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                                   Text="Full path to codex.exe (Revit often can't see your PATH). Sign in once by running codex in a terminal. Unlike Claude Code, the server can't be passed per-run — Codex reads it from your own config.toml, because that folder also holds your login. Paste the snippet below into %USERPROFILE%\.codex\config.toml once." />
+                                   Text="Full path to codex.exe (Revit often can't see your PATH). Sign in once by running codex in a terminal. It must be the current build — the old Node one has no MCP client at all, so check codex --version and update with npm i -g @openai/codex@latest. Unlike Claude Code, the server can't be passed per-run — Codex reads it from your own config.toml, because that folder also holds your login. Paste the snippet below into %USERPROFILE%\.codex\config.toml once, then restart Revit." />
                         <TextBox x:Name="CodexConfigBox" Margin="0,6,0,0" IsReadOnly="True" TextWrapping="NoWrap"
                                  FontFamily="Consolas" FontSize="11" Height="90"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />

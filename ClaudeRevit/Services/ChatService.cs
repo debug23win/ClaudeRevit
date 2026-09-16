@@ -429,14 +429,14 @@ public class ChatService
         }
         if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
 
-        // The installed CLI rejected our command line and the answer came from a retry without the
-        // reporting flags. Worth saying: the work was done, but tool progress and the token counts
-        // are missing for this run, and the same will happen every time until Codex is updated.
+        // The installed CLI rejected part of our command line and the answer came from a retry with
+        // fewer flags. Worth saying: the work was done, but this run may be missing tool progress
+        // and token counts, and the same step-down will happen every time until Codex is updated.
         if (!string.IsNullOrEmpty(res.FlagsRejected))
-            Append("\n\n⚠ Your Codex CLI rejected the flags used for live progress, so this run was " +
-                   "repeated without them (the answer is real; progress and token counts are not). " +
-                   "Updating Codex (npm i -g @openai/codex) should restore them. It said: " +
-                   res.FlagsRejected!.Split('\n')[0].Trim());
+            Append("\n\n⚠ Your Codex CLI rejected part of the command line, so this run was repeated " +
+                   "with fewer flags — the answer is real, but tool progress and token counts may be " +
+                   "missing. Updating Codex (npm i -g @openai/codex@latest) should restore them. " +
+                   "It said: " + res.FlagsRejected!.Split('\n')[0].Trim());
 
         // A run that answered without touching a single Revit tool almost always means Codex never
         // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads

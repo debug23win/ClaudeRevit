@@ -9,20 +9,30 @@ namespace ClaudeRevit.Services;
 // Revit settings — while this part is exactly where the mistakes are, and is pure string work.
 internal static class CodexCli
 {
-    // `--json` + `--output-last-message` are what make a run observable; `minimal` drops every
-    // optional flag for the retry that runs when the installed CLI rejects them.
+    // How much of the command line to use. Codex has added and moved these flags across releases,
+    // so a rejected flag is answered by stepping down a level rather than by failing the run.
+    public enum Level
+    {
+        Full = 0,       // everything: the git-repo-check waiver plus the reporting flags
+        NoGitWaiver,    // --skip-git-repo-check is not known to this build
+        Bare            // no --json / --output-last-message either: stdout is the answer
+    }
+
+    // `--json` + `--output-last-message` are what make a run observable, so they are preferred.
     //
     // Order is deliberate: the exec options come FIRST and `resume <id>` last. Codex parses these
     // options on the `exec` command, not on its `resume` subcommand, so `exec resume <id> --json`
     // is rejected with "unexpected argument '--json' found" while `exec --json resume <id>` works.
     //
-    // --skip-git-repo-check is not optional for us: Codex refuses to run in a directory that isn't
-    // a git repo, and the client work directory (AppData\...\ccwork) never is one.
+    // --skip-git-repo-check matters because Codex refuses to run in a directory that isn't a git
+    // repo, and the client work directory (AppData\...\ccwork) never is one. Builds old enough not
+    // to know the flag also predate that check, which is why dropping it is a sane first step down.
     public static List<string> BuildArgs(
-        string prompt, string? model, string? resumeSessionId, string lastMsgPath, bool minimal)
+        string prompt, string? model, string? resumeSessionId, string lastMsgPath, Level level)
     {
-        var args = new List<string> { "exec", "--skip-git-repo-check" };
-        if (!minimal)
+        var args = new List<string> { "exec" };
+        if (level == Level.Full) args.Add("--skip-git-repo-check");
+        if (level != Level.Bare)
         {
             args.Add("--json");
             args.Add("--output-last-message");
@@ -51,6 +61,22 @@ internal static class CodexCli
          err.Contains("unrecognized", StringComparison.OrdinalIgnoreCase) ||
          err.Contains("cannot be used with", StringComparison.OrdinalIgnoreCase) ||
          err.Contains("Usage: codex", StringComparison.OrdinalIgnoreCase));
+
+    // The legacy Node build of Codex, which is worth naming precisely because no amount of flag
+    // juggling can rescue it: it has no `codex exec` and no MCP client at all, so it can never
+    // reach the Revit tools. The tell is the wording — "unknown option" is commander (Node), while
+    // the current Rust build parses with clap and says "unexpected argument ... found".
+    public static bool LooksLikeLegacyNodeCli(string? err) =>
+        !string.IsNullOrWhiteSpace(err) &&
+        (err!.Contains("unknown option", StringComparison.OrdinalIgnoreCase) ||
+         err.Contains("unknown command", StringComparison.OrdinalIgnoreCase));
+
+    public const string LegacyCliAdvice =
+        "Your `codex` is the old Node build of the CLI. It has no `codex exec` and no MCP client at " +
+        "all, so it can't reach the Revit tools no matter how it's called — MCP arrived with the " +
+        "Rust rewrite. Update it (npm i -g @openai/codex@latest), run `codex` once to sign in, and " +
+        "check `codex --version`. If Settings points at a specific codex.exe, make sure it isn't an " +
+        "old copy left behind by the previous install.";
 
     // Codex's human-readable output opens with a metadata block (workdir, model, provider, approval
     // and sandbox settings, session id) and closes with a token count. Only the retry path needs

@@ -77,32 +77,49 @@ public static class CodexBackend
 
         var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
 
-        var full = await RunOnceAsync(
-            resolved, CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, minimal: false),
-            workDir, lastMsgPath, onText, onTool, ct);
+        // The exec flags have moved between Codex releases — they are parsed per subcommand, and
+        // some are newer than others — and a rejected flag fails the whole run with a parse error
+        // before the model is ever asked anything. So each rejection steps one level down instead
+        // of ending the turn: first without the git-repo-check waiver, then without the reporting
+        // flags, where the answer comes from plain stdout and live progress is lost. What the CLI
+        // objected to is kept and reported, because the same step-down will happen every run until
+        // Codex is updated.
+        Result? first = null;
 
-        // The exec flags have moved between Codex releases (they are parsed per subcommand, so
-        // `--json` and `-o` are accepted in some positions and rejected in others), and a rejected
-        // flag fails the whole run with a usage error before the model is ever asked anything. When
-        // that is what happened, retry with nothing but the prompt — the answer then comes from
-        // plain stdout instead of the event stream, which costs the live progress display but still
-        // does the work. The rejected-flag message is kept and reported.
-        if (CodexCli.LooksLikeUsageError(full.Error))
+        foreach (var level in new[] { CodexCli.Level.Full, CodexCli.Level.NoGitWaiver, CodexCli.Level.Bare })
         {
-            var bare = await RunOnceAsync(
-                resolved, CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, minimal: true),
-                workDir, lastMsgPath: null, onText, onTool, ct);
-            if (string.IsNullOrEmpty(bare.Error))
+            var args = CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, level);
+            var res = await RunOnceAsync(
+                resolved, args, workDir,
+                level == CodexCli.Level.Bare ? null : lastMsgPath,
+                onText, onTool, ct);
+
+            first ??= res;
+
+            // No amount of flag juggling reaches MCP on the legacy Node CLI — say so instead of
+            // stepping down through attempts that cannot work.
+            if (CodexCli.LooksLikeLegacyNodeCli(res.Error))
             {
-                bare.FlagsRejected = full.Error;
-                return bare;
+                first.Error = CodexCli.LegacyCliAdvice + " It said: " + FirstLine(res.Error);
+                return first;
             }
-            // Both failed: the first message is the more informative one.
-            return full;
+
+            if (!CodexCli.LooksLikeUsageError(res.Error))
+            {
+                // A real answer (or a real failure): done either way. If we had to step down to get
+                // here, say which complaint made us.
+                if (!ReferenceEquals(res, first) && string.IsNullOrEmpty(res.Error))
+                    res.FlagsRejected = first.Error;
+                return res;
+            }
         }
 
-        return full;
+        // Every level was rejected: report the first complaint, which names the flag that started it.
+        return first!;
     }
+
+    private static string FirstLine(string? s) =>
+        (s ?? "").Split('\n')[0].Trim();
 
     // lastMsgPath non-null means the run was launched with --output-last-message, so the final
     // answer is read from that file: it is the authoritative answer, instead of one inferred from
