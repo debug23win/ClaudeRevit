@@ -43,12 +43,13 @@
             </ComboBox>
             <TextBlock Text="Tasks:" VerticalAlignment="Center" Margin="12,0,8,0" />
             <ComboBox x:Name="TaskSetBox" Width="150" Height="26" VerticalContentAlignment="Center"
-                      ToolTip="Run a subset to save tokens — you rarely need all 14 every time.">
-                <ComboBoxItem Tag="all" IsSelected="True">All (14)</ComboBoxItem>
+                      ToolTip="Run a subset to save tokens — you rarely need all 19 every time.">
+                <ComboBoxItem Tag="all" IsSelected="True">All (19)</ComboBoxItem>
                 <ComboBoxItem Tag="basic">Basics only (7)</ComboBoxItem>
                 <ComboBoxItem Tag="composite">Composite L1–L4</ComboBoxItem>
                 <ComboBoxItem Tag="domain">Domain: rebar &amp; steel</ComboBoxItem>
-                <ComboBoxItem Tag="hard">Hard discriminators (L3,L4,R,S)</ComboBoxItem>
+                <ComboBoxItem Tag="docs">Documentation (sheets, schedules, tags)</ComboBoxItem>
+                <ComboBoxItem Tag="hard">Hard discriminators (L3,L4,R,S,D)</ComboBoxItem>
             </ComboBox>
             <Button x:Name="RunButton" Content="Run benchmark" Width="120" Height="26" Margin="16,0,0,0"
                     Click="RunButton_Click" />
@@ -73,7 +74,7 @@
         </StackPanel>
 
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"
-                   Text="Runs real modelling in the ACTIVE document — open a scratch/empty project first. Each task is one undo step. Grading uses an impartial fixed judge (Opus 4.8), so an Anthropic API key is required even when testing an alternative model. Results are appended to benchmark_results.jsonl in %AppData%\ClaudeRevit." />
+                   Text="Runs real modelling in the ACTIVE document — open a scratch/empty project first. Each task is one undo step. Grading uses an impartial judge (chosen above, Opus 4.8 by default) — keep it the same across runs you intend to compare. An Anthropic API key is required for it unless you grade on the subscription. Results are appended to benchmark_results.jsonl in %AppData%\ClaudeRevit." />
 
         <Border DockPanel.Dock="Top" Background="#EEF4FF" BorderBrush="#CFE0FF" BorderThickness="1"
                 Padding="8,5" Margin="0,0,0,8" x:Name="NowPanel" Visibility="Collapsed">

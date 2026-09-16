@@ -189,6 +189,8 @@ public class ChatService
             // Revit restart, matching how the API history persists.
             try { if (File.Exists(ClaudeCodeSessionFile)) _claudeCodeSessionId = File.ReadAllText(ClaudeCodeSessionFile).Trim(); }
             catch { /* non-fatal */ }
+            try { if (File.Exists(CodexSessionFile)) _codexSessionId = File.ReadAllText(CodexSessionFile).Trim(); }
+            catch { /* non-fatal */ }
         }
 
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -218,6 +220,10 @@ public class ChatService
     // same conversation via --resume. Reset on ClearHistory.
     private string? _claudeCodeSessionId;
 
+    // Same idea for the Codex path: without a session id every pane message would be a fresh
+    // `codex exec`, so the assistant would forget the conversation between replies.
+    private string? _codexSessionId;
+
     // Set by the chat pane: when true, the selected model runs through the Claude Code CLI on the
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
@@ -226,6 +232,28 @@ public class ChatService
     private static string ClaudeCodeSessionFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClaudeRevit", "claudecode-session.txt");
+
+    private static string CodexSessionFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClaudeRevit", "codex-session.txt");
+
+    private void PersistCodexSession()
+    {
+        if (_ephemeral) return;
+        try
+        {
+            if (string.IsNullOrEmpty(_codexSessionId))
+            {
+                if (File.Exists(CodexSessionFile)) File.Delete(CodexSessionFile);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(CodexSessionFile)!);
+                File.WriteAllText(CodexSessionFile, _codexSessionId);
+            }
+        }
+        catch { /* non-fatal */ }
+    }
 
     private void PersistClaudeCodeSession()
     {
@@ -260,6 +288,8 @@ public class ChatService
         _revealedCategories.Clear();
         _claudeCodeSessionId = null;
         PersistClaudeCodeSession();
+        _codexSessionId = null;
+        PersistCodexSession();
         if (!_ephemeral) HistoryStore.Clear();
     }
 
@@ -378,7 +408,10 @@ public class ChatService
             SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct);
+            ct, resumeSessionId: _codexSessionId);
+
+        _codexSessionId = res.SessionId ?? _codexSessionId;
+        PersistCodexSession();
 
         // The benchmark reads its per-task numbers from LastTask. Without this every CLI-driven run
         // was recorded as 0 rounds / 0 tokens, which reads as "the run did nothing".

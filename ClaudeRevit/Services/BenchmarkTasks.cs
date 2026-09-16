@@ -98,5 +98,52 @@ public static class BenchmarkTasks
             "PASS if 2 steel columns + 1 steel beam form the portal at the right geometry AND at least one " +
             "beam-to-column connection/joint element (StructuralConnectionHandler or equivalent) was " +
             "created. FAIL if only the bare members exist with no connection, or geometry is wrong."),
+
+        // --- Documentation & delivery: the half of BIM that isn't modelling. These are the real
+        // discriminators — each needs a CHAIN of tools where a wrong intermediate result is only
+        // visible at the end (a sheet with no viewport, a schedule with no fields, tags placed in
+        // the wrong view), so a model that doesn't verify its own work fails them.
+        new BenchmarkTask("D1", "Sheet set (view + sheet + viewport)",
+            "Create two levels 3 m apart named \"Bench D1 A\" and \"Bench D1 B\", put a wall on each, then " +
+            "produce a drawing sheet for EACH level: a floor plan of that level, placed on its own sheet " +
+            "with a title block, numbered \"BD-101\" and \"BD-102\". Each plan must actually appear on its " +
+            "sheet, not just exist.",
+            "PASS only if 2 new sheets exist with those numbers AND each has a viewport holding a floor " +
+            "plan of the matching level. FAIL if sheets were created but no view is placed on them, if " +
+            "both plans landed on one sheet, or if the plans are of the wrong levels."),
+
+        new BenchmarkTask("D2", "Schedule with fields + export",
+            "Create a wall schedule named \"Bench D2 Walls\" with the fields Family and Type, Length and " +
+            "Area, then export it to CSV in the temp folder and tell me the exported file path and the " +
+            "number of data rows it contains.",
+            "PASS if a ViewSchedule of Walls named \"Bench D2 Walls\" exists WITH those fields added, a CSV " +
+            "was written, and the reported row count matches the walls in the model. FAIL if the schedule " +
+            "has no fields, if nothing was exported, or if the reported row count is invented rather than " +
+            "taken from the export."),
+
+        new BenchmarkTask("D3", "Annotate a plan (dimension + tags)",
+            "Create a level \"Bench D3\", a floor plan view of it, and three walls forming a U shape. In " +
+            "THAT plan view: tag every wall and add one dimension between the two parallel walls. The " +
+            "annotation must live in the new plan view, not in whatever view happened to be active.",
+            "PASS if the tags and the dimension exist AND their OwnerViewId is the new Bench D3 plan. FAIL " +
+            "if annotation was placed in the previously active view, if tags are missing, or if no " +
+            "dimension was created."),
+
+        new BenchmarkTask("D4", "Find-and-fix (filter → act → verify)",
+            "Create five walls of differing lengths on one level, then find every wall shorter than 4 m and " +
+            "set their Comments parameter to \"SHORT\". Leave the others untouched. Report how many you " +
+            "changed and their ids.",
+            "PASS only if exactly the walls under 4 m carry Comments=SHORT, the longer ones are unchanged, " +
+            "and the reported count matches reality. FAIL if every wall was tagged, if the threshold was " +
+            "applied in feet instead of metres, or if the reported count doesn't match the model."),
+
+        new BenchmarkTask("D5", "Model audit (diagnose → clean → prove)",
+            "Audit this model's health, then remove whatever unused/redundant content you safely can, and " +
+            "report what you found and what you removed — with before/after numbers. Do not delete any " +
+            "geometry I placed.",
+            "PASS if the model was actually diagnosed (not guessed at), a cleanup was performed or " +
+            "correctly reported as unnecessary, and before/after numbers are given that match the probe " +
+            "delta. FAIL if placed geometry was deleted, if numbers are invented, or if it only described " +
+            "what it would do without doing it."),
     };
 }

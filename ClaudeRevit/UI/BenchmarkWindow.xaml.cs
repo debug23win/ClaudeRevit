@@ -40,7 +40,7 @@ public partial class BenchmarkWindow : Window
 
     private void RenderStatus() => NowText.Text = $"{_status}  ·  {_phase.Elapsed.TotalSeconds:0}s";
 
-    // The task subset to run — pick fewer to save tokens; you rarely need all 14 every time.
+    // The task subset to run — pick fewer to save tokens; you rarely need all 19 every time.
     private System.Collections.Generic.IReadOnlyList<BenchmarkTask> SelectedTasks()
     {
         var tag = (TaskSetBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
@@ -49,8 +49,12 @@ public partial class BenchmarkWindow : Window
             "basic" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("B")).ToList(),
             "composite" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("L")).ToList(),
             "domain" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("R") || t.Id.StartsWith("S")).ToList(),
+            "docs" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("D")).ToList(),
+            // The discriminators: multi-step chains where a wrong intermediate result only shows at
+            // the end, plus the domain tasks.
             "hard" => BenchmarkTasks.All.Where(t => t.Id is "L3" or "L4"
-                        || t.Id.StartsWith("R") || t.Id.StartsWith("S")).ToList(),
+                        || t.Id.StartsWith("R") || t.Id.StartsWith("S")
+                        || t.Id.StartsWith("D")).ToList(),
             _ => BenchmarkTasks.All
         };
     }

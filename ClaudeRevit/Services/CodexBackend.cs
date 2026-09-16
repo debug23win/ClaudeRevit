@@ -33,6 +33,8 @@ public static class CodexBackend
         public long InputTokens;
         public long OutputTokens;
         public int NumTurns;
+        // Captured from the stream so the next message can continue this conversation.
+        public string? SessionId;
     }
 
     // The MCP server name we tell users to register; also how we spot its tool calls in the stream.
@@ -48,7 +50,8 @@ public static class CodexBackend
 
     public static async Task<Result> RunAsync(
         string exe, string prompt, string workDir, string? model,
-        Action<string> onText, Action<string> onTool, CancellationToken ct)
+        Action<string> onText, Action<string> onTool, CancellationToken ct,
+        string? resumeSessionId = null)
     {
         var result = new Result();
 
@@ -69,7 +72,18 @@ public static class CodexBackend
         // rather than losing the answer.
         var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
 
-        var args = new List<string> { "exec", "--json", "--output-last-message", lastMsgPath };
+        // Continue the conversation rather than starting fresh each message. A captured session id
+        // is preferred over `--last`: --last means "the most recent Codex session on this machine",
+        // which could belong to an unrelated project the user ran in a terminal.
+        var args = new List<string> { "exec" };
+        if (!string.IsNullOrWhiteSpace(resumeSessionId))
+        {
+            args.Add("resume");
+            args.Add(resumeSessionId!);
+        }
+        args.Add("--json");
+        args.Add("--output-last-message");
+        args.Add(lastMsgPath);
         if (!string.IsNullOrWhiteSpace(model)) { args.Add("--model"); args.Add(model!); }
         args.Add(prompt);
 
@@ -179,6 +193,10 @@ public static class CodexBackend
                 result.Text += text;
                 onText(text!);
             }
+
+            // Session id, wherever it appears — needed to continue the conversation next message.
+            var sid = FirstString(root, "session_id", "sessionId", "conversation_id", "thread_id");
+            if (!string.IsNullOrEmpty(sid)) result.SessionId = sid;
 
             // Token usage, wherever it appears.
             if (root.TryGetProperty("usage", out var u) && u.ValueKind == JsonValueKind.Object)
