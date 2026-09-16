@@ -35,17 +35,28 @@ public static class CodexBackend
         public int NumTurns;
         // Captured from the stream so the next message can continue this conversation.
         public string? SessionId;
+        // Set when the installed CLI rejected our flags and the run had to be retried without them:
+        // the answer is real, but the user should hear that their Codex expects a different command
+        // line (and that live progress is therefore missing).
+        public string? FlagsRejected;
     }
 
     // The MCP server name we tell users to register; also how we spot its tool calls in the stream.
     public const string ServerName = "clauderevit";
 
     // The snippet a user pastes into %USERPROFILE%\.codex\config.toml (Settings shows this).
+    //
+    // The [features] line matters on older Codex builds: those only pick up stdio servers and
+    // ignore a `url` entry entirely, which looks exactly like "the tools aren't there" rather than
+    // like a version problem. Newer builds take the HTTP transport from `url` alone and the flag is
+    // harmless, so it is always included.
     public static string ConfigSnippet() =>
+        $"[features]\n" +
+        $"experimental_use_rmcp_client = true   # older Codex ignores url-based servers without this\n\n" +
         $"[mcp_servers.{ServerName}]\n" +
         $"url = \"{McpServer.Url}\"\n" +
         $"bearer_token_env_var = \"CLAUDEREVIT_MCP_TOKEN\"\n\n" +
-        $"# Then set the environment variable once (PowerShell):\n" +
+        $"# Then set the environment variable once (PowerShell) and restart Revit:\n" +
         $"#   setx CLAUDEREVIT_MCP_TOKEN \"{SettingsStore.McpToken}\"";
 
     public static async Task<Result> RunAsync(
@@ -53,39 +64,56 @@ public static class CodexBackend
         Action<string> onText, Action<string> onTool, CancellationToken ct,
         string? resumeSessionId = null)
     {
-        var result = new Result();
-
         // Revit's GUI process usually has a narrower PATH than the user's shell, so resolve to a
         // full path first (shared with the Claude Code path).
         var resolved = ClaudeCodeBackend.Resolve(string.IsNullOrWhiteSpace(exe) ? "codex" : exe);
         if (resolved == null)
-        {
-            result.Error =
-                $"Codex CLI not found ('{exe}'). Install it (npm i -g @openai/codex), sign in once by " +
-                "running 'codex', then set the full path to codex.exe/codex.cmd in Settings.";
-            return result;
-        }
+            return new Result
+            {
+                Error =
+                    $"Codex CLI not found ('{exe}'). Install it (npm i -g @openai/codex), sign in once by " +
+                    "running 'codex', then set the full path to codex.exe/codex.cmd in Settings."
+            };
 
-        // --output-last-message gives the final answer through a file instead of us having to infer
-        // it from the event stream, whose exact shape is not contractual. The JSONL stream is still
-        // read, but only for live progress — so a schema change degrades the progress display
-        // rather than losing the answer.
         var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
 
-        // Continue the conversation rather than starting fresh each message. A captured session id
-        // is preferred over `--last`: --last means "the most recent Codex session on this machine",
-        // which could belong to an unrelated project the user ran in a terminal.
-        var args = new List<string> { "exec" };
-        if (!string.IsNullOrWhiteSpace(resumeSessionId))
+        var full = await RunOnceAsync(
+            resolved, CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, minimal: false),
+            workDir, lastMsgPath, onText, onTool, ct);
+
+        // The exec flags have moved between Codex releases (they are parsed per subcommand, so
+        // `--json` and `-o` are accepted in some positions and rejected in others), and a rejected
+        // flag fails the whole run with a usage error before the model is ever asked anything. When
+        // that is what happened, retry with nothing but the prompt — the answer then comes from
+        // plain stdout instead of the event stream, which costs the live progress display but still
+        // does the work. The rejected-flag message is kept and reported.
+        if (CodexCli.LooksLikeUsageError(full.Error))
         {
-            args.Add("resume");
-            args.Add(resumeSessionId!);
+            var bare = await RunOnceAsync(
+                resolved, CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, minimal: true),
+                workDir, lastMsgPath: null, onText, onTool, ct);
+            if (string.IsNullOrEmpty(bare.Error))
+            {
+                bare.FlagsRejected = full.Error;
+                return bare;
+            }
+            // Both failed: the first message is the more informative one.
+            return full;
         }
-        args.Add("--json");
-        args.Add("--output-last-message");
-        args.Add(lastMsgPath);
-        if (!string.IsNullOrWhiteSpace(model)) { args.Add("--model"); args.Add(model!); }
-        args.Add(prompt);
+
+        return full;
+    }
+
+    // lastMsgPath non-null means the run was launched with --output-last-message, so the final
+    // answer is read from that file: it is the authoritative answer, instead of one inferred from
+    // an event stream whose exact shape is not contractual. Null means the bare retry, where stdout
+    // is the answer.
+    private static async Task<Result> RunOnceAsync(
+        string resolved, List<string> args, string workDir, string? lastMsgPath,
+        Action<string> onText, Action<string> onTool, CancellationToken ct)
+    {
+        var result = new Result();
+        var jsonStream = lastMsgPath != null;
 
         var viaCmd = resolved.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
                      resolved.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
@@ -118,7 +146,15 @@ public static class CodexBackend
             while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
             {
                 ct.ThrowIfCancellationRequested();
-                ParseLine(line, result, onText, onTool);
+                if (jsonStream) ParseLine(line, result, onText, onTool);
+                else
+                {
+                    // The bare retry has no event stream: stdout IS the answer, so take it as it
+                    // comes. Codex's own banner lines are dropped — they are not part of the reply.
+                    if (CodexCli.IsBannerLine(line)) continue;
+                    result.Text += line + "\n";
+                    onText(line + "\n");
+                }
             }
 
             var err = await errTask;

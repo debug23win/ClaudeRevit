@@ -31,6 +31,7 @@
     <Compile Include="..\ClaudeRevit\Services\ChatHistory.cs" Link="src\ChatHistory.cs" />
     <Compile Include="..\ClaudeRevit\Services\TextUtil.cs" Link="src\TextUtil.cs" />
     <Compile Include="..\ClaudeRevit\Services\Log.cs" Link="src\Log.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexCli.cs" Link="src\CodexCli.cs" />
   </ItemGroup>
 
 </Project>
