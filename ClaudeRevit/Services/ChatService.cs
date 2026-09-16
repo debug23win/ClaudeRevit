@@ -429,10 +429,20 @@ public class ChatService
         }
         if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
 
+        // The installed CLI rejected our command line and the answer came from a retry without the
+        // reporting flags. Worth saying: the work was done, but tool progress and the token counts
+        // are missing for this run, and the same will happen every time until Codex is updated.
+        if (!string.IsNullOrEmpty(res.FlagsRejected))
+            Append("\n\n⚠ Your Codex CLI rejected the flags used for live progress, so this run was " +
+                   "repeated without them (the answer is real; progress and token counts are not). " +
+                   "Updating Codex (npm i -g @openai/codex) should restore them. It said: " +
+                   res.FlagsRejected!.Split('\n')[0].Trim());
+
         // A run that answered without touching a single Revit tool almost always means Codex never
         // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads
-        // as the model refusing the task.
-        if (toolCount == 0 && bubble != null)
+        // as the model refusing the task. Skipped after a flag-rejection retry, where no tool call
+        // is observable in the first place and the warning would be pure noise.
+        if (toolCount == 0 && bubble != null && string.IsNullOrEmpty(res.FlagsRejected))
             Append("\n\n⚠ No Revit tools were called. Check that the clauderevit MCP server is " +
                    "registered in your Codex config.toml (Settings → MCP shows the snippet) and that " +
                    "the MCP server is enabled here.");
