@@ -49,8 +49,11 @@ public class ChatService
         "adapted from the Dynamo community, or the user asked for Python. Both run only when the user has " +
         "enabled code execution, so do not reach for them lightly. If they are not offered to you, code " +
         "execution is disabled. Tell the user they can enable it via the gear icon. " +
-        "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
-        "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
+        "UNITS: a parameter's NAME SUFFIX decides its unit, and it always wins over any general rule: " +
+        "`_mm` is millimetres, `_m2`/`_m3` are square/cubic metres, `_deg` is degrees, `_ft` and any " +
+        "unsuffixed spatial value are FEET (Revit's internal unit). So spacing_mm=200 means 200 mm — " +
+        "never convert that one to feet. Convert only for the feet parameters: 1 m ≈ 3.28084 ft, " +
+        "1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft. Returned values follow the same suffix rule.\n\n" +
         "FAMILY EDITOR: when a family (.rfa) is open for editing, prefer the dedicated family tools " +
         "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
         "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
@@ -823,6 +826,27 @@ public class ChatService
                 // tool is callable on the very next round of the SAME turn (not just the next
                 // message). Rare, so the one-off cache re-warm it costs is fine.
                 var toolSetChanged = false;
+
+                // Queue every straightforward tool call of this ROUND before awaiting any of them.
+                // The dispatcher drains its whole queue in one Execute, so N calls then cost one
+                // Idling round-trip instead of N — the model routinely emits several at once.
+                // Deliberately skipped: find_tools (handled in-process below) and anything gated by
+                // the confirmation prompt, which must be answered before the tool may run.
+                var started = new Dictionary<string, Task<string>>(StringComparer.Ordinal);
+                if (toolUses.Count > 1)
+                {
+                    foreach (var use in toolUses)
+                    {
+                        if (use.Name == "find_tools") continue;
+                        var pre = TryParseInput(use.InputJson);
+                        if (pre == null) continue;
+                        if (SettingsStore.ConfirmOperations &&
+                            ToolRegistry.Instance.Get(use.Name)?.RequiresConfirmation == true) continue;
+                        try { started[use.Id] = ToolDispatcher.Instance.ExecuteAsync(use.Name, pre, ct); }
+                        catch { /* fall back to the inline call below */ }
+                    }
+                }
+
                 foreach (var use in toolUses)
                 {
                     var name = use.Name;
@@ -910,7 +934,9 @@ public class ChatService
                     bool isError = false;
                     try
                     {
-                        content = await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
+                        content = started.TryGetValue(use.Id, out var pending)
+                            ? await pending
+                            : await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
                         var display = FormatInput(inp) + "\n→ " + Truncate(FormatResult(content), 400);
                         await ui.InvokeAsync(() => toolMsg.Text = display);
                     }
@@ -1088,7 +1114,7 @@ public class ChatService
     {
         // en
         "calculate", "compute", "layout", "optimi", "debug", "why ", "diagnose", "reinforc",
-        "constraint", "formula", "parametric", "step by step", "figure out", "plan ",
+        "constraint", "formula", "parametric", "step by step", "figure out", "plan the", "planning",
         // ru
         "рассчита", "посчита", "раскладк", "оптимиз", "отлад", "почему", "диагно", "армир",
         "хомут", "формул", "параметр", "по шагам", "разберись", "спроектир", "зон"
@@ -1099,7 +1125,9 @@ public class ChatService
         if (string.IsNullOrWhiteSpace(prompt)) return false;
         if (prompt.Length > 400) return true; // long, detailed asks tend to be multi-step
         var p = prompt.ToLowerInvariant();
-        return ComplexHints.Any(h => p.Contains(h));
+        // Match at a word START, not anywhere: a plain Contains fired "зон" inside "горизонтальная"
+        // and escalated ordinary requests to the expensive model.
+        return ComplexHints.Any(h => StartsAtWordBoundary(p, h));
     }
 
     // Phrases that mean "I'm about to keep working" — a turn ending on one of these with NO tool
@@ -1131,7 +1159,26 @@ public class ChatService
         if (tail.Contains("готово") || tail.Contains("завершен") || tail.Contains("сделал")
             || tail.Contains("all done") || tail.Contains("completed") || tail.Contains("finished"))
             return false;
-        return ContinueCues.Any(c => lower.Contains(c));
+        // "I'm about to continue" is announced at the END of a message. Searching the whole text
+        // made a closing "Let me know if you need anything else" (or "Далее можно добавить окна")
+        // look like unfinished work, costing a pointless extra round — and the model, told to
+        // continue, would go and do something the user never asked for.
+        if (tail.Contains("let me know") || tail.Contains("дайте знать") || tail.Contains("дай знать"))
+            return false;
+        return ContinueCues.Any(c => StartsAtWordBoundary(tail, c));
+    }
+
+    // True when `needle` occurs in `haystack` starting at a word boundary. Both heuristics used a
+    // bare Contains, which matched inside unrelated words.
+    private static bool StartsAtWordBoundary(string haystack, string needle)
+    {
+        var i = haystack.IndexOf(needle, StringComparison.Ordinal);
+        while (i >= 0)
+        {
+            if (i == 0 || !char.IsLetterOrDigit(haystack[i - 1])) return true;
+            i = haystack.IndexOf(needle, i + 1, StringComparison.Ordinal);
+        }
+        return false;
     }
 
     // ---- Anthropic path -----------------------------------------------------------

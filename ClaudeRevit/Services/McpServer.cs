@@ -44,9 +44,12 @@ public static class McpServer
         "names, or levels — use only values returned by tools. For a non-trivial task, state a 2–4 step " +
         "plan first, then execute. Work in small steps: prove an operation on ONE element, then scale to " +
         "the floor/building — don't run a large batch before verifying one.\n\n" +
-        "UNITS — all spatial inputs are in FEET (Revit's internal unit). Convert metric first: 1 m ≈ " +
-        "3.28084 ft, 1 mm ≈ 0.00328084 ft. Always confirm the target level and view; state the conversion " +
-        "you used.\n\n" +
+        "UNITS — a parameter's NAME SUFFIX decides its unit and always wins over any general rule: " +
+        "`_mm` is millimetres, `_m2`/`_m3` square/cubic metres, `_deg` degrees, while `_ft` and any " +
+        "unsuffixed spatial value are FEET (Revit's internal unit). spacing_mm=200 means 200 mm — do " +
+        "NOT convert that to feet. Convert only for feet parameters: 1 m ≈ 3.28084 ft, 1 mm ≈ " +
+        "0.00328084 ft. Returned values follow the same rule. Always confirm the target level and " +
+        "view; state the conversion you used.\n\n" +
         "TOOL CHOICE — prefer a dedicated tool when one exists (the full tool index is included below; " +
         "native tools cover walls, floors, roofs, levels, grids, doors, columns, framing, rebar & " +
         "reinforcement, steel connections, family authoring, views, sheets, schedules, annotation, " +

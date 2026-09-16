@@ -70,6 +70,9 @@ public class ChangeElementType : IRevitTool
 
         return JsonSerializer.Serialize(new
         {
+            // ok:false when nothing actually changed — otherwise the empty transaction reads as
+            // success in a truncated preview and the model moves on.
+            ok = changed.Count > 0,
             new_type = newType.Name,
             changed_count = changed.Count,
             skipped_count = skipped.Count,

@@ -103,6 +103,9 @@ public class SetElementMaterial : IRevitTool
 
         return JsonSerializer.Serialize(new
         {
+            // ok:false when nothing actually changed — otherwise the empty transaction reads as
+            // success in a truncated preview and the model moves on.
+            ok = updated.Count > 0,
             material = material.Name,
             updated_count = updated.Count,
             skipped_count = skipped.Count,
