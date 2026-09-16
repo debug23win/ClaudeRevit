@@ -36,7 +36,7 @@ public class ListRebarTypes : IRevitTool
             .Select(t => new
             {
                 name = t.Name,
-                diameter_mm = Math.Round(t.BarNominalDiameter * 304.8, 1)
+                diameter_mm = Math.Round(t.BarNominalDiameter * Units.MmPerFoot, 1)
             })
             .OrderBy(t => t.diameter_mm)
             .ToList();

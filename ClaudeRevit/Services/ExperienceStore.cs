@@ -111,8 +111,12 @@ public static class ExperienceStore
             }
             catch { /* skip a malformed line */ }
         }
+        // Rank by how RELIABLE a pattern is, not how often it was attempted. Ordering by Runs put a
+        // pattern that failed 49 times out of 50 above one that succeeded 5/5 — and then offered the
+        // failing one to the model as proven practice. Patterns that mostly fail are dropped outright.
         return byKey.Values
-            .OrderByDescending(p => p.Runs)
+            .Where(p => p.Runs > 0 && (double)p.Ok / p.Runs >= 0.5)
+            .OrderByDescending(p => (double)p.Ok / p.Runs)
             .ThenByDescending(p => p.Ok)
             .ThenByDescending(p => p.LastTsUtc, StringComparer.Ordinal)
             .ToList();
@@ -156,8 +160,11 @@ public static class ExperienceStore
             if (!string.IsNullOrEmpty(p.Engine)) sb.Append(" (").Append(p.Engine).Append(')');
             sb.Append(" — touches: ").Append(cats)
               .Append("; succeeded ").Append(p.Ok).Append('/').Append(p.Runs).Append("×.");
-            var snippet = TextUtil.TruncateOrNull(p.SampleCode?.Trim(), 320);
-            if (!string.IsNullOrEmpty(snippet))
+            // Include the sample ONLY if it fits whole. Truncating chopped it mid-expression and
+            // then labelled the fragment "proven code", so the model was being handed something that
+            // could not compile as an example to follow.
+            var snippet = p.SampleCode?.Trim();
+            if (!string.IsNullOrEmpty(snippet) && snippet!.Length <= 320)
                 sb.Append("\n  proven code:\n").Append(Indent(snippet, "    "));
             shown++;
             if (sb.Length > maxChars) break;

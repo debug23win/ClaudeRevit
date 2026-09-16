@@ -49,8 +49,11 @@ public class ChatService
         "adapted from the Dynamo community, or the user asked for Python. Both run only when the user has " +
         "enabled code execution, so do not reach for them lightly. If they are not offered to you, code " +
         "execution is disabled. Tell the user they can enable it via the gear icon. " +
-        "UNITS: All spatial inputs to tools are in feet (Revit's internal unit). Convert from user-given units " +
-        "before calling: 1 m ≈ 3.28084 ft, 1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft.\n\n" +
+        "UNITS: a parameter's NAME SUFFIX decides its unit, and it always wins over any general rule: " +
+        "`_mm` is millimetres, `_m2`/`_m3` are square/cubic metres, `_deg` is degrees, `_ft` and any " +
+        "unsuffixed spatial value are FEET (Revit's internal unit). So spacing_mm=200 means 200 mm — " +
+        "never convert that one to feet. Convert only for the feet parameters: 1 m ≈ 3.28084 ft, " +
+        "1 mm ≈ 0.00328084 ft, 1 in ≈ 0.0833333 ft. Returned values follow the same suffix rule.\n\n" +
         "FAMILY EDITOR: when a family (.rfa) is open for editing, prefer the dedicated family tools " +
         "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
         "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
@@ -189,6 +192,8 @@ public class ChatService
             // Revit restart, matching how the API history persists.
             try { if (File.Exists(ClaudeCodeSessionFile)) _claudeCodeSessionId = File.ReadAllText(ClaudeCodeSessionFile).Trim(); }
             catch { /* non-fatal */ }
+            try { if (File.Exists(CodexSessionFile)) _codexSessionId = File.ReadAllText(CodexSessionFile).Trim(); }
+            catch { /* non-fatal */ }
         }
 
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -218,6 +223,10 @@ public class ChatService
     // same conversation via --resume. Reset on ClearHistory.
     private string? _claudeCodeSessionId;
 
+    // Same idea for the Codex path: without a session id every pane message would be a fresh
+    // `codex exec`, so the assistant would forget the conversation between replies.
+    private string? _codexSessionId;
+
     // Set by the chat pane: when true, the selected model runs through the Claude Code CLI on the
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
@@ -226,6 +235,28 @@ public class ChatService
     private static string ClaudeCodeSessionFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClaudeRevit", "claudecode-session.txt");
+
+    private static string CodexSessionFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClaudeRevit", "codex-session.txt");
+
+    private void PersistCodexSession()
+    {
+        if (_ephemeral) return;
+        try
+        {
+            if (string.IsNullOrEmpty(_codexSessionId))
+            {
+                if (File.Exists(CodexSessionFile)) File.Delete(CodexSessionFile);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(CodexSessionFile)!);
+                File.WriteAllText(CodexSessionFile, _codexSessionId);
+            }
+        }
+        catch { /* non-fatal */ }
+    }
 
     private void PersistClaudeCodeSession()
     {
@@ -260,6 +291,8 @@ public class ChatService
         _revealedCategories.Clear();
         _claudeCodeSessionId = null;
         PersistClaudeCodeSession();
+        _codexSessionId = null;
+        PersistCodexSession();
         if (!_ephemeral) HistoryStore.Clear();
     }
 
@@ -269,7 +302,18 @@ public class ChatService
         HistoryStore.Save(uiMessages, _history);
     }
 
-    private static bool IsAlt(string model) => model == "alt";
+    // "alt" uses the alternative provider exactly as configured in Settings. "alt:<model-id>"
+    // additionally pins the model for this run, reusing the configured base URL and key — that is
+    // what lets the benchmark compare several models of one provider (gpt-5.6-sol vs -terra vs
+    // gpt-6-astra) without rewriting Settings between runs.
+    private static bool IsAlt(string model) =>
+        model == "alt" || model.StartsWith("alt:", StringComparison.Ordinal);
+
+    // The pinned model id from an "alt:<model-id>" tag, or null for a plain "alt".
+    private static string? AltModelOverride(string model) =>
+        model.StartsWith("alt:", StringComparison.Ordinal) && model.Length > 4
+            ? model.Substring(4)
+            : null;
 
     private AnthropicClient GetClient()
     {
@@ -304,6 +348,103 @@ public class ChatService
     // Subscription mode: run the local Claude Code CLI headless, letting it drive the Revit tools
     // through our in-process MCP server. Streams its narration into the pane and keeps the CLI's
     // session id so follow-up messages continue the same conversation (--resume). Costs nothing on
+    // Both CLI paths need the same framing the API path gets: the current document and selection,
+    // so "this" / "the selected walls" resolve. The MCP session is long-lived, so this is prepended
+    // fresh each message (instructions, which carry memory/standards, are sent once at connect).
+    private static async Task<string> BuildContextedPromptAsync(string prompt, CancellationToken ct)
+    {
+        try
+        {
+            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+            var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
+            var sel = SelectionService.Current;
+            if (sel.Ids.Count > 0)
+            {
+                var idList = sel.Ids.Count > 30
+                    ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
+                    : string.Join(", ", sel.Ids);
+                // Inline the per-category breakdown so "what's selected?" needs no tool call.
+                var cats = sel.CategoryCounts.Count > 0
+                    ? " — " + string.Join(", ", sel.CategoryCounts.Select(kv => $"{kv.Value}× {kv.Key}"))
+                    : "";
+                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
+            }
+            return ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
+        }
+        catch { return prompt; }   // context is best-effort
+    }
+
+    // OpenAI models driving Revit through our MCP server, via the local Codex CLI. Unlike the
+    // Claude Code path there is no --mcp-config flag: Codex reads its servers from the user's own
+    // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
+    private async Task SendViaCodexAsync(
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
+        string? model, CancellationToken ct)
+    {
+        if (!McpServer.IsRunning)
+        {
+            try { McpServer.Start(); }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "Couldn't start the MCP server that Codex needs — free the port in " +
+                    "Settings → MCP and try again. (" + ex.Message + ")");
+            }
+        }
+
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
+
+        ChatMessage? bubble = null;
+        void Append(string piece)
+        {
+            if (string.IsNullOrEmpty(piece)) return;
+            ui.InvokeAsync(() =>
+            {
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", Text = "" }; conversation.Add(bubble); }
+                bubble.Text += piece;
+            });
+        }
+
+        var toolCount = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var res = await CodexBackend.RunAsync(
+            SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
+            onText: Append,
+            onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
+            ct, resumeSessionId: _codexSessionId);
+
+        _codexSessionId = res.SessionId ?? _codexSessionId;
+        PersistCodexSession();
+
+        // The benchmark reads its per-task numbers from LastTask. Without this every CLI-driven run
+        // was recorded as 0 rounds / 0 tokens, which reads as "the run did nothing".
+        LastTask = new TaskMetrics(
+            "codex" + (model != null ? ":" + model : ""),
+            toolCount, res.InputTokens, res.OutputTokens, 0, sw.Elapsed.TotalSeconds);
+
+        if (!string.IsNullOrEmpty(res.Error))
+        {
+            Append((bubble == null ? "" : "\n\n") + "⚠ " + res.Error);
+            return;
+        }
+        if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
+
+        // A run that answered without touching a single Revit tool almost always means Codex never
+        // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads
+        // as the model refusing the task.
+        if (toolCount == 0 && bubble != null)
+            Append("\n\n⚠ No Revit tools were called. Check that the clauderevit MCP server is " +
+                   "registered in your Codex config.toml (Settings → MCP shows the snippet) and that " +
+                   "the MCP server is enabled here.");
+
+        if (SettingsStore.ShowTaskDiagnostics && bubble != null)
+        {
+            var tok = res.InputTokens + res.OutputTokens;
+            Append($"\n\n— codex{(model != null ? " (" + model + ")" : "")} · {toolCount} tool calls" +
+                   (tok > 0 ? $" · {tok:N0} tokens" : ""));
+        }
+    }
+
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
@@ -326,26 +467,7 @@ public class ChatService
         // Parity with the API path: give Claude Code the current document + selection so "this" /
         // "the selected walls" resolve. The MCP session is long-lived, so we prepend this fresh each
         // message (instructions, which carry memory/standards, are sent once at connect).
-        var contextedPrompt = prompt;
-        try
-        {
-            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
-            var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
-            var sel = SelectionService.Current;
-            if (sel.Ids.Count > 0)
-            {
-                var idList = sel.Ids.Count > 30
-                    ? string.Join(", ", sel.Ids.Take(30)) + $", … +{sel.Ids.Count - 30} more"
-                    : string.Join(", ", sel.Ids);
-                // Inline the per-category breakdown so "what's selected?" is answerable with no tool call.
-                var cats = sel.CategoryCounts.Count > 0
-                    ? " — " + string.Join(", ", sel.CategoryCounts.Select(kv => $"{kv.Value}× {kv.Key}"))
-                    : "";
-                ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
-            }
-            contextedPrompt = ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
-        }
-        catch { /* context is best-effort — fall back to the bare prompt */ }
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
 
         ChatMessage? bubble = null;
         void Append(string piece)
@@ -368,6 +490,10 @@ public class ChatService
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();
+
+        LastTask = new TaskMetrics(
+            modelAlias != null ? "claude-code:" + modelAlias : "claude-code",
+            res.NumTurns, res.InputTokens, res.OutputTokens, 0, res.DurationMs / 1000.0);
 
         if (!string.IsNullOrEmpty(res.Error))
         {
@@ -405,8 +531,25 @@ public class ChatService
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
             // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
-            var alias = model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
+            // A free-text override in Settings wins, so a model newer than this release can be used.
+            var over = SettingsStore.McpModelOverride;
+            var alias = !string.IsNullOrWhiteSpace(over) ? over.Trim()
+                      : model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
             await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
+            return;
+        }
+
+        // The OpenAI counterpart: the local Codex CLI drives the same MCP server. Same shape as
+        // above — Codex runs its own loop, so the API pipeline is bypassed entirely.
+        // "codex" uses whatever model Codex is configured with; "codex:<model-id>" pins one.
+        if (model == "codex" || model.StartsWith("codex:", StringComparison.Ordinal))
+        {
+            var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(userText)) return;
+            var codexOver = SettingsStore.McpModelOverride;
+            var codexModel = !string.IsNullOrWhiteSpace(codexOver) ? codexOver.Trim()
+                           : model.Length > 6 ? model.Substring(6) : null;
+            await SendViaCodexAsync(conversation, userText, ui, codexModel, ct);
             return;
         }
 
@@ -568,7 +711,9 @@ public class ChatService
                     await ui.InvokeAsync(() => OnRound(r, maxIterations));
                 }
 
-                var altModelForTurn = escalate ? reasoningModel : null;
+                // An explicit "alt:<model-id>" pin wins over the configured default; escalation to
+                // the reasoning model still takes precedence, since that is a deliberate switch.
+                var altModelForTurn = escalate ? reasoningModel : AltModelOverride(model);
                 // Claude Auto: in advisor mode the executor is the configured cheap/fast model
                 // (Sonnet 5 default, or Haiku 4.5 for the cheapest tier); the advisor is reached
                 // via the tool, not by switching. In legacy mode: Sonnet until escalated to Opus.
@@ -681,6 +826,27 @@ public class ChatService
                 // tool is callable on the very next round of the SAME turn (not just the next
                 // message). Rare, so the one-off cache re-warm it costs is fine.
                 var toolSetChanged = false;
+
+                // Queue every straightforward tool call of this ROUND before awaiting any of them.
+                // The dispatcher drains its whole queue in one Execute, so N calls then cost one
+                // Idling round-trip instead of N — the model routinely emits several at once.
+                // Deliberately skipped: find_tools (handled in-process below) and anything gated by
+                // the confirmation prompt, which must be answered before the tool may run.
+                var started = new Dictionary<string, Task<string>>(StringComparer.Ordinal);
+                if (toolUses.Count > 1)
+                {
+                    foreach (var use in toolUses)
+                    {
+                        if (use.Name == "find_tools") continue;
+                        var pre = TryParseInput(use.InputJson);
+                        if (pre == null) continue;
+                        if (SettingsStore.ConfirmOperations &&
+                            ToolRegistry.Instance.Get(use.Name)?.RequiresConfirmation == true) continue;
+                        try { started[use.Id] = ToolDispatcher.Instance.ExecuteAsync(use.Name, pre, ct); }
+                        catch { /* fall back to the inline call below */ }
+                    }
+                }
+
                 foreach (var use in toolUses)
                 {
                     var name = use.Name;
@@ -768,7 +934,9 @@ public class ChatService
                     bool isError = false;
                     try
                     {
-                        content = await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
+                        content = started.TryGetValue(use.Id, out var pending)
+                            ? await pending
+                            : await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
                         var display = FormatInput(inp) + "\n→ " + Truncate(FormatResult(content), 400);
                         await ui.InvokeAsync(() => toolMsg.Text = display);
                     }
@@ -946,7 +1114,7 @@ public class ChatService
     {
         // en
         "calculate", "compute", "layout", "optimi", "debug", "why ", "diagnose", "reinforc",
-        "constraint", "formula", "parametric", "step by step", "figure out", "plan ",
+        "constraint", "formula", "parametric", "step by step", "figure out", "plan the", "planning",
         // ru
         "рассчита", "посчита", "раскладк", "оптимиз", "отлад", "почему", "диагно", "армир",
         "хомут", "формул", "параметр", "по шагам", "разберись", "спроектир", "зон"
@@ -957,7 +1125,9 @@ public class ChatService
         if (string.IsNullOrWhiteSpace(prompt)) return false;
         if (prompt.Length > 400) return true; // long, detailed asks tend to be multi-step
         var p = prompt.ToLowerInvariant();
-        return ComplexHints.Any(h => p.Contains(h));
+        // Match at a word START, not anywhere: a plain Contains fired "зон" inside "горизонтальная"
+        // and escalated ordinary requests to the expensive model.
+        return ComplexHints.Any(h => StartsAtWordBoundary(p, h));
     }
 
     // Phrases that mean "I'm about to keep working" — a turn ending on one of these with NO tool
@@ -989,7 +1159,26 @@ public class ChatService
         if (tail.Contains("готово") || tail.Contains("завершен") || tail.Contains("сделал")
             || tail.Contains("all done") || tail.Contains("completed") || tail.Contains("finished"))
             return false;
-        return ContinueCues.Any(c => lower.Contains(c));
+        // "I'm about to continue" is announced at the END of a message. Searching the whole text
+        // made a closing "Let me know if you need anything else" (or "Далее можно добавить окна")
+        // look like unfinished work, costing a pointless extra round — and the model, told to
+        // continue, would go and do something the user never asked for.
+        if (tail.Contains("let me know") || tail.Contains("дайте знать") || tail.Contains("дай знать"))
+            return false;
+        return ContinueCues.Any(c => StartsAtWordBoundary(tail, c));
+    }
+
+    // True when `needle` occurs in `haystack` starting at a word boundary. Both heuristics used a
+    // bare Contains, which matched inside unrelated words.
+    private static bool StartsAtWordBoundary(string haystack, string needle)
+    {
+        var i = haystack.IndexOf(needle, StringComparison.Ordinal);
+        while (i >= 0)
+        {
+            if (i == 0 || !char.IsLetterOrDigit(haystack[i - 1])) return true;
+            i = haystack.IndexOf(needle, i + 1, StringComparison.Ordinal);
+        }
+        return false;
     }
 
     // ---- Anthropic path -----------------------------------------------------------
@@ -1094,6 +1283,10 @@ public class ChatService
     private static string TagFromModel(string s)
     {
         s = s.ToLowerInvariant().Replace("_", "-");
+        // Most specific first: "claude-opus-5" must not fall into the generic opus branch, and
+        // "claude-fable-5-1" must not collapse into "fable-5".
+        if (s.Contains("opus-5")) return "opus-5";
+        if (s.Contains("fable-5-1")) return "fable-5-1";
         if (s.Contains("opus") && s.Contains("4-7")) return "opus-4-7";
         if (s.Contains("opus")) return "opus-4-8";
         if (s.Contains("sonnet") && s.Contains("4-6")) return "sonnet-4-6";
@@ -1487,12 +1680,14 @@ public class ChatService
     private static Effort? EffortFor(string model) => model switch
     {
         "haiku-4-5" => null,
-        "fable-5" => Effort.High,
+        "fable-5" or "fable-5-1" => Effort.High,
         _ => Effort.Medium
     };
 
     private static string ResolveModel(string model) => model switch
     {
+        "opus-5" => "claude-opus-5",
+        "fable-5-1" => "claude-fable-5-1",
         "opus-4-8" => "claude-opus-4-8",
         "fable-5" => "claude-fable-5",
         "haiku-4-5" => "claude-haiku-4-5",

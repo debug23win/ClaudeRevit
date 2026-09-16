@@ -23,6 +23,22 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new QueryElements());
             ToolRegistry.Instance.Register(new FilterElements());
             ToolRegistry.Instance.Register(new AnalyzeWarnings());
+            // Documentation / QA workflows (BimStarter-inspired, implemented natively)
+            ToolRegistry.Instance.Register(new AutonumberElements());
+            ToolRegistry.Instance.Register(new DeriveParameters());
+            ToolRegistry.Instance.Register(new AutoJoinGeometry());
+            ToolRegistry.Instance.Register(new GetElementHosts());
+            ToolRegistry.Instance.Register(new CalculateWeight());
+            ToolRegistry.Instance.Register(new GetRebarShapeSketch());
+            ToolRegistry.Instance.Register(new DiagnoseModel());
+            ToolRegistry.Instance.Register(new ExportElementCoordinates());
+            ToolRegistry.Instance.Register(new CleanModel());
+            ToolRegistry.Instance.Register(new AssignWorksets());
+            ToolRegistry.Instance.Register(new BatchExportSheets());
+            ToolRegistry.Instance.Register(new GenerateSheetSet());
+            ToolRegistry.Instance.Register(new CreateAssembly());
+            ToolRegistry.Instance.Register(new QueryLinkedElements());
+            ToolRegistry.Instance.Register(new ReportDrivingModel());
             ToolRegistry.Instance.Register(new CreateWall());
             ToolRegistry.Instance.Register(new CreateWallType());
             ToolRegistry.Instance.Register(new CreateFloor());
@@ -192,6 +208,7 @@ public class App : IExternalApplication
             // scripts and proven community snippets; registered after C# on purpose.
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolRegistry.Instance.Register(new RunDynamoPython());
+            ToolRegistry.Instance.Register(new RunPython());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

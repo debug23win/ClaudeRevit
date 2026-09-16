@@ -19,17 +19,26 @@ internal static class ScriptCompiler
     // single unreadable file (shadow-copied then deleted by another add-in) must skip that
     // assembly, not brick compilation. Rebuilt when the assembly count changes.
     private static List<MetadataReference>? _cachedReferences;
-    private static int _cachedAssemblyCount;
+    private static int _cachedReferenceableCount;
 
     public static List<MetadataReference> RuntimeReferences()
     {
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-        if (_cachedReferences != null && assemblies.Length == _cachedAssemblyCount)
+
+        // Key on the assemblies that can actually BECOME references, not on the total count. Every
+        // execute_csharp loads its compiled script from memory: such an assembly has no Location, so
+        // it never contributes a reference — but it does bump the total. Keying on the total made
+        // the cache miss on every single script run and re-read the metadata of hundreds of DLLs,
+        // which is the stall this cache exists to prevent.
+        var referenceable = assemblies
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .ToList();
+
+        if (_cachedReferences != null && referenceable.Count == _cachedReferenceableCount)
             return _cachedReferences;
 
         var refs = new List<MetadataReference>();
-        foreach (var group in assemblies
-                     .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+        foreach (var group in referenceable
                      .GroupBy(a => a.GetName().Name))
         {
             try { refs.Add(MetadataReference.CreateFromFile(group.First().Location)); }
@@ -37,7 +46,7 @@ internal static class ScriptCompiler
         }
 
         _cachedReferences = refs;
-        _cachedAssemblyCount = assemblies.Length;
+        _cachedReferenceableCount = referenceable.Count;
         return refs;
     }
 

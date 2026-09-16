@@ -75,7 +75,9 @@ public class ToolDispatcher : IExternalEventHandler
     {
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => tcs.TrySetCanceled(ct));
-        _queue.Enqueue(new ToolJob(name, input, tcs));
+        // The token travels WITH the job: cancelling only the TCS would leave the job queued, and it
+        // would still run on the next Idling — mutating the model after the user hit Stop.
+        _queue.Enqueue(new ToolJob(name, input, tcs, ct));
         _event.Raise();
         return tcs.Task;
     }
@@ -291,17 +293,32 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 if (_activeGroup.HasStarted() && !_activeGroup.HasEnded())
                     _activeGroup.Assimilate();
-                _activeGroup.Dispose();
-                _activeGroup = null;
             }
-            _suppressTurn = false;
             job.Tcs.TrySetResult(true);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
+        finally
+        {
+            // Must run even if Assimilate threw. Otherwise the group leaks AND _suppressTurn stays
+            // true for the rest of the session, silently swallowing Revit's own warnings to the
+            // user — a failure they would have no way to notice.
+            try { _activeGroup?.Dispose(); } catch { }
+            _activeGroup = null;
+            _suppressTurn = false;
+        }
     }
 
     private void HandleTool(UIApplication app, ToolJob job)
     {
+        // Cancelled while queued (user pressed Stop): drop it instead of editing the model for a
+        // turn nobody is waiting for any more.
+        if (job.Ct.IsCancellationRequested)
+        {
+            job.Tcs.TrySetCanceled(job.Ct);
+            Services.Log.Info($"tool ✗ {job.Name} — skipped, cancelled before it ran");
+            return;
+        }
+
         // Log before running so, if a tool corrupts the model and Revit crashes on the
         // next redraw, the log's last line names the culprit tool and its arguments.
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
@@ -472,7 +489,8 @@ public class ToolDispatcher : IExternalEventHandler
     private sealed record ToolJob(
         string Name,
         IReadOnlyDictionary<string, JsonElement> Input,
-        TaskCompletionSource<string> Tcs) : Job;
+        TaskCompletionSource<string> Tcs,
+        CancellationToken Ct) : Job;
     private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;

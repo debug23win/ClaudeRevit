@@ -48,10 +48,16 @@
                     <ComboBoxItem Tag="sonnet-5">Sonnet 5 (default)</ComboBoxItem>
                     <ComboBoxItem Tag="opus-4-8">Opus 4.8 (smart)</ComboBoxItem>
                     <ComboBoxItem Tag="fable-5">Fable 5 (smartest)</ComboBoxItem>
+                    <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
+                    <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
                     <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (fastest)</ComboBoxItem>
                     <ComboBoxItem Tag="sonnet-4-6">Sonnet 4.6</ComboBoxItem>
                     <ComboBoxItem Tag="opus-4-7">Opus 4.7</ComboBoxItem>
                     <ComboBoxItem Tag="claudecode">Claude Code (subscription)</ComboBoxItem>
+                    <ComboBoxItem Tag="codex">Codex / OpenAI via MCP</ComboBoxItem>
+                    <ComboBoxItem Tag="codex:gpt-6-astra">Codex · GPT-6 Astra</ComboBoxItem>
+                    <ComboBoxItem Tag="codex:gpt-5.6-sol">Codex · GPT-5.6 Sol</ComboBoxItem>
+                    <ComboBoxItem Tag="codex:gpt-5.6-terra">Codex · GPT-5.6 Terra</ComboBoxItem>
                     <ComboBoxItem Tag="alt" x:Name="AltModelItem">Alt model (set up in ⚙)</ComboBoxItem>
                 </ComboBox>
                 <CheckBox Grid.Column="1" x:Name="SubscriptionBox" Content="Subscription"

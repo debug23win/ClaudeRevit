@@ -40,11 +40,21 @@ public static class ClaudeCodeBackend
         public string? Subtype;
     }
 
-    // Map our internal model tag to a Claude Code `--model` alias. Returns null for "auto"/"fable"/
-    // the default subscription model — where we let the CLI pick — since the advisor-escalation that
-    // "auto" means on the API doesn't exist inside Claude Code's own loop.
+    // Map our internal model tag to what Claude Code accepts for `--model`.
+    //
+    // The older tags use the coarse family aliases ("opus"/"sonnet"/"haiku"), which resolve to
+    // whatever the CLI currently considers that family's model. That is fine for them, but it can't
+    // express "Opus 5 specifically" — the family alias would just pick the CLI's current Opus and
+    // make two dropdown entries behave identically. So the newer models pass their FULL model id,
+    // which Claude Code also accepts, and the pane's choice actually decides.
+    //
+    // Returns null for "auto" and "fable-5" — there we let the CLI pick, because the
+    // advisor-escalation that "auto" means on the API has no equivalent inside Claude Code's own
+    // loop. A tag the CLI doesn't recognise surfaces as a CLI error rather than a silent fallback.
     public static string? ModelAlias(string? tag) => tag switch
     {
+        "opus-5" => "claude-opus-5",
+        "fable-5-1" => "claude-fable-5-1",
         "opus-4-8" or "opus-4-7" or "opus-4-6" => "opus",
         "sonnet-5" or "sonnet-4-6" => "sonnet",
         "haiku-4-5" => "haiku",
@@ -131,6 +141,11 @@ public static class ClaudeCodeBackend
             await proc.StandardInput.WriteAsync(prompt);
             proc.StandardInput.Close();
 
+            // Drain stderr CONCURRENTLY. Reading it only after stdout ends deadlocks the moment the
+            // child writes more than the stderr pipe buffer holds: it blocks on the write, so it
+            // never finishes stdout, so we never start reading stderr.
+            var errTask = proc.StandardError.ReadToEndAsync();
+
             string? line;
             while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
             {
@@ -138,7 +153,7 @@ public static class ClaudeCodeBackend
                 ParseLine(line, result, onText, onTool);
             }
 
-            var err = await proc.StandardError.ReadToEndAsync();
+            var err = await errTask;
             await proc.WaitForExitAsync(ct);
 
             if (proc.ExitCode != 0 && string.IsNullOrEmpty(result.Text))
@@ -257,7 +272,9 @@ public static class ClaudeCodeBackend
     // Find the `claude` executable. Honours an explicit path, then PATH (+ Windows extensions),
     // then the well-known npm-global and native-install locations that Revit's PATH usually misses.
     // Returns a full path, or null if nothing exists.
-    private static string? Resolve(string exe)
+    // Shared with CodexBackend: the search is generic in `exe` (the couple of claude-specific
+    // directories below simply never match another CLI's name).
+    internal static string? Resolve(string exe)
     {
         if (string.IsNullOrWhiteSpace(exe)) exe = "claude";
 

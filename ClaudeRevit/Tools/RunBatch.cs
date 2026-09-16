@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Anthropic.Models.Beta.Messages;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 
 namespace ClaudeRevit.Tools;
@@ -66,8 +67,19 @@ public class RunBatch : IRevitTool
         if (inner.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
             throw new InvalidOperationException("Code execution is disabled for that tool.");
 
+        // Batching must not become a way around the user's Allow/Deny prompt: that prompt is raised
+        // for the run_batch call itself, not for the wrapped tool, so a batched delete_elements
+        // would otherwise run unconfirmed.
+        if (inner.RequiresConfirmation && Services.SettingsStore.ConfirmOperations)
+            throw new InvalidOperationException(
+                $"'{toolName}' asks for confirmation before it runs, and the user has that enabled. " +
+                "Call it directly (once per item) so each call can be confirmed.");
+
         if (!input.TryGetValue("items", out var itemsEl) || itemsEl.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("'items' must be an array of argument objects (one per call).");
+
+        var doc = app.ActiveUIDocument?.Document
+            ?? throw new InvalidOperationException("No document is open.");
 
         var results = new List<object>();
         int ok = 0, index = 0;
@@ -83,16 +95,24 @@ public class RunBatch : IRevitTool
             var args = new Dictionary<string, JsonElement>();
             foreach (var p in item.EnumerateObject()) args[p.Name] = p.Value;
 
+            // Each item gets its own SubTransaction. Without one, a half-applied item that then
+            // throws leaves its partial edits in the outer transaction while being reported as
+            // ok:false — so the model "retries" it and creates a duplicate.
+            var sub = new SubTransaction(doc);
             try
             {
+                sub.Start();
                 var raw = inner.Execute(args, app);
+                sub.Commit();
                 results.Add(new { index, ok = true, result = AsJson(raw) });
                 ok++;
             }
             catch (Exception ex)
             {
+                try { if (sub.HasStarted() && !sub.HasEnded()) sub.RollBack(); } catch { }
                 results.Add(new { index, ok = false, error = ex.Message });
             }
+            finally { try { sub.Dispose(); } catch { } }
         }
 
         return Services.Json.Serialize(new { tool = toolName, count = index, ok, failed = index - ok, results });

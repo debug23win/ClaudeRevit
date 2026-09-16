@@ -87,6 +87,10 @@ public class TagElements : IRevitTool
 
         return JsonSerializer.Serialize(new
         {
+            // A silent zero is the dangerous case: the transaction commits empty, the model sees a
+            // truncated preview and moves on believing the work is done. ResultLooksOk treats
+            // ok:false as a failure, so this surfaces instead.
+            ok = tagged.Count > 0,
             view = view.Name,
             tagged_count = tagged.Count,
             skipped_count = skipped.Count,

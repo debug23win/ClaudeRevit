@@ -60,6 +60,10 @@ public static class BenchmarkRunner
         // drives the Revit tools through our MCP server. runViaSubscription does the same for any
         // chosen model — the picked model is passed to the CLI via --model.
         var isClaudeCode = modelTag == "claudecode" || runViaSubscription;
+        // Codex drives the same MCP server, just with a different CLI. It runs through ChatService
+        // (which owns that path), but the server must be up before the first task either way —
+        // otherwise every task fails identically with nothing built and no explanation.
+        var isCodex = modelTag == "codex" || modelTag.StartsWith("codex:", StringComparison.Ordinal);
         // The picked model → Claude Code --model alias (null = the CLI's default subscription model).
         var ccModelAlias = modelTag == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(modelTag);
         // The judge can run on the subscription too (same claude.exe, no tools) so grading costs
@@ -76,6 +80,7 @@ public static class BenchmarkRunner
             McpServer.Start();
             ccConfig = McpServer.WriteClientConfig();
         }
+        if (isCodex) McpServer.Start();
         var judgeChat = new ChatService(ephemeral: true);
 
         try
@@ -103,7 +108,11 @@ public static class BenchmarkRunner
             var sw = Stopwatch.StartNew();
             var modelUsed = modelTag;
 
-            if (isClaudeCode)
+            if (isCodex && !McpServer.IsRunning)
+            {
+                error = "MCP server not running (enable it in Settings / free the port) — needed for Codex.";
+            }
+            else if (isClaudeCode)
             {
                 if (!McpServer.IsRunning)
                     error = "MCP server not running (enable it / free the port) — needed for Claude Code.";

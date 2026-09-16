@@ -47,16 +47,16 @@ public class CreateRebarCoverType : IRevitTool
         if (existing.Any(t => t.Name == name))
             throw new InvalidOperationException(
                 $"A rebar cover type named '{name}' already exists. Existing types: " +
-                string.Join(", ", existing.Select(t => $"'{t.Name}' ({Math.Round(t.CoverDistance * 304.8, 1)} mm)")));
+                string.Join(", ", existing.Select(t => $"'{t.Name}' ({Math.Round(t.CoverDistance * Units.MmPerFoot, 1)} mm)")));
 
-        var created = RebarCoverType.Create(doc, name, coverMm / 304.8);
+        var created = RebarCoverType.Create(doc, name, coverMm / Units.MmPerFoot);
 
         return JsonSerializer.Serialize(new
         {
             id = created.Id.Value,
             type = "RebarCoverType",
             name = created.Name,
-            cover_mm = Math.Round(created.CoverDistance * 304.8, 1)
+            cover_mm = Math.Round(created.CoverDistance * Units.MmPerFoot, 1)
         });
     }
 }
