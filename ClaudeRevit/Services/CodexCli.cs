@@ -85,12 +85,21 @@ internal static class CodexCli
         (err!.Contains("unknown option", StringComparison.OrdinalIgnoreCase) ||
          err.Contains("unknown command", StringComparison.OrdinalIgnoreCase));
 
+    // Installing Codex does NOT require Node or npm: there is an official standalone installer for
+    // Windows, and npm is only one of the ways in. Saying otherwise sends anyone without Node off
+    // installing a runtime they don't need.
+    public const string InstallAdvice =
+        "Install it with: powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\" " +
+        "(no Node.js needed; `npm i -g @openai/codex` also works if you have npm). Then run `codex` " +
+        "once in a terminal to sign in. If it is installed but Revit can't see it, put the full path " +
+        "to codex.exe in Settings → MCP. The Claude Code CLI is not a substitute — it doesn't talk to " +
+        "OpenAI models.";
+
     public const string LegacyCliAdvice =
-        "Your `codex` is the old Node build of the CLI. It has no `codex exec` and no MCP client at " +
-        "all, so it can't reach the Revit tools no matter how it's called — MCP arrived with the " +
-        "Rust rewrite. Update it (npm i -g @openai/codex@latest), run `codex` once to sign in, and " +
-        "check `codex --version`. If Settings points at a specific codex.exe, make sure it isn't an " +
-        "old copy left behind by the previous install.";
+        "That looks like an old build of the Codex CLI: the current one accepts these flags, and it " +
+        "words unknown ones differently. An old build has no `codex exec` and no MCP client at all, " +
+        "so it can't reach the Revit tools however it is called — MCP arrived with the Rust rewrite. " +
+        "Check `codex --version` and reinstall: " + InstallAdvice;
 
     // Codex's human-readable output opens with a metadata block (workdir, model, provider, approval
     // and sandbox settings, session id) and closes with a token count. Only the retry path needs

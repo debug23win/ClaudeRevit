@@ -435,7 +435,7 @@ public class ChatService
         if (!string.IsNullOrEmpty(res.FlagsRejected))
             Append("\n\n⚠ Your Codex CLI rejected part of the command line, so this run was repeated " +
                    "with fewer flags — the answer is real, but tool progress and token counts may be " +
-                   "missing. Updating Codex (npm i -g @openai/codex@latest) should restore them. " +
+                   "missing. Updating Codex should restore them. " +
                    "It said: " + res.FlagsRejected!.Split('\n')[0].Trim());
 
         // A run that answered without touching a single Revit tool almost always means Codex never

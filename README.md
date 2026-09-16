@@ -100,6 +100,29 @@ ready-to-paste config is shown in Settings → MCP.
 
 ---
 
+## Driving Revit with OpenAI models (Codex)
+
+Cloud ChatGPT can't reach a server on `127.0.0.1`, so OpenAI models drive Revit through the
+**Codex CLI**, which runs on your machine and speaks to the same MCP server. No tunnel, and
+nothing exposed to the internet.
+
+1. **Install Codex** (no Node.js required — this is the standalone installer):
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+   ```
+   Then run `codex` once and sign in. `npm i -g @openai/codex` works too if you already have npm.
+2. **Register the server**: paste the snippet from Settings → MCP into
+   `%USERPROFILE%\.codex\config.toml`, run the `setx CLAUDEREVIT_MCP_TOKEN …` line it shows, and
+   restart Revit (a new environment variable only reaches new processes).
+3. **In the chat**, pick **Codex / OpenAI via MCP** in the model dropdown — or one of the pinned
+   `Codex · GPT-…` entries to fix the model.
+
+Unlike the Claude Code path, the MCP server can't be passed per run: Codex reads it from your own
+`config.toml`, because that folder also holds your login and pointing `CODEX_HOME` elsewhere would
+hide it.
+
+---
+
 ## Build from source (for developers)
 
 You need:

@@ -70,12 +70,7 @@ public static class CodexBackend
         if (resolved == null)
             return new Result
             {
-                Error =
-                    "Codex CLI not found. It needs Node.js: install Node (winget install OpenJS.NodeJS.LTS), " +
-                    "then 'npm i -g @openai/codex', then run 'codex' once in a terminal to sign in. " +
-                    "If it is installed but Revit can't see it, put the full path to codex.exe/codex.cmd " +
-                    "in Settings → MCP. The Claude Code CLI is not a substitute — it doesn't speak to " +
-                    "OpenAI models."
+                Error = "Codex CLI not found. " + CodexCli.InstallAdvice
             };
 
         // The search can land on another agent's CLI (they live in the same folders), and running the
@@ -87,6 +82,10 @@ public static class CodexBackend
                     $"'{resolved}' is not the Codex CLI. Set the full path to codex.exe/codex.cmd in " +
                     "Settings → MCP, or clear the field once Codex is installed and on PATH."
             };
+
+        // Which file was actually launched is the first thing worth knowing when a run misbehaves —
+        // the name asked for and the program that runs are not always the same thing.
+        Log.Info($"Codex: launching {resolved}");
 
         var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
 
@@ -113,7 +112,8 @@ public static class CodexBackend
             // stepping down through attempts that cannot work.
             if (CodexCli.LooksLikeLegacyNodeCli(res.Error))
             {
-                first.Error = CodexCli.LegacyCliAdvice + " It said: " + FirstLine(res.Error);
+                first.Error = $"{resolved} rejected a flag the current Codex accepts. " +
+                              CodexCli.LegacyCliAdvice + " It said: " + FirstLine(res.Error);
                 return first;
             }
 
