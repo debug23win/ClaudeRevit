@@ -121,4 +121,15 @@ public class CodexCliTests
     [InlineData("The model: a quick note about it", false)]   // not at the start of the line
     public void BannerLinesAreDroppedFromAPlainTextAnswer(string line, bool expected)
         => Assert.Equal(expected, CodexCli.IsBannerLine(line));
+
+    [Theory]
+    [InlineData(@"C:\Users\me\AppData\Roaming\npm\codex.cmd", true)]
+    [InlineData(@"C:\Users\me\.codex\bin\codex.exe", true)]
+    [InlineData("/usr/local/bin/codex", true)]
+    // The one that actually happened: with Claude Desktop installed and no Codex, the executable
+    // search answered "codex" with claude.exe, which then complained about our flags.
+    [InlineData(@"C:\Users\me\AppData\Local\Packages\Claude_abc\...\claude.exe", false)]
+    [InlineData(@"C:\Program Files\nodejs\node.exe", false)]
+    public void TheResolvedBinaryHasToBeCodex(string path, bool expected)
+        => Assert.Equal(expected, CodexCli.LooksLikeCodexBinary(path));
 }

@@ -62,6 +62,20 @@ internal static class CodexCli
          err.Contains("cannot be used with", StringComparison.OrdinalIgnoreCase) ||
          err.Contains("Usage: codex", StringComparison.OrdinalIgnoreCase));
 
+    // Whether a resolved path is actually the Codex CLI, as opposed to some other agent CLI that the
+    // executable search happened to land on. Worth checking: launching the wrong program produces a
+    // complaint about our flags, which reads as "Codex is broken" and sends the user off fixing an
+    // install that was never the problem.
+    public static bool LooksLikeCodexBinary(string path)
+    {
+        // Both separators are handled explicitly rather than through Path.GetFileName: these paths
+        // are Windows paths, and on any other OS that method would treat a backslash as an ordinary
+        // character and hand back the whole string.
+        var cut = path.LastIndexOfAny(new[] { '\\', '/' });
+        var name = cut >= 0 ? path.Substring(cut + 1) : path;
+        return name.StartsWith("codex", StringComparison.OrdinalIgnoreCase);
+    }
+
     // The legacy Node build of Codex, which is worth naming precisely because no amount of flag
     // juggling can rescue it: it has no `codex exec` and no MCP client at all, so it can never
     // reach the Revit tools. The tell is the wording — "unknown option" is commander (Node), while

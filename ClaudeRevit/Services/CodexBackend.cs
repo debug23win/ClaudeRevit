@@ -71,8 +71,21 @@ public static class CodexBackend
             return new Result
             {
                 Error =
-                    $"Codex CLI not found ('{exe}'). Install it (npm i -g @openai/codex), sign in once by " +
-                    "running 'codex', then set the full path to codex.exe/codex.cmd in Settings."
+                    "Codex CLI not found. It needs Node.js: install Node (winget install OpenJS.NodeJS.LTS), " +
+                    "then 'npm i -g @openai/codex', then run 'codex' once in a terminal to sign in. " +
+                    "If it is installed but Revit can't see it, put the full path to codex.exe/codex.cmd " +
+                    "in Settings → MCP. The Claude Code CLI is not a substitute — it doesn't speak to " +
+                    "OpenAI models."
+            };
+
+        // The search can land on another agent's CLI (they live in the same folders), and running the
+        // wrong one produces a complaint about our flags that reads as a broken Codex install.
+        if (!CodexCli.LooksLikeCodexBinary(resolved))
+            return new Result
+            {
+                Error =
+                    $"'{resolved}' is not the Codex CLI. Set the full path to codex.exe/codex.cmd in " +
+                    "Settings → MCP, or clear the field once Codex is installed and on PATH."
             };
 
         var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
