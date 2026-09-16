@@ -166,7 +166,15 @@ public static class McpServer
         {
             HttpListenerContext ctx;
             try { ctx = await listener.GetContextAsync(); }
-            catch { break; } // listener stopped
+            catch (Exception ex)
+            {
+                // Only a stopped listener should end the loop. Bailing on ANY exception meant one
+                // transient error silently killed the server for the rest of the session, with the
+                // UI still reporting it as running.
+                if (ct.IsCancellationRequested || !listener.IsListening) break;
+                Log.Error("MCP accept failed; continuing", ex);
+                continue;
+            }
             _ = Task.Run(() => HandleRequest(ctx, ct));
         }
     }
@@ -175,14 +183,6 @@ public static class McpServer
     {
         try
         {
-            // Bearer-token auth (skip only if no token is configured).
-            var token = SettingsStore.McpToken;
-            if (!string.IsNullOrEmpty(token))
-            {
-                var auth = ctx.Request.Headers["Authorization"] ?? "";
-                if (auth != $"Bearer {token}") { Write(ctx, 401, "{\"error\":\"unauthorized\"}"); return; }
-            }
-
             if (ctx.Request.HttpMethod == "GET")
             {
                 // Unauthenticated health check — lets the user verify with a browser/curl that the
@@ -198,6 +198,14 @@ public static class McpServer
                     ["code_execution"] = SettingsStore.AllowCodeExecution
                 }.ToJsonString());
                 return;
+            }
+
+            // Bearer-token auth (skip only if no token is configured).
+            var token = SettingsStore.McpToken;
+            if (!string.IsNullOrEmpty(token))
+            {
+                var auth = ctx.Request.Headers["Authorization"] ?? "";
+                if (auth != $"Bearer {token}") { Write(ctx, 401, "{\"error\":\"unauthorized\"}"); return; }
             }
 
             string body;
@@ -392,7 +400,18 @@ public static class McpServer
         ToolDispatcher.PushSuppress();
         try
         {
-            var text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, ct);
+            // A modal dialog in Revit (or a genuinely stuck tool) would otherwise hold this HTTP
+            // request open forever, and the client just waits with no idea why.
+            using var toolCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            toolCts.CancelAfter(TimeSpan.FromMinutes(10));
+            string text;
+            try { text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, toolCts.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"'{name}' did not finish within 10 minutes. Revit may be showing a modal dialog " +
+                    "— check the Revit window.");
+            }
             return (ToolResult(text, false), null);
         }
         catch (Exception ex)

@@ -69,14 +69,22 @@ public sealed class OpenAIBackend
             var payload = line[5..].Trim();
             if (payload.Length == 0 || payload == "[DONE]") continue;
 
-            using var doc = JsonDocument.Parse(payload);
+            // One malformed chunk must not kill the whole turn: providers do emit the occasional
+            // truncated or non-JSON keep-alive frame.
+            JsonDocument doc;
+            try { doc = JsonDocument.Parse(payload); }
+            catch { continue; }
+            using var _chunk = doc;
             var root = doc.RootElement;
             ThrowOnStreamError(root);
 
             if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
             {
                 ReadUsage(usage, turn);
-                gotUsage = true;
+                // Only count it as real usage if numbers actually arrived. Some providers send an
+                // empty usage object; treating that as authoritative pinned the turn at zero tokens
+                // and silently disabled context compaction.
+                if (turn.InputTokens > 0 || turn.OutputTokens > 0) gotUsage = true;
             }
 
             if (!root.TryGetProperty("choices", out var choices) ||

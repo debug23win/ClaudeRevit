@@ -141,6 +141,11 @@ public static class ClaudeCodeBackend
             await proc.StandardInput.WriteAsync(prompt);
             proc.StandardInput.Close();
 
+            // Drain stderr CONCURRENTLY. Reading it only after stdout ends deadlocks the moment the
+            // child writes more than the stderr pipe buffer holds: it blocks on the write, so it
+            // never finishes stdout, so we never start reading stderr.
+            var errTask = proc.StandardError.ReadToEndAsync();
+
             string? line;
             while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
             {
@@ -148,7 +153,7 @@ public static class ClaudeCodeBackend
                 ParseLine(line, result, onText, onTool);
             }
 
-            var err = await proc.StandardError.ReadToEndAsync();
+            var err = await errTask;
             await proc.WaitForExitAsync(ct);
 
             if (proc.ExitCode != 0 && string.IsNullOrEmpty(result.Text))

@@ -111,6 +111,9 @@ public static class CodexBackend
         {
             proc.StandardInput.Close();   // the prompt is an argument; nothing to feed
 
+            // Concurrent drain — same pipe-buffer deadlock as the Claude Code path.
+            var errTask = proc.StandardError.ReadToEndAsync();
+
             string? line;
             while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
             {
@@ -118,7 +121,7 @@ public static class CodexBackend
                 ParseLine(line, result, onText, onTool);
             }
 
-            var err = await proc.StandardError.ReadToEndAsync();
+            var err = await errTask;
             await proc.WaitForExitAsync(ct);
 
             // The authoritative answer.
