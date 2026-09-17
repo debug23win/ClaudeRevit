@@ -42,6 +42,6 @@ public class GetScriptJournal : IRevitTool
         limit = Math.Clamp(limit, 1, 50);
 
         var entries = ScriptJournal.ReadRecent(limit);
-        return JsonSerializer.Serialize(new { count = entries.Count, entries });
+        return Json.Serialize(new { count = entries.Count, entries });
     }
 }

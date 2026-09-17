@@ -70,7 +70,7 @@ public class CreateViewFilter : IRevitTool
                 $"or the name '{name}' may already exist. Revit said: {ex.Message}");
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = filter.Id.Value,
             name = filter.Name,

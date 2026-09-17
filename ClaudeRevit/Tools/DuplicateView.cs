@@ -66,7 +66,7 @@ public class DuplicateView : IRevitTool
             try { newView.Name = n.GetString(); } catch { }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = newView.Id.Value,
             type = newView.GetType().Name,

@@ -48,14 +48,14 @@ public class PickPointInView : IRevitTool
         }
         catch (Autodesk.Revit.Exceptions.OperationCanceledException)
         {
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 cancelled = true,
                 message = "User pressed ESC instead of picking a point."
             });
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             cancelled = false,
             point_ft = new { x = point.X, y = point.Y, z = point.Z }

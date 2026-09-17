@@ -38,11 +38,11 @@ public class JoinGeometry : IRevitTool
             ?? throw new InvalidOperationException("element_b_id not found.");
 
         if (JoinGeometryUtils.AreElementsJoined(doc, a, b))
-            return JsonSerializer.Serialize(new { already_joined = true, a_id = a.Id.Value, b_id = b.Id.Value });
+            return Services.Json.Serialize(new { already_joined = true, a_id = a.Id.Value, b_id = b.Id.Value });
 
         JoinGeometryUtils.JoinGeometry(doc, a, b);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             joined = true,
             a_id = a.Id.Value,

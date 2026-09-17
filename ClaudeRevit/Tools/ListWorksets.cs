@@ -31,7 +31,7 @@ public class ListWorksets : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         if (!doc.IsWorkshared)
-            return JsonSerializer.Serialize(new { workshared = false, message = "Document is not workshared." });
+            return Services.Json.Serialize(new { workshared = false, message = "Document is not workshared." });
 
         var userWorksets = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).ToList();
 
@@ -45,7 +45,7 @@ public class ListWorksets : IRevitTool
             owner = ws.Owner
         }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             workshared = true,
             user_workset_count = rows.Count,

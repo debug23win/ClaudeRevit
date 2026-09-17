@@ -85,7 +85,7 @@ public class CreateDuct : IRevitTool
 
         var duct = Duct.Create(doc, systemType.Id, ductType.Id, level.Id, start, end);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = duct.Id.Value,
             type = "Duct",

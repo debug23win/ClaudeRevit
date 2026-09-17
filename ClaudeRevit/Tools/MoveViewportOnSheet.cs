@@ -40,7 +40,7 @@ public class MoveViewportOnSheet : IRevitTool
         var y = input["y_ft"].GetDouble();
         vp.SetBoxCenter(new XYZ(x, y, 0));
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             viewport_id = vpId.Value,
             new_center_ft = new { x, y }

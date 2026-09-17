@@ -74,7 +74,7 @@ public class SetElementPhases : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             updated_count = updated.Count,
             skipped_count = skipped.Count,

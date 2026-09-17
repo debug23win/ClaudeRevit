@@ -78,6 +78,8 @@ public class AutoJoinGeometry : IRevitTool
 
         for (int i = 0; i < boxA.Count && considered < maxPairs; i++)
         {
+            ToolContext.ThrowIfCancelled();
+
             var start = sameSet ? i + 1 : 0;
             for (int j = start; j < boxB.Count && considered < maxPairs; j++)
             {
@@ -111,7 +113,7 @@ public class AutoJoinGeometry : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             action = unjoin ? "unjoin" : "join",
             candidate_pairs = considered,

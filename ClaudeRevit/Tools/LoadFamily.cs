@@ -32,6 +32,9 @@ public class LoadFamily : IRevitTool
 
     // LoadFamily manages its own transaction; don't wrap.
     public bool RequiresTransaction => false;
+
+    // Adds or renames something the project catalog lists.
+    public bool InvalidatesCatalog => true;
     public bool MutatesWithoutTransaction => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
@@ -51,7 +54,7 @@ public class LoadFamily : IRevitTool
                 "with conflicting structure, or the file may be corrupt.");
 
         var symbolIds = family.GetFamilySymbolIds();
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             family_id = family.Id.Value,
             family_name = family.Name,

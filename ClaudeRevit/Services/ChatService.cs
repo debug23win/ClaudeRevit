@@ -113,11 +113,23 @@ public class ChatService
         "twenty columns with twenty separate calls. When several independent operations don't depend on each " +
         "other's output, emit them as parallel tool calls in the same round. Fewer, fuller rounds = lower cost.";
 
-    private const string AnthropicPromptPrefix =
-        "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. ";
+    // The build's actual Revit version. Both prompts said 2027 in every build, so a model working
+    // on 2025 was told it had an API two releases newer than the one it was calling — and the
+    // version is known at compile time, which is how the builds are separated in the first place.
+    private const string RevitVersion =
+#if REVIT2025
+        "2025";
+#elif REVIT2026
+        "2026";
+#else
+        "2027";
+#endif
 
-    private const string AltPromptPrefix =
-        "You are an AI assistant integrated into Autodesk Revit 2027 to help architects and engineers. ";
+    private static readonly string AnthropicPromptPrefix =
+        $"You are Claude, integrated into Autodesk Revit {RevitVersion} as an AI assistant for architects and engineers. ";
+
+    private static readonly string AltPromptPrefix =
+        $"You are an AI assistant integrated into Autodesk Revit {RevitVersion} to help architects and engineers. ";
 
     // Non-Claude models are generally shakier at tool use — spell the contract out.
     private const string AltPromptSuffix =
@@ -130,7 +142,10 @@ public class ChatService
 
     // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
     private const int DefaultMaxIterations = 24;
-    private const int MaxOutputTokens = 8192;
+    // Every turn here is streamed, so the HTTP-timeout reason for a small cap does not apply, and
+    // 8192 was cutting off long execute_csharp bodies and large run_batch inputs mid-token. The
+    // truncation was handled, but each one cost a whole extra round. Unused budget is not billed.
+    private const int MaxOutputTokens = 32000;
 
     // Alt providers span 8K local models to 1M Gemini — when the user entered the model's
     // context size in Settings, compact at ~75% of it; otherwise assume a small context.
@@ -182,11 +197,17 @@ public class ChatService
 
     public ChatService() : this(false) { }
 
+    // The pane's own service. Settings needs to act on the live conversation (restart the CLI
+    // session), and the pane keeps its instance private; benchmark runs are ephemeral and must not
+    // become "the" session.
+    public static ChatService? Current { get; private set; }
+
     public ChatService(bool ephemeral)
     {
         _ephemeral = ephemeral;
         if (!ephemeral)
         {
+            Current = this;
             _history.AddRange(HistoryStore.LoadApiHistory());
             // Restore the Claude Code (subscription) session so the conversation continues after a
             // Revit restart, matching how the API history persists.
@@ -231,6 +252,22 @@ public class ChatService
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
     public bool SubscriptionMode;
+
+    // Start the next CLI message as a NEW session instead of resuming the stored one.
+    //
+    // This is the half of "change the model" that actually works: a CLI session is pinned to the
+    // model it was started with, so resuming it keeps answering as that model however the picker is
+    // set — which is exactly what looks like the plugin ignoring the setting. Dropping the session
+    // id costs the conversation's memory on that path, which is why it is a deliberate action and
+    // not something done silently on every model change.
+    public void ResetCliSessions()
+    {
+        _claudeCodeSessionId = null;
+        _codexSessionId = null;
+        PersistClaudeCodeSession();
+        PersistCodexSession();
+        Log.Info("CLI sessions reset: the next subscription/Codex message starts a new session.");
+    }
 
     private static string ClaudeCodeSessionFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -524,14 +561,36 @@ public class ChatService
         }
     }
 
-    public async Task SendAsync(
+    // Everything about a turn except the UI updates runs OFF Revit's UI thread.
+    //
+    // It used to run on it: the pane called this from the dispatcher, so every SSE chunk parsed,
+    // every line of CLI stdout, every history write and the first build of the experience digest
+    // happened between Revit's own message-pump beats — which is what made Revit feel sticky while
+    // Claude was answering. The loop itself never needed the UI thread: tool calls are marshalled
+    // to Revit's API thread by the dispatcher, and every conversation mutation already goes through
+    // ui.InvokeAsync. Those two facts are what make this safe, and they are worth preserving: a new
+    // write to `conversation` or to a ChatMessage must go through `ui`.
+    public Task SendAsync(
         ObservableCollection<ChatMessage> conversation,
         string model,
         CancellationToken ct = default,
         string? imageBase64 = null,
         string? imageMime = null)
     {
+        // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
+        // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
+        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime), ct);
+    }
+
+    private async Task SendCoreAsync(
+        ObservableCollection<ChatMessage> conversation,
+        string model,
+        Dispatcher ui,
+        CancellationToken ct,
+        string? imageBase64,
+        string? imageMime)
+    {
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
@@ -1208,10 +1267,12 @@ public class ChatService
     {
         var client = GetClient();
         var effort = EffortFor(model);
+        var thinking = ThinkingFor(model);
         var parameters = new MessageCreateParams
         {
             Model = ResolveModel(model),
             MaxTokens = MaxOutputTokens,
+            Thinking = thinking,
             Messages = BuildApiMessages(dynamicContext),
             System = systemBlocks,
             Tools = toolDefs,
@@ -1687,12 +1748,28 @@ public class ChatService
     }
 
     // Effort is a direct cost/quality lever. Not supported on Haiku 4.5 — omit it there.
+    // Effort controls how much thinking and how many tokens a turn may spend. The API's own default
+    // is `high`; this used to send `medium` to every model except Fable, i.e. it quietly asked for
+    // LESS than the default on exactly the work that benefits most — a long-horizon agentic loop
+    // over a live model, where a shallow plan costs far more in wasted tool rounds than the thinking
+    // it saved. Haiku 4.5 rejects the parameter outright, so it gets none.
     private static Effort? EffortFor(string model) => model switch
     {
         "haiku-4-5" => null,
-        "fable-5" or "fable-5-1" => Effort.High,
-        _ => Effort.Medium
+        _ => Effort.High
     };
+
+    // Thinking has to be asked for by name on Opus 4.8/4.7 and Sonnet 5: omitting it runs them with
+    // NO thinking at all. That is how the "strong" model in the legacy escalation ended up being the
+    // one that didn't think — the opposite of the point of escalating. Opus 5 and Fable think by
+    // default, and adaptive is accepted there too, so one rule covers every current model. Haiku 4.5
+    // predates adaptive (it takes a token budget) and is left alone.
+    private static BetaThinkingConfigParam? ThinkingFor(string model)
+    {
+        if (model == "haiku-4-5") return null;
+        BetaThinkingConfigParam adaptive = new BetaThinkingConfigAdaptive();
+        return adaptive;
+    }
 
     private static string ResolveModel(string model) => model switch
     {

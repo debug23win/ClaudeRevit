@@ -24,8 +24,10 @@ public class ReportDrivingModel : IRevitTool
         "Report which model you are, once per session. The MCP protocol doesn't tell this add-in " +
         "which model is driving it, so this is the only way the user can see who did the work — it " +
         "is shown in Settings and recorded with benchmark runs. Call it once at the start of a " +
-        "session, before other work. Give the specific model id you know yourself to be (e.g. " +
-        "'claude-opus-5', 'gpt-6-astra'), not a family name. Changes nothing in the model.";
+        "session, before other work, and AGAIN whenever a tool result asks you to — the user can " +
+        "reset the session from the add-in, and a stale answer then names a model that is no longer " +
+        "driving. Give the specific model id you know yourself to be (e.g. 'claude-opus-5', " +
+        "'gpt-6-astra'), not a family name. Changes nothing in the model.";
 
     public InputSchema InputSchema => new()
     {
@@ -47,7 +49,7 @@ public class ReportDrivingModel : IRevitTool
         var model = input.TryGetValue("model", out var m) ? m.GetString() : null;
         McpSession.ReportModel(model);
 
-        return JsonSerializer.Serialize(new
+        return Json.Serialize(new
         {
             recorded = McpSession.ReportedModel,
             client = McpSession.ClientName,

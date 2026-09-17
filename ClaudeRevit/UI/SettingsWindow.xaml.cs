@@ -219,6 +219,11 @@ public partial class SettingsWindow : Window
         McpPortLabel.Text = L("Port:", "Порт:");
         McpWhoLabel.Text = L("Currently driving Revit", "Кто сейчас управляет Revit");
         McpWhoText.Text = McpSession.Describe(_lang == "ru");
+        McpResetSessionBtn.Content = L("Restart session", "Перезапустить сессию");
+        McpAskModelBtn.Content = L("Ask for the model above", "Запросить модель сверху");
+        McpResetNote.Text = L(
+            "Restart session: forgets the reported model and starts the next subscription/Codex message as a NEW CLI session — a CLI session is pinned to the model it started with, so this is what makes a model change take effect (the conversation on that path is lost). Ask for the model above: asks the connected client to switch to the id in the override box. A server can't switch a client's model — MCP has no channel for it — so the model is told what the user wants and answers on its next tool call.",
+            "«Перезапустить сессию»: забывает сообщённую модель и начинает следующее сообщение по подписке / через Codex как НОВУЮ сессию CLI — сессия CLI привязана к модели, с которой её запустили, поэтому именно так смена модели и вступает в силу (переписка на этом пути теряется). «Запросить модель сверху»: просит подключённого клиента перейти на идентификатор из поля переопределения. Сервер не может переключить модель клиента — в MCP для этого нет канала, — поэтому модели сообщают, чего хочет пользователь, и она отвечает на следующем вызове инструмента.");
         ClaudeCodeExeLabel.Text = L(
             "Claude Code executable (for the in-pane / benchmark subscription path)",
             "Путь к Claude Code (для панели / бенчмарка по подписке)");
@@ -433,6 +438,55 @@ public partial class SettingsWindow : Window
     private void HelpButton_Click(object sender, RoutedEventArgs e)
     {
         new HelpWindow { Owner = this }.ShowDialog();
+    }
+
+    // Two halves of "change who is driving", and they work differently on purpose.
+    //
+    // The CLI sessions are ours: dropping their ids makes the next message start fresh on whatever
+    // model is selected now, which is the only thing that actually changes the model — a running
+    // CLI session is pinned to the one it was started with. The self-reported identity is cleared
+    // too, because after a restart it describes a session that no longer exists.
+    private void McpResetSession_Click(object sender, RoutedEventArgs e)
+    {
+        McpSession.ResetIdentity();
+        Services.ChatService.Current?.ResetCliSessions();
+        McpWhoText.Text = McpSession.Describe(_lang == "ru");
+        MessageBox.Show(this,
+            L("The next subscription / Codex message starts a new CLI session on the currently " +
+              "selected model. A connected external client is unaffected — restart it yourself to " +
+              "change its model.",
+              "Следующее сообщение по подписке / через Codex начнёт новую сессию CLI на выбранной " +
+              "сейчас модели. На подключённого внешнего клиента это не влияет — чтобы сменить его " +
+              "модель, перезапустите его сами."),
+            "ClaudeRevit", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    // The other half is a request, not a command: nothing in MCP lets a server change a client's
+    // model, so the model is simply told what the user wants on its next tool call and asked to
+    // re-identify itself. Saying that plainly is better than a button that appears to switch models
+    // and silently does nothing.
+    private void McpAskModel_Click(object sender, RoutedEventArgs e)
+    {
+        var wanted = McpModelOverrideBox.Text?.Trim() ?? "";
+        if (wanted.Length == 0)
+        {
+            MessageBox.Show(this,
+                L("Type the model id in the box above first.",
+                  "Сначала впишите идентификатор модели в поле выше."),
+                "ClaudeRevit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        McpSession.RequestModel(wanted);
+        McpWhoText.Text = McpSession.Describe(_lang == "ru");
+        MessageBox.Show(this,
+            L($"The connected model will be told on its next tool call that you want '{wanted}', and " +
+              "asked to report what it actually is. It cannot switch itself — expect it to tell you " +
+              "to restart the client on that model.",
+              $"Подключённой модели на следующем вызове инструмента сообщат, что вы хотите «{wanted}», " +
+              "и попросят назвать, какая она на самом деле. Сама переключиться она не может — скорее " +
+              "всего, попросит перезапустить клиент на этой модели."),
+            "ClaudeRevit", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

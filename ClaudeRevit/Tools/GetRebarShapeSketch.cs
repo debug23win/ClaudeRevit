@@ -67,7 +67,7 @@ public class GetRebarShapeSketch : IRevitTool
 
         var bars = CollectBars(doc, input, limit);
         if (bars.Count == 0)
-            return JsonSerializer.Serialize(new { bars = 0, note = "No rebar matched." });
+            return Services.Json.Serialize(new { bars = 0, note = "No rebar matched." });
 
         var described = new List<BarInfo>();
         foreach (var r in bars)
@@ -76,7 +76,7 @@ public class GetRebarShapeSketch : IRevitTool
         }
 
         if (!group)
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 bars = described.Count,
                 rebar = described.Select(b => Row(b, svg))
@@ -104,7 +104,7 @@ public class GetRebarShapeSketch : IRevitTool
             })
             .OrderByDescending(x => x.bar_count).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             bars_examined = described.Count,
             distinct_shapes = groups.Count,

@@ -42,7 +42,7 @@ public class CreateRevision : IRevitTool
         if (input.TryGetValue("issued_to", out var it) && it.ValueKind == JsonValueKind.String)
             rev.IssuedTo = it.GetString();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = rev.Id.Value,
             description = rev.Description,

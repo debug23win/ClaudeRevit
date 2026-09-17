@@ -67,7 +67,7 @@ public class SetProjectInfo : IRevitTool
         TrySet("author", v => pi.Author = v);
         TrySet("issue_date", v => pi.IssueDate = v);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             updated_fields = updated,
             failed_fields = failed.Count > 0 ? failed : null,

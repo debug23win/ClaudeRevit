@@ -93,7 +93,7 @@ public class SetRebarCover : IRevitTool
             });
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             host_id = host.Id.Value,
             applied,

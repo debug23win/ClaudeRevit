@@ -47,6 +47,9 @@ public class ReloadFamilyIntoDocument : IRevitTool
     // LoadFamily manages its own transaction and must NOT run inside one; it still mutates the
     // target, so the dispatcher invalidates caches afterwards.
     public bool RequiresTransaction => false;
+
+    // Adds or renames something the project catalog lists.
+    public bool InvalidatesCatalog => true;
     public bool MutatesWithoutTransaction => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
@@ -83,7 +86,7 @@ public class ReloadFamilyIntoDocument : IRevitTool
 
         var loaded = srcDoc.LoadFamily(tgtDoc, new SilentOverwriteLoadOptions());
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             ok = true,
             source_title = srcDoc.Title,

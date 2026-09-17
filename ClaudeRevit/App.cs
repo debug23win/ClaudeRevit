@@ -214,11 +214,23 @@ public class App : IExternalApplication
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
             // tools\*.cs. Only loads when code execution is enabled (dynamic tools are
             // arbitrary compiled code). A broken tool file is skipped, never fatal.
-            var dyn = Tools.DynamicToolLoader.LoadAll();
-            if (dyn.Loaded.Count > 0 || dyn.Errors.Count > 0)
-                Services.Log.Info(
-                    $"Dynamic tools: loaded {dyn.Loaded.Count} ({string.Join(", ", dyn.Loaded)}); " +
-                    $"errors {dyn.Errors.Count}.");
+            //
+            // Off the startup thread: this is a Roslyn compilation per tool file, and it used to
+            // sit between the user double-clicking Revit and Revit appearing. The registry is
+            // lock-guarded and the tools are only reachable once a chat turn asks for the list, so
+            // registering them a moment later is safe — the first turn is seconds away at best.
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var dyn = Tools.DynamicToolLoader.LoadAll();
+                    if (dyn.Loaded.Count > 0 || dyn.Errors.Count > 0)
+                        Services.Log.Info(
+                            $"Dynamic tools: loaded {dyn.Loaded.Count} ({string.Join(", ", dyn.Loaded)}); " +
+                            $"errors {dyn.Errors.Count}.");
+                }
+                catch (Exception ex) { Services.Log.Error("Dynamic tool load failed", ex); }
+            });
 
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
@@ -233,8 +245,14 @@ public class App : IExternalApplication
             // Fold the (rolling) journal into the durable pattern archive, so proven patterns from
             // months/years ago survive even after their raw journal lines have rolled off. Runs
             // before the experience digest is first built. Idempotent (timestamp watermark).
-            try { PatternArchive.FoldEntries(ScriptJournal.ReadRawLines()); }
-            catch (Exception ex) { Services.Log.Error("Startup pattern fold failed", ex); }
+            // Also off the startup thread: the journal is a rolling file up to a couple of
+            // megabytes, and nothing needs the folded archive until the first turn builds its
+            // experience digest.
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try { PatternArchive.FoldEntries(ScriptJournal.ReadRawLines()); }
+                catch (Exception ex) { Services.Log.Error("Startup pattern fold failed", ex); }
+            });
 
             SelectionService.Initialize(application);
 

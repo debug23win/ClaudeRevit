@@ -96,7 +96,7 @@ public class AssignWorksets : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             workset = target.Name,
             workset_id = target.Id.IntegerValue,

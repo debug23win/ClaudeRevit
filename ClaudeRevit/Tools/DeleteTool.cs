@@ -45,6 +45,6 @@ public class DeleteTool : IRevitTool
             throw new InvalidOperationException(
                 $"No custom tool named '{name}' was found. Built-in tools cannot be deleted.");
 
-        return JsonSerializer.Serialize(new { deleted = true, name });
+        return Services.Json.Serialize(new { deleted = true, name });
     }
 }

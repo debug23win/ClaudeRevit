@@ -54,7 +54,7 @@ public class ListLoadedFamilies : IRevitTool
 
         var truncated = filtered.Count > limit;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             count = Math.Min(filtered.Count, limit),
             truncated,

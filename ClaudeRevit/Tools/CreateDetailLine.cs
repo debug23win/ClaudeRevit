@@ -43,7 +43,7 @@ public class CreateDetailLine : IRevitTool
         var line = Line.CreateBound(start, end);
         var detailLine = doc.Create.NewDetailCurve(view, line);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = detailLine.Id.Value,
             type = "DetailLine",

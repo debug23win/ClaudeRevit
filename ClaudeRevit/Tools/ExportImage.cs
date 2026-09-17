@@ -84,7 +84,7 @@ public class ExportImage : IRevitTool
         // Revit may add the view name to the filename if exporting multiple — find the actual file
         var actualPath = File.Exists(outPath) ? outPath : FindNearbyExport(outPath);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             path = actualPath ?? outPath,

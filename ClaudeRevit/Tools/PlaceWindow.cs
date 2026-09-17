@@ -76,7 +76,7 @@ public class PlaceWindow : IRevitTool
         var instance = doc.Create.NewFamilyInstance(
             new XYZ(x, y, 0), symbol, host, level, StructuralType.NonStructural);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "Window",

@@ -70,7 +70,7 @@ public class MeasureDistance : IRevitTool
         }
 
         var d = (to - from);
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             distance_ft = d.GetLength(),
             distance_m = d.GetLength() / 3.28084,

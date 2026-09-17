@@ -83,7 +83,7 @@ public class AssociateFamilyParameter : IRevitTool
         }
         doc.Regenerate();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             associated = true,
             element_id = id.Value,

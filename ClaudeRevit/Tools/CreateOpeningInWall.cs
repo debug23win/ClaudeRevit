@@ -53,7 +53,7 @@ public class CreateOpeningInWall : IRevitTool
 
         var opening = doc.Create.NewOpening(wall, p1, p2);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = opening.Id.Value,
             type = "Opening",

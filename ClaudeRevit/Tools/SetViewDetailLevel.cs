@@ -55,7 +55,7 @@ public class SetViewDetailLevel : IRevitTool
 
         view.DetailLevel = level;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             detail_level = view.DetailLevel.ToString()

@@ -45,7 +45,7 @@ public class CreateSelectionFilter : IRevitTool
         var filter = SelectionFilterElement.Create(doc, name);
         filter.SetElementIds(ids);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = filter.Id.Value,
             name = filter.Name,

@@ -31,6 +31,11 @@ public class CreateMaterial : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -65,7 +70,7 @@ public class CreateMaterial : IRevitTool
             material.Transparency = t.GetInt32();
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = matId.Value,
             name = material.Name,

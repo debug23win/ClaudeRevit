@@ -66,7 +66,7 @@ public class GetIntersectingElements : IRevitTool
             .ToList();
         var truncated = raw.Count > limit;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             count = Math.Min(raw.Count, limit),
             truncated,

@@ -54,7 +54,7 @@ public class CreateWallFoundation : IRevitTool
 
         var foundation = WallFoundation.Create(doc, footingType.Id, wallId);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = foundation.Id.Value,
             type = "WallFoundation",

@@ -43,7 +43,7 @@ public class CreateLevel : IRevitTool
         var level = Level.Create(doc, elevation);
         level.Name = name;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = level.Id.Value,
             type = "Level",

@@ -50,7 +50,7 @@ public class FlipWall : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             flipped_count = flipped.Count,
             skipped_count = skipped.Count,

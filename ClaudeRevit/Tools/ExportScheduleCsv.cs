@@ -65,7 +65,7 @@ public class ExportScheduleCsv : IRevitTool
         };
         schedule.Export(dir, name, options);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             schedule = schedule.Name,
             path = outPath

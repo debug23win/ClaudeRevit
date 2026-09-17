@@ -50,7 +50,7 @@ public class AddScheduleField : IRevitTool
 
         var added = schedule.Definition.AddField(sf);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             schedule = schedule.Name,
             field_added = added.GetName(),

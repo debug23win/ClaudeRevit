@@ -63,7 +63,7 @@ public class SelectSimilar : IRevitTool
 
         uidoc.Selection.SetElementIds(matches);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             template_id = id.Value,
             category = template.Category?.Name,

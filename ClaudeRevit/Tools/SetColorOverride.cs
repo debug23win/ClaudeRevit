@@ -83,7 +83,7 @@ public class SetColorOverride : IRevitTool
 
         foreach (var id in ids) view.SetElementOverrides(id, settings);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             count = ids.Count,

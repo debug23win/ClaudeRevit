@@ -93,6 +93,6 @@ public class GetElementLocations : IRevitTool
             });
         }
 
-        return JsonSerializer.Serialize(new { count = results.Count, elements = results });
+        return Services.Json.Serialize(new { count = results.Count, elements = results });
     }
 }

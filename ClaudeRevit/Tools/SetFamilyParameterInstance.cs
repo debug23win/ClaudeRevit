@@ -36,6 +36,11 @@ public class SetFamilyParameterInstance : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -47,12 +52,12 @@ public class SetFamilyParameterInstance : IRevitTool
         var wantInstance = ToolInput.Flag(input, "is_instance");
 
         if (p.IsInstance == wantInstance)
-            return JsonSerializer.Serialize(new { name, is_instance = p.IsInstance, changed = false });
+            return Services.Json.Serialize(new { name, is_instance = p.IsInstance, changed = false });
 
         if (wantInstance) fm.MakeInstance(p);
         else fm.MakeType(p);
         doc.Regenerate();
 
-        return JsonSerializer.Serialize(new { name, is_instance = p.IsInstance, changed = true });
+        return Services.Json.Serialize(new { name, is_instance = p.IsInstance, changed = true });
     }
 }

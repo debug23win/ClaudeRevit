@@ -109,7 +109,7 @@ public class CreateAreaReinforcement : IRevitTool
                 "host's face plane.");
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = area.Id.Value,
             type = "AreaReinforcement",

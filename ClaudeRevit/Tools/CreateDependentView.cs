@@ -49,7 +49,7 @@ public class CreateDependentView : IRevitTool
             try { dep.Name = n.GetString(); } catch { }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = dep.Id.Value,
             name = dep.Name,

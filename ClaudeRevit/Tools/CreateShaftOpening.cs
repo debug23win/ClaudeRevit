@@ -79,7 +79,7 @@ public class CreateShaftOpening : IRevitTool
 
         var shaft = doc.Create.NewOpening(bottom, top, curveArray);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = shaft.Id.Value,
             type = "ShaftOpening",

@@ -68,7 +68,7 @@ public class ChangeElementType : IRevitTool
                    "verify visually), then adjust with move_viewport_on_sheet if needed.";
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             // ok:false when nothing actually changed — otherwise the empty transaction reads as
             // success in a truncated preview and the model moves on.

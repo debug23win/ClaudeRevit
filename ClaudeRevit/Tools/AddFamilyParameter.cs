@@ -51,6 +51,11 @@ public class AddFamilyParameter : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -63,7 +68,7 @@ public class AddFamilyParameter : IRevitTool
 
         var existing = FamilyEditorUtil.Find(fm, name);
         if (existing != null)
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 created = false,
                 name,
@@ -80,7 +85,7 @@ public class AddFamilyParameter : IRevitTool
         var p = fm.AddParameter(name, group, spec, isInstance);
         doc.Regenerate();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             created = true,
             name,

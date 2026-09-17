@@ -144,7 +144,7 @@ public class CreateFamilyDimension : IRevitTool
         if (persisted)
             try { valueMm = refetched!.Value.HasValue ? refetched.Value!.Value * Units.MmPerFoot : null; } catch { }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             ok = persisted,
             dimension_id = dimId.Value,

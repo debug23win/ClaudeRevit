@@ -53,7 +53,7 @@ public class DuplicateSheet : IRevitTool
             try { newSheet.Name = nm.GetString(); } catch { }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = newSheet.Id.Value,
             type = "Sheet",

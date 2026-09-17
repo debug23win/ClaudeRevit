@@ -48,7 +48,7 @@ public class CreateDraftingView : IRevitTool
             try { view.Scale = s.GetInt32(); } catch { }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = view.Id.Value,
             type = "ViewDrafting",

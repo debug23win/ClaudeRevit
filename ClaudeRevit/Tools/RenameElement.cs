@@ -27,6 +27,11 @@ public class RenameElement : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -40,7 +45,7 @@ public class RenameElement : IRevitTool
         var oldName = el.Name;
         el.Name = newName;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = id.Value,
             category = el.Category?.Name,

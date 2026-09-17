@@ -52,7 +52,7 @@ public class ResetViewOverrides : IRevitTool
         foreach (var id in ids)
             view.SetElementOverrides(id, blank);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             cleared_count = ids.Count

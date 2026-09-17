@@ -45,14 +45,17 @@ public class PlaceSymbol : IRevitTool
         var symbol = doc.GetElement(typeId) as FamilySymbol
             ?? throw new InvalidOperationException($"Element {typeId.Value} is not a FamilySymbol.");
 
-        if (!symbol.IsActive) symbol.Activate();
-        doc.Regenerate();
+        // Regenerate ONLY when the type actually had to be activated. It is needed to make a
+        // freshly activated symbol usable, not to place an element — and it is super-linear in
+        // document size, so an unconditional call made a 50-item run_batch pay for 50 full
+        // regenerations of a model that had nothing new to activate after the first.
+        if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
         var x = input["x"].GetDouble();
         var y = input["y"].GetDouble();
         var instance = doc.Create.NewFamilyInstance(new XYZ(x, y, 0), symbol, view);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "AnnotationSymbol",

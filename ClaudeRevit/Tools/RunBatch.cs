@@ -85,6 +85,9 @@ public class RunBatch : IRevitTool
         int ok = 0, index = 0;
         foreach (var item in itemsEl.EnumerateArray())
         {
+            // Stop (or an MCP timeout) should end the batch here, not after every remaining item.
+            ToolContext.ThrowIfCancelled();
+
             index++;
             if (item.ValueKind != JsonValueKind.Object)
             {

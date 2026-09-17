@@ -89,7 +89,7 @@ public class CleanModel : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             mode = apply ? "applied" : "dry_run",
             candidates = toDelete.Distinct().Count(),
@@ -137,6 +137,8 @@ public class CleanModel : IRevitTool
         var used = new HashSet<ElementId>();
         foreach (var e in new FilteredElementCollector(doc).WhereElementIsNotElementType())
         {
+            ToolContext.ThrowIfCancelled();
+
             try { foreach (var m in e.GetMaterialIds(false)) used.Add(m); } catch { }
         }
         foreach (var e in new FilteredElementCollector(doc).WhereElementIsElementType())

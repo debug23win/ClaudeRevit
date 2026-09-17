@@ -47,7 +47,7 @@ public class LinkRevitModel : IRevitTool
 
         var linkInstance = RevitLinkInstance.Create(doc, loadResult.ElementId);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             link_type_id = loadResult.ElementId.Value,
             link_instance_id = linkInstance.Id.Value,

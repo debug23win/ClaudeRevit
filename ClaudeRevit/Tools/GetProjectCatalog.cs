@@ -68,7 +68,7 @@ public class GetProjectCatalog : IRevitTool
         }
 
         // One serialization site so the cached and fresh response shapes can't diverge.
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             cached,
             note = cached

@@ -67,7 +67,7 @@ public class GetElementsInRoom : IRevitTool
 
         var truncated = inRoom.Count > limit;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             room = room.Name + " (" + (room.Number ?? "") + ")",
             count = Math.Min(inRoom.Count, limit),

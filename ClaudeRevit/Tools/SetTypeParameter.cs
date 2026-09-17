@@ -66,7 +66,7 @@ public class SetTypeParameter : IRevitTool
                 throw new InvalidOperationException($"Unsupported storage type: {param.StorageType}");
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             type_id = typeId.Value,
             type_name = type.Name,

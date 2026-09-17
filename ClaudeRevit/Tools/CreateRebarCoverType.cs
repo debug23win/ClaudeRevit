@@ -30,6 +30,11 @@ public class CreateRebarCoverType : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -51,7 +56,7 @@ public class CreateRebarCoverType : IRevitTool
 
         var created = RebarCoverType.Create(doc, name, coverMm / Units.MmPerFoot);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = created.Id.Value,
             type = "RebarCoverType",

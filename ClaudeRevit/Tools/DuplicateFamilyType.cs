@@ -44,6 +44,11 @@ public class DuplicateFamilyType : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -89,7 +94,7 @@ public class DuplicateFamilyType : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             new_type_id = newSymbol.Id.Value,
             family = newSymbol.FamilyName,

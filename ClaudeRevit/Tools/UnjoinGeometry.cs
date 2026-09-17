@@ -37,11 +37,11 @@ public class UnjoinGeometry : IRevitTool
             ?? throw new InvalidOperationException("element_b_id not found.");
 
         if (!JoinGeometryUtils.AreElementsJoined(doc, a, b))
-            return JsonSerializer.Serialize(new { not_joined = true, a_id = a.Id.Value, b_id = b.Id.Value });
+            return Services.Json.Serialize(new { not_joined = true, a_id = a.Id.Value, b_id = b.Id.Value });
 
         JoinGeometryUtils.UnjoinGeometry(doc, a, b);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             unjoined = true,
             a_id = a.Id.Value,

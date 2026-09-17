@@ -82,7 +82,7 @@ public class CreateFilledRegion : IRevitTool
 
         var region = FilledRegion.Create(doc, type.Id, view.Id, new List<CurveLoop> { loop });
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = region.Id.Value,
             type = "FilledRegion",

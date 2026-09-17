@@ -79,7 +79,7 @@ public class BatchExportSheets : IRevitTool
 
         var sheets = SelectSheets(doc, input);
         if (sheets.Count == 0)
-            return JsonSerializer.Serialize(new { exported = 0, note = "No sheets matched the filter." });
+            return Services.Json.Serialize(new { exported = 0, note = "No sheets matched the filter." });
 
         var written = new List<object>();
         var failures = new List<object>();
@@ -137,7 +137,7 @@ public class BatchExportSheets : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             format,
             folder,

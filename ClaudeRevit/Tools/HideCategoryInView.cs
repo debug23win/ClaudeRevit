@@ -56,7 +56,7 @@ public class HideCategoryInView : IRevitTool
 
         view.SetCategoryHidden(catId, hide);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             category,

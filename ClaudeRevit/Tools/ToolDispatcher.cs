@@ -235,7 +235,7 @@ public class ToolDispatcher : IExternalEventHandler
                 materials = CountClass(typeof(Material)),
                 generic_models = CountCat(BuiltInCategory.OST_GenericModel)
             };
-            job.Tcs.TrySetResult(JsonSerializer.Serialize(probe));
+            job.Tcs.TrySetResult(Services.Json.Serialize(probe));
         }
         catch (Exception ex) { job.Tcs.TrySetResult("{\"probe_error\":\"" + ex.Message + "\"}"); }
     }
@@ -322,6 +322,7 @@ public class ToolDispatcher : IExternalEventHandler
         // Log before running so, if a tool corrupts the model and Revit crashes on the
         // next redraw, the log's last line names the culprit tool and its arguments.
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
+        ToolContext.Set(job.Ct);
         try
         {
             var tool = _registry.Get(job.Name)
@@ -402,13 +403,27 @@ public class ToolDispatcher : IExternalEventHandler
             if (tool.IsScriptTool)
                 Services.ScriptJournal.Complete(ResultLooksOk(result), result);
 
-            // Anything that may have created/renamed types or loaded families makes the
-            // cached project catalog stale.
-            if (tool.RequiresTransaction || tool.MutatesWithoutTransaction)
+            // Only tools that can actually change the catalog, not every transaction: rebuilding
+            // it is a dozen collector passes over the document, and moving a wall cannot add a
+            // type.
+            if (tool.InvalidatesCatalog)
                 GetProjectCatalog.Invalidate();
 
             Services.Log.Info($"tool ✓ {job.Name}");
             job.Tcs.TrySetResult(result);
+        }
+        catch (ToolInputException ex)
+        {
+            // The model's mistake, not a failure of the tool: report it as a normal result naming
+            // the parameter. A stack trace here would only invite a retry of the identical call.
+            Services.ScriptJournal.Complete(ok: false, ex.Message);
+            Services.Log.Info($"tool ✗ {job.Name} — bad input: {ex.Message}");
+            job.Tcs.TrySetResult(Services.Json.Serialize(new { ok = false, error = ex.Message }));
+        }
+        catch (System.OperationCanceledException)
+        {
+            Services.Log.Info($"tool ✗ {job.Name} — cancelled mid-run");
+            job.Tcs.TrySetCanceled(job.Ct);
         }
         catch (Exception ex)
         {
@@ -416,11 +431,12 @@ public class ToolDispatcher : IExternalEventHandler
             Services.Log.Error($"tool ✗ {job.Name}", ex);
             job.Tcs.TrySetException(ex);
         }
+        finally { ToolContext.Clear(); }
     }
 
     private static string SafeArgs(IReadOnlyDictionary<string, JsonElement> input)
     {
-        try { return JsonSerializer.Serialize(input); } catch { return "(unprintable)"; }
+        try { return Services.Json.Serialize(input); } catch { return "(unprintable)"; }
     }
 
     // Script tool results are our own JSON with a top-level "ok"; absence means success.
@@ -476,7 +492,7 @@ public class ToolDispatcher : IExternalEventHandler
                 levels,
                 project_notes = string.IsNullOrWhiteSpace(projectNotes) ? null : projectNotes
             };
-            job.Tcs.TrySetResult(JsonSerializer.Serialize(info));
+            job.Tcs.TrySetResult(Services.Json.Serialize(info));
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
     }

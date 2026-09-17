@@ -48,7 +48,7 @@ public class PlaceViewOnSheet : IRevitTool
         if (view is ViewSchedule)
         {
             var instance = ScheduleSheetInstance.Create(doc, sheetId, viewId, new XYZ(x, y, 0));
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 placement_id = instance.Id.Value,
                 placement_type = "ScheduleSheetInstance",
@@ -64,7 +64,7 @@ public class PlaceViewOnSheet : IRevitTool
                 "(it may already be on another sheet, or the view type isn't placeable on sheets).");
 
         var viewport = Viewport.Create(doc, sheetId, viewId, new XYZ(x, y, 0));
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             placement_id = viewport.Id.Value,
             placement_type = "Viewport",

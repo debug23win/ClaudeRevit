@@ -31,7 +31,7 @@ public class ListRebarCoverTypes : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var types = Survey(doc);
-        return JsonSerializer.Serialize(new { count = types.Count, cover_types = types });
+        return Services.Json.Serialize(new { count = types.Count, cover_types = types });
     }
 
     // Shared with get_project_catalog so both tools report identical cover data.

@@ -105,11 +105,11 @@ public class CreateDimension : IRevitTool
 
         if (refs.Size < 2)
             throw new InvalidOperationException(
-                $"Got only {refs.Size} valid reference(s); need at least 2. Skipped: {JsonSerializer.Serialize(skipped)}");
+                $"Got only {refs.Size} valid reference(s); need at least 2. Skipped: {Services.Json.Serialize(skipped)}");
 
         var dim = doc.Create.NewDimension(view, dimLine, refs);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = dim.Id.Value,
             type = "Dimension",

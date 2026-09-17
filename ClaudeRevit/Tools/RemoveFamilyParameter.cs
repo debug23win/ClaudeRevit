@@ -30,6 +30,11 @@ public class RemoveFamilyParameter : IRevitTool
     };
 
     public bool RequiresTransaction => true;
+
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
     public bool RequiresConfirmation => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
@@ -43,6 +48,6 @@ public class RemoveFamilyParameter : IRevitTool
         fm.RemoveParameter(p);
         doc.Regenerate();
 
-        return JsonSerializer.Serialize(new { removed = true, name });
+        return Services.Json.Serialize(new { removed = true, name });
     }
 }

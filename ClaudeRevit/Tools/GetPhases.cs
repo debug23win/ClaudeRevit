@@ -32,6 +32,6 @@ public class GetPhases : IRevitTool
             .Select(p => new { id = p.Id.Value, name = p.Name })
             .ToList();
 
-        return JsonSerializer.Serialize(new { count = phases.Count, phases });
+        return Services.Json.Serialize(new { count = phases.Count, phases });
     }
 }

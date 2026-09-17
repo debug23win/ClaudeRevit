@@ -63,7 +63,7 @@ public class SetViewPhase : IRevitTool
         if (changes.Count == 0)
             throw new InvalidOperationException("Provide at least one of phase_id or phase_filter_id.");
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             changed = changes

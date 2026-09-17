@@ -89,7 +89,7 @@ public class GetModelStatistics : IRevitTool
         }
         LastCounts[snapshotKey] = new Dictionary<string, int>(counts);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             document = doc.Title,
             path = string.IsNullOrEmpty(doc.PathName) ? "(unsaved)" : doc.PathName,

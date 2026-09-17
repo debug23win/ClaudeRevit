@@ -64,13 +64,16 @@ public class CreateIsolatedFoundation : IRevitTool
                 ?? throw new InvalidOperationException("No structural foundation types loaded.");
         }
 
-        if (!symbol.IsActive) symbol.Activate();
-        doc.Regenerate();
+        // Regenerate ONLY when the type actually had to be activated. It is needed to make a
+        // freshly activated symbol usable, not to place an element — and it is super-linear in
+        // document size, so an unconditional call made a 50-item run_batch pay for 50 full
+        // regenerations of a model that had nothing new to activate after the first.
+        if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
         var instance = doc.Create.NewFamilyInstance(
             new XYZ(x, y, level.Elevation), symbol, level, StructuralType.Footing);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "IsolatedFoundation",

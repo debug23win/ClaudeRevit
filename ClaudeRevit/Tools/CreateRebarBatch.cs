@@ -124,7 +124,7 @@ public class CreateRebarBatch : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             host_id = host.Id.Value,
             bar_type = barType.Name,

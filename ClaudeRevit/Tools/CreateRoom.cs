@@ -55,7 +55,7 @@ public class CreateRoom : IRevitTool
         if (input.TryGetValue("number", out var num) && num.ValueKind == JsonValueKind.String)
             room.Number = num.GetString();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = room.Id.Value,
             type = "Room",

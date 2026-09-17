@@ -133,7 +133,7 @@ public class CreatePathReinforcement : IRevitTool
 
         var numberOfBars = path.get_Parameter(BuiltInParameter.PATH_REIN_NUMBER_OF_BARS)?.AsInteger();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = path.Id.Value,
             type = "PathReinforcement",

@@ -45,7 +45,7 @@ public class CreateSketchPlane : IRevitTool
         var plane = Plane.CreateByNormalAndOrigin(normal, origin);
         var sp = SketchPlane.Create(doc, plane);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = sp.Id.Value,
             type = "SketchPlane",

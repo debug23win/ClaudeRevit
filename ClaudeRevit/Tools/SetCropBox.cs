@@ -71,7 +71,7 @@ public class SetCropBox : IRevitTool
             changes.Add("extents");
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             changed = changes,

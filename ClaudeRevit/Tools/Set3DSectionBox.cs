@@ -53,7 +53,7 @@ public class Set3DSectionBox : IRevitTool
         view.SetSectionBox(new BoundingBoxXYZ { Min = min, Max = max });
         view.IsSectionBoxActive = true;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             section_box_min = new { x = min.X, y = min.Y, z = min.Z },

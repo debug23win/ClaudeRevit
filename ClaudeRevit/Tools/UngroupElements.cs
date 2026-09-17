@@ -64,7 +64,7 @@ public class UngroupElements : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             ungrouped_count = results.Count,
             results,
