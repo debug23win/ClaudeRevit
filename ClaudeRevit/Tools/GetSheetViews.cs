@@ -36,9 +36,12 @@ public class GetSheetViews : IRevitTool
         var sheet = doc.GetElement(sheetId) as ViewSheet
             ?? throw new InvalidOperationException($"Element {sheetId.Value} is not a ViewSheet.");
 
-        var viewports = new FilteredElementCollector(doc)
-            .OfClass(typeof(Viewport)).Cast<Viewport>()
-            .Where(v => v.SheetId == sheetId)
+        // The sheet knows its own viewports, so ask it instead of collecting every viewport in the
+        // document and filtering in C# — on a set of a few hundred sheets that is the difference
+        // between reading one sheet's worth and reading all of them.
+        var viewports = sheet.GetAllViewports()
+            .Select(id => doc.GetElement(id))
+            .OfType<Viewport>()
             .Select(vp =>
             {
                 var view = doc.GetElement(vp.ViewId) as View;

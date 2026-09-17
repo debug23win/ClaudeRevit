@@ -349,7 +349,11 @@ public partial class ChatPaneView : UserControl
         StatusText.Text = "Sending...";
 
         // Live round counter so long jobs show progress toward the per-message cap.
-        _service.OnRound = (r, max) => StatusText.Text = $"Working… round {r}/{max}";
+        // The chat loop no longer runs on the UI thread, so this arrives from the thread pool:
+        // touching StatusText directly would throw. Fire-and-forget on purpose — a status line is
+        // not worth making the loop wait for the dispatcher.
+        _service.OnRound = (r, max) => Dispatcher.BeginInvoke(new Action(() =>
+            StatusText.Text = $"Working… round {r}/{max}"));
 
         Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 

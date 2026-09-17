@@ -128,19 +128,27 @@ public class SetParameter : IRevitTool
 
         // Candidates whose Name matches, searched where ElementId params usually point:
         // element types (rebar bar type, wall type, family type...), then materials, then levels.
+        // Reading .Name is a parameter lookup per element, so scanning every type in a large model
+        // is expensive — and run_batch pays it again for each item. Two bounds: stop at the first
+        // collector that yields anything (a type match makes materials and levels irrelevant), and
+        // stop after a handful of matches, since the loop below only needs candidates to try.
         var candidates = new List<Element>();
-        void AddNamed(FilteredElementCollector c)
+        const int MaxCandidates = 8;
+        bool AddNamed(FilteredElementCollector c)
         {
             foreach (var e in c)
             {
                 string n;
                 try { n = e.Name; } catch { continue; }
-                if (n == name) candidates.Add(e);
+                if (n != name) continue;
+                candidates.Add(e);
+                if (candidates.Count >= MaxCandidates) break;
             }
+            return candidates.Count > 0;
         }
-        AddNamed(new FilteredElementCollector(doc).WhereElementIsElementType());
-        AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Material)));
-        AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Level)));
+        var _ = AddNamed(new FilteredElementCollector(doc).WhereElementIsElementType())
+             || AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Material)))
+             || AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Level)));
 
         foreach (var cand in candidates)
         {

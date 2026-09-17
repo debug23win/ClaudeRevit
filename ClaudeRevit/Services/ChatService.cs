@@ -561,14 +561,36 @@ public class ChatService
         }
     }
 
-    public async Task SendAsync(
+    // Everything about a turn except the UI updates runs OFF Revit's UI thread.
+    //
+    // It used to run on it: the pane called this from the dispatcher, so every SSE chunk parsed,
+    // every line of CLI stdout, every history write and the first build of the experience digest
+    // happened between Revit's own message-pump beats — which is what made Revit feel sticky while
+    // Claude was answering. The loop itself never needed the UI thread: tool calls are marshalled
+    // to Revit's API thread by the dispatcher, and every conversation mutation already goes through
+    // ui.InvokeAsync. Those two facts are what make this safe, and they are worth preserving: a new
+    // write to `conversation` or to a ChatMessage must go through `ui`.
+    public Task SendAsync(
         ObservableCollection<ChatMessage> conversation,
         string model,
         CancellationToken ct = default,
         string? imageBase64 = null,
         string? imageMime = null)
     {
+        // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
+        // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
+        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime), ct);
+    }
+
+    private async Task SendCoreAsync(
+        ObservableCollection<ChatMessage> conversation,
+        string model,
+        Dispatcher ui,
+        CancellationToken ct,
+        string? imageBase64,
+        string? imageMime)
+    {
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool

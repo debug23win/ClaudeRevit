@@ -46,8 +46,11 @@ public class PlaceFamilyInstance : IRevitTool
                 $"Element {typeId.Value} is not a FamilySymbol (family type). Call list_family_types to get a " +
                 "valid family_type_id.");
 
-        if (!symbol.IsActive) symbol.Activate();
-        doc.Regenerate();
+        // Regenerate ONLY when the type actually had to be activated. It is needed to make a
+        // freshly activated symbol usable, not to place an element — and it is super-linear in
+        // document size, so an unconditional call made a 50-item run_batch pay for 50 full
+        // regenerations of a model that had nothing new to activate after the first.
+        if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
         var x = input["x"].GetDouble();
         var y = input["y"].GetDouble();

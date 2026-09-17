@@ -53,6 +53,13 @@ public class GetElementHosts : IRevitTool
         var reverse = input.TryGetValue("direction", out var d) &&
                       string.Equals(d.GetString(), "hosted", StringComparison.OrdinalIgnoreCase);
 
+        // The reverse direction scans four element classes with no way to ask Revit directly, so it
+        // is done ONCE for all the requested hosts instead of once per host: asking about twenty
+        // walls used to mean eighty full collector passes over the document.
+        var hostedMap = reverse
+            ? HostedByAll(doc, new HashSet<ElementId>(ids))
+            : new Dictionary<ElementId, List<object>>();
+
         var results = ids.Select(id =>
         {
             var el = doc.GetElement(id);
@@ -61,7 +68,9 @@ public class GetElementHosts : IRevitTool
             try
             {
                 return reverse
-                    ? new { id = id.Value, name = el.Name, category = el.Category?.Name, hosted = HostedBy(doc, el), error = (string?)null }
+                    ? new { id = id.Value, name = el.Name, category = el.Category?.Name,
+                            hosted = hostedMap.TryGetValue(id, out var h) ? h : new List<object>(),
+                            error = (string?)null }
                     : (object)new { id = id.Value, name = el.Name, category = el.Category?.Name, host = HostOf(doc, el), error = (string?)null };
             }
             catch (Exception ex) { return new { id = id.Value, error = ex.Message }; }
@@ -93,34 +102,41 @@ public class GetElementHosts : IRevitTool
         return null;
     }
 
-    // The reverse lookup has no direct API, so scan the plausible hosted categories once and match
-    // on host id — bounded and predictable, unlike a whole-document sweep.
-    private static List<object> HostedBy(Document doc, Element host)
+    // The reverse lookup has no direct API, so the plausible hosted categories are scanned and
+    // matched on host id. One pass per class for the whole request, not per requested host.
+    private static Dictionary<ElementId, List<object>> HostedByAll(Document doc, HashSet<ElementId> hosts)
     {
-        var found = new List<object>();
+        var map = new Dictionary<ElementId, List<object>>();
+        void Add(ElementId hostId, Element hosted)
+        {
+            if (!hosts.Contains(hostId)) return;
+            if (!map.TryGetValue(hostId, out var list)) map[hostId] = list = new List<object>();
+            list.Add(Describe(doc, hosted)!);
+        }
 
         foreach (var fi in new FilteredElementCollector(doc).OfClass(typeof(FamilyInstance))
                      .Cast<FamilyInstance>())
         {
-            try { if (fi.Host != null && fi.Host.Id == host.Id) found.Add(Describe(doc, fi)!); }
+            ToolContext.ThrowIfCancelled();
+            try { if (fi.Host != null) Add(fi.Host.Id, fi); }
             catch { }
         }
         foreach (var r in new FilteredElementCollector(doc).OfClass(typeof(Rebar)).Cast<Rebar>())
         {
-            try { if (r.GetHostId() == host.Id) found.Add(Describe(doc, r)!); }
+            try { Add(r.GetHostId(), r); }
             catch { }
         }
         foreach (var ar in new FilteredElementCollector(doc).OfClass(typeof(AreaReinforcement)).Cast<AreaReinforcement>())
         {
-            try { if (ar.GetHostId() == host.Id) found.Add(Describe(doc, ar)!); }
+            try { Add(ar.GetHostId(), ar); }
             catch { }
         }
         foreach (var pr in new FilteredElementCollector(doc).OfClass(typeof(PathReinforcement)).Cast<PathReinforcement>())
         {
-            try { if (pr.GetHostId() == host.Id) found.Add(Describe(doc, pr)!); }
+            try { Add(pr.GetHostId(), pr); }
             catch { }
         }
-        return found;
+        return map;
     }
 
     private static object? Describe(Document doc, Element? e) => e == null ? null : new

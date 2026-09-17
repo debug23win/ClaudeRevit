@@ -26,7 +26,13 @@ public static class HistoryStore
                 2,
                 uiMessages.Select(m => new UiMessageDto(m.Role, m.ToolName, m.Text, m.IsError)).ToList(),
                 apiHistory.Select(ToDto).ToList());
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(dto));
+            // Write beside the file and swap it in, rather than over it. A crash or a full disk
+            // halfway through an in-place write leaves a truncated JSON file, and the next start
+            // reads that as "no history" — losing the entire conversation, not just the last turn.
+            // The swap is atomic, so the reader sees either the old file or the new one.
+            var tmp = FilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(dto));
+            File.Move(tmp, FilePath, overwrite: true);
         }
         catch { /* best-effort */ }
     }
