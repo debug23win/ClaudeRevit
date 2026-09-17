@@ -113,11 +113,23 @@ public class ChatService
         "twenty columns with twenty separate calls. When several independent operations don't depend on each " +
         "other's output, emit them as parallel tool calls in the same round. Fewer, fuller rounds = lower cost.";
 
-    private const string AnthropicPromptPrefix =
-        "You are Claude, integrated into Autodesk Revit 2027 as an AI assistant for architects and engineers. ";
+    // The build's actual Revit version. Both prompts said 2027 in every build, so a model working
+    // on 2025 was told it had an API two releases newer than the one it was calling — and the
+    // version is known at compile time, which is how the builds are separated in the first place.
+    private const string RevitVersion =
+#if REVIT2025
+        "2025";
+#elif REVIT2026
+        "2026";
+#else
+        "2027";
+#endif
 
-    private const string AltPromptPrefix =
-        "You are an AI assistant integrated into Autodesk Revit 2027 to help architects and engineers. ";
+    private static readonly string AnthropicPromptPrefix =
+        $"You are Claude, integrated into Autodesk Revit {RevitVersion} as an AI assistant for architects and engineers. ";
+
+    private static readonly string AltPromptPrefix =
+        $"You are an AI assistant integrated into Autodesk Revit {RevitVersion} to help architects and engineers. ";
 
     // Non-Claude models are generally shakier at tool use — spell the contract out.
     private const string AltPromptSuffix =
@@ -130,7 +142,10 @@ public class ChatService
 
     // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
     private const int DefaultMaxIterations = 24;
-    private const int MaxOutputTokens = 8192;
+    // Every turn here is streamed, so the HTTP-timeout reason for a small cap does not apply, and
+    // 8192 was cutting off long execute_csharp bodies and large run_batch inputs mid-token. The
+    // truncation was handled, but each one cost a whole extra round. Unused budget is not billed.
+    private const int MaxOutputTokens = 32000;
 
     // Alt providers span 8K local models to 1M Gemini — when the user entered the model's
     // context size in Settings, compact at ~75% of it; otherwise assume a small context.
@@ -1230,10 +1245,12 @@ public class ChatService
     {
         var client = GetClient();
         var effort = EffortFor(model);
+        var thinking = ThinkingFor(model);
         var parameters = new MessageCreateParams
         {
             Model = ResolveModel(model),
             MaxTokens = MaxOutputTokens,
+            Thinking = thinking,
             Messages = BuildApiMessages(dynamicContext),
             System = systemBlocks,
             Tools = toolDefs,
@@ -1709,12 +1726,28 @@ public class ChatService
     }
 
     // Effort is a direct cost/quality lever. Not supported on Haiku 4.5 — omit it there.
+    // Effort controls how much thinking and how many tokens a turn may spend. The API's own default
+    // is `high`; this used to send `medium` to every model except Fable, i.e. it quietly asked for
+    // LESS than the default on exactly the work that benefits most — a long-horizon agentic loop
+    // over a live model, where a shallow plan costs far more in wasted tool rounds than the thinking
+    // it saved. Haiku 4.5 rejects the parameter outright, so it gets none.
     private static Effort? EffortFor(string model) => model switch
     {
         "haiku-4-5" => null,
-        "fable-5" or "fable-5-1" => Effort.High,
-        _ => Effort.Medium
+        _ => Effort.High
     };
+
+    // Thinking has to be asked for by name on Opus 4.8/4.7 and Sonnet 5: omitting it runs them with
+    // NO thinking at all. That is how the "strong" model in the legacy escalation ended up being the
+    // one that didn't think — the opposite of the point of escalating. Opus 5 and Fable think by
+    // default, and adaptive is accepted there too, so one rule covers every current model. Haiku 4.5
+    // predates adaptive (it takes a token budget) and is left alone.
+    private static BetaThinkingConfigParam? ThinkingFor(string model)
+    {
+        if (model == "haiku-4-5") return null;
+        BetaThinkingConfigParam adaptive = new BetaThinkingConfigAdaptive();
+        return adaptive;
+    }
 
     private static string ResolveModel(string model) => model switch
     {

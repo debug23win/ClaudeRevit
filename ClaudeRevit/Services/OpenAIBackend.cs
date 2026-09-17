@@ -180,7 +180,7 @@ public sealed class OpenAIBackend
             ? "max_completion_tokens" : "max_tokens";
         body[limitParam] = maxTokens;
 
-        var (resp, error, rawError, chars) = await PostOnceAsync(baseUrl, key, body, ct);
+        var (resp, error, rawError, chars) = await PostWithRetriesAsync(baseUrl, key, body, ct);
         if (resp != null) return (resp, chars);
 
         if (limitParam == "max_tokens" && IsMaxTokensRejection(rawError))
@@ -188,7 +188,7 @@ public sealed class OpenAIBackend
             NeedsMaxCompletionTokens[baseUrl] = true;
             body.Remove("max_tokens");
             body["max_completion_tokens"] = maxTokens;
-            (resp, error, rawError, chars) = await PostOnceAsync(baseUrl, key, body, ct);
+            (resp, error, rawError, chars) = await PostWithRetriesAsync(baseUrl, key, body, ct);
             if (resp != null) return (resp, chars);
         }
         throw new InvalidOperationException(error);
@@ -227,6 +227,50 @@ public sealed class OpenAIBackend
                 break;
             }
         return url;
+    }
+
+    // A rate limit or a provider hiccup used to end the whole turn: one 429 in the middle of a
+    // twelve-round build threw the work away, and the model had already edited the document. These
+    // are the textbook retryable statuses, so wait and try again — three attempts, backing off, and
+    // honouring Retry-After when the provider sends one. A 400/401/404 is not retried: it would
+    // fail identically and only delay the real message.
+    private static async Task<(HttpResponseMessage? Resp, string? Error, string? RawError, int RequestChars)>
+        PostWithRetriesAsync(string baseUrl, string? key, JsonObject body, CancellationToken ct)
+    {
+        var delay = TimeSpan.FromSeconds(2);
+        (HttpResponseMessage? Resp, string? Error, string? RawError, int RequestChars) last = default;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            last = await PostOnceAsync(baseUrl, key, body, ct);
+            if (last.Resp != null || attempt >= 3 || !IsRetryable(last.Error)) return last;
+
+            var wait = RetryAfter(last.Error) ?? delay;
+            Log.Info($"alt provider: {TextUtil.Truncate(last.Error ?? "", 80)} — retrying in {wait.TotalSeconds:0}s");
+            await Task.Delay(wait, ct);
+            delay += delay;
+        }
+    }
+
+    // The formatted message starts with the status code, which is all this needs.
+    private static bool IsRetryable(string? formattedError)
+    {
+        if (string.IsNullOrEmpty(formattedError)) return false;
+        var space = formattedError!.IndexOf(' ');
+        if (space <= 0 || !int.TryParse(formattedError.Substring(0, space), out var code)) return false;
+        return code == 408 || code == 409 || code == 429 || code >= 500;
+    }
+
+    // Providers put "retry after N seconds" in the error text often enough to be worth reading;
+    // the header is gone by the time the response is disposed.
+    private static TimeSpan? RetryAfter(string? error)
+    {
+        if (string.IsNullOrEmpty(error)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(
+            error!, @"retry[- ]after[^0-9]{0,10}(\d{1,3})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var secs) && secs is > 0 and <= 120)
+            return TimeSpan.FromSeconds(secs);
+        return null;
     }
 
     private static async Task<(HttpResponseMessage? Resp, string? Error, string? RawError, int RequestChars)>
@@ -317,7 +361,17 @@ public sealed class OpenAIBackend
         if (tc.TryGetProperty("function", out var fn) && fn.ValueKind == JsonValueKind.Object)
         {
             if (fn.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String)
-                call.Name += name.GetString();
+            {
+                // Providers differ: some stream the name in fragments, others repeat it WHOLE in
+                // every delta of the same call. Blind concatenation turned the second kind into
+                // "create_wallcreate_wall", which then failed as an unknown tool. Append only what
+                // is genuinely new.
+                var piece = name.GetString() ?? "";
+                if (piece.Length > 0 && !call.Name.EndsWith(piece, StringComparison.Ordinal))
+                    call.Name += piece;
+                else if (call.Name.Length == 0)
+                    call.Name = piece;
+            }
             if (fn.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.String)
                 call.Arguments.Append(args.GetString());
         }
@@ -440,12 +494,21 @@ public sealed class OpenAIBackend
                 ["description"] = compact ? Shorten(t.Description, 160) : t.Description
             };
             if (props.Count > 0 || !isGemini)
-                fn["parameters"] = new JsonObject
+            {
+                var schema = new JsonObject
                 {
                     ["type"] = "object",
                     ["properties"] = props,
                     ["required"] = required
                 };
+
+                // The same constraint keywords that OpenAI's validator rejects wholesale over MCP
+                // (minimum/maximum, minItems, oneOf) are in these schemas too, and this path sends
+                // them to the very same validator. It was only ever fixed on the MCP side; here the
+                // rejection takes the whole tool list with it, so every call fails.
+                McpSchema.MakePortable(schema);
+                fn["parameters"] = schema;
+            }
 
             arr.Add(new JsonObject { ["type"] = "function", ["function"] = fn });
         }
