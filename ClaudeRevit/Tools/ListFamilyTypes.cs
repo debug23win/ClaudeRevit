@@ -73,7 +73,7 @@ public class ListFamilyTypes : IRevitTool
         var rows = types.Take(limit + 1).ToList();
         var truncated = rows.Count > limit;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             category,
             count = Math.Min(rows.Count, limit),

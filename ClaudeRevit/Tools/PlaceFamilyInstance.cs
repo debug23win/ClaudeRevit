@@ -71,7 +71,7 @@ public class PlaceFamilyInstance : IRevitTool
             ElementTransformUtils.RotateElement(doc, instance.Id, axis, rad);
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "FamilyInstance",

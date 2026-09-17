@@ -61,6 +61,6 @@ public class GetElementBoundingBox : IRevitTool
             };
         }).ToList();
 
-        return JsonSerializer.Serialize(results);
+        return Services.Json.Serialize(results);
     }
 }

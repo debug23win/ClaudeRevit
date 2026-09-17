@@ -27,6 +27,11 @@ public class DuplicateGroupType : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -40,7 +45,7 @@ public class DuplicateGroupType : IRevitTool
         var dup = src.Duplicate(newName) as GroupType
             ?? throw new InvalidOperationException("Duplicate failed.");
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = dup.Id.Value,
             name = dup.Name,

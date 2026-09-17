@@ -53,7 +53,7 @@ public class RotateElements : IRevitTool
         var axis = Line.CreateBound(new XYZ(px, py, 0), new XYZ(px, py, 1));
         ElementTransformUtils.RotateElements(doc, ids, axis, rad);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             rotated_count = ids.Count,
             pivot_ft = new { x = px, y = py },

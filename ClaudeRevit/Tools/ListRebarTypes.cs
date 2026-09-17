@@ -61,7 +61,7 @@ public class ListRebarTypes : IRevitTool
             .OrderBy(n => n)
             .ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             bar_types = barTypes,
             shapes,

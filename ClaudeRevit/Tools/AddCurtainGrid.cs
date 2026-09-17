@@ -52,7 +52,7 @@ public class AddCurtainGrid : IRevitTool
 
         var line = grid.AddGridLine(isUGrid, pt, false);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = line.Id.Value,
             type = "CurtainGridLine",

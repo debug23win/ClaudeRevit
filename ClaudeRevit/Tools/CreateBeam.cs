@@ -80,7 +80,7 @@ public class CreateBeam : IRevitTool
         var line = Line.CreateBound(start, end);
         var instance = doc.Create.NewFamilyInstance(line, symbol, level, StructuralType.Beam);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "Beam",

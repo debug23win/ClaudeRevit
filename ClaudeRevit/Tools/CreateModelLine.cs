@@ -63,7 +63,7 @@ public class CreateModelLine : IRevitTool
         var line = Line.CreateBound(start, end);
         var modelLine = doc.Create.NewModelCurve(line, sketchPlane);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = modelLine.Id.Value,
             type = "ModelLine",

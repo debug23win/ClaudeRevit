@@ -82,7 +82,7 @@ public class GetFamilyParameters : IRevitTool
             });
         }
 
-        return JsonSerializer.Serialize(new
+        return Json.Serialize(new
         {
             family = doc.Title,
             is_family_document = true,

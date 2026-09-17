@@ -91,7 +91,7 @@ public class GetElementParameters : IRevitTool
             };
         }).ToList();
 
-        return JsonSerializer.Serialize(results);
+        return Services.Json.Serialize(results);
     }
 
     private static string FormatParameter(Parameter p) => p.StorageType switch

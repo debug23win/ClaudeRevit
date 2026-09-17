@@ -56,7 +56,7 @@ public class ExportDwg : IRevitTool
 
         doc.Export(outDir, baseName, viewIds, options);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view_count = viewIds.Count,
             output_dir = outDir,

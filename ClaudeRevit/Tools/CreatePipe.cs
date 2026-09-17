@@ -85,7 +85,7 @@ public class CreatePipe : IRevitTool
 
         var pipe = Pipe.Create(doc, systemType.Id, pipeType.Id, level.Id, start, end);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = pipe.Id.Value,
             type = "Pipe",

@@ -85,7 +85,7 @@ public class TagElements : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             // A silent zero is the dangerous case: the transaction commits empty, the model sees a
             // truncated preview and moves on believing the work is done. ResultLooksOk treats

@@ -81,14 +81,14 @@ public class RunPython : IRevitTool
     {
         var code = input["code"].GetString();
         if (string.IsNullOrWhiteSpace(code))
-            return JsonSerializer.Serialize(new { error = "code is empty." });
+            return Services.Json.Serialize(new { error = "code is empty." });
 
         var explicitPath = input.TryGetValue("engine_path", out var ep) ? ep.GetString() : null;
 
         string? setupError;
         var engine = GetOrCreateEngine(explicitPath, out setupError);
         if (engine == null)
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 error = setupError ?? "No in-process Python engine found.",
                 hint = "Install pyRevit (or RevitPythonShell), or pass engine_path pointing at a folder " +
@@ -103,7 +103,7 @@ public class RunPython : IRevitTool
             var scope = engine.GetType()
                 .GetMethod("CreateScope", System.Type.EmptyTypes)?.Invoke(engine, null);
             if (scope == null)
-                return JsonSerializer.Serialize(new { error = "Could not create a Python scope." });
+                return Services.Json.Serialize(new { error = "Could not create a Python scope." });
 
             SetVariable(scope, "uiapp", app);
             SetVariable(scope, "__revit__", app);          // RevitPythonShell convention
@@ -122,7 +122,7 @@ public class RunPython : IRevitTool
                 new[] { typeof(string), kind ?? typeof(string) });
             var source = createSource?.Invoke(engine, new[] { (object)code!, statements! });
             if (source == null)
-                return JsonSerializer.Serialize(new { error = "Could not create a Python script source." });
+                return Services.Json.Serialize(new { error = "Could not create a Python script source." });
 
             object? outValue = null;
             string? traceback = null;
@@ -147,7 +147,7 @@ public class RunPython : IRevitTool
 
             var printed = ReadOutput(stdout);
 
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 engine = _engineSource,
                 succeeded = traceback == null,
@@ -164,7 +164,7 @@ public class RunPython : IRevitTool
         catch (Exception ex)
         {
             // Never let a hosting-layer failure escape into Revit.
-            return JsonSerializer.Serialize(new { error = "Python host error: " + ex.Message });
+            return Services.Json.Serialize(new { error = "Python host error: " + ex.Message });
         }
     }
 

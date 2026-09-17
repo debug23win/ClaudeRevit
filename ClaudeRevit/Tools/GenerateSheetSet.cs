@@ -79,7 +79,7 @@ public class GenerateSheetSet : IRevitTool
 
         var levels = SelectLevels(doc, input);
         if (levels.Count == 0)
-            return JsonSerializer.Serialize(new { created = 0, note = "No levels matched." });
+            return Services.Json.Serialize(new { created = 0, note = "No levels matched." });
 
         var vft = ViewFamilyTypeFor(doc, viewType)
             ?? throw new InvalidOperationException($"No view family type available for '{viewType}'.");
@@ -150,7 +150,7 @@ public class GenerateSheetSet : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view_type = viewType,
             levels_processed = levels.Count,

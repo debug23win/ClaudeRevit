@@ -44,7 +44,7 @@ public class PlaceGroup : IRevitTool
 
         var group = doc.Create.PlaceGroup(new XYZ(x, y, z), groupType);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = group.Id.Value,
             group_type = groupType.Name,

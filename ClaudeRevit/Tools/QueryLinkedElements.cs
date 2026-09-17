@@ -74,14 +74,14 @@ public class QueryLinkedElements : IRevitTool
         var links = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance))
             .Cast<RevitLinkInstance>().ToList();
         if (links.Count == 0)
-            return JsonSerializer.Serialize(new { error = "No Revit links in this document. Use link_revit_model first." });
+            return Services.Json.Serialize(new { error = "No Revit links in this document. Use link_revit_model first." });
 
         if (input.TryGetValue("link_name", out var ln) && ln.ValueKind == JsonValueKind.String)
         {
             var want = ln.GetString() ?? "";
             links = links.Where(x => x.Name.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
             if (links.Count == 0)
-                return JsonSerializer.Serialize(new { error = $"No loaded link matches '{want}'." });
+                return Services.Json.Serialize(new { error = $"No loaded link matches '{want}'." });
         }
 
         var results = new List<object>();
@@ -141,7 +141,7 @@ public class QueryLinkedElements : IRevitTool
             perLink.Add(new { link = link.Name, document = ldoc.Title, matched = found });
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             links_searched = perLink,
             unloaded_links = unloaded,

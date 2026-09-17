@@ -54,7 +54,7 @@ public class SetActiveView : IRevitTool
 
         uidoc.ActiveView = view;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = view.Id.Value,
             name = view.Name,

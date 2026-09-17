@@ -60,7 +60,7 @@ public class CreateTextNote : IRevitTool
 
         var note = TextNote.Create(doc, view.Id, new XYZ(x, y, 0), text, type.Id);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = note.Id.Value,
             type = "TextNote",

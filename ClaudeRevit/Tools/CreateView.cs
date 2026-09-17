@@ -66,7 +66,7 @@ public class CreateView : IRevitTool
             catch (Exception ex) { throw new InvalidOperationException($"Could not set view name: {ex.Message}"); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = view.Id.Value,
             type = "View",

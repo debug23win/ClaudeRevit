@@ -94,7 +94,7 @@ public class CreateRevisionCloud : IRevitTool
         var cloud = RevisionCloud.Create(doc, view, revisionId, curves);
 
         var revision = doc.GetElement(revisionId) as Revision;
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = cloud.Id.Value,
             type = "RevisionCloud",

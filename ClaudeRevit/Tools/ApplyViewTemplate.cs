@@ -82,7 +82,7 @@ public class ApplyViewTemplate : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             template = template.Name,
             applied_count = applied.Count,

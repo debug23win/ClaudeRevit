@@ -93,7 +93,7 @@ public class SetParameter : IRevitTool
             throw new InvalidOperationException(
                 $"Failed to set '{paramName}' - the value was rejected as invalid for this parameter.");
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             element_id = id.Value,
             parameter = paramName,

@@ -69,7 +69,7 @@ public class QueryElements : IRevitTool
                 : null
         }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             category,
             count = elements.Count,

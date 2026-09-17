@@ -71,7 +71,7 @@ public class ExportElementCoordinates : IRevitTool
 
         var elements = Collect(doc, input);
         if (elements.Count == 0)
-            return JsonSerializer.Serialize(new { count = 0, note = "No elements matched." });
+            return Services.Json.Serialize(new { count = 0, note = "No elements matched." });
 
         var shared = !input.TryGetValue("coordinate_system", out var cs) ||
                      !string.Equals(cs.GetString(), "internal", StringComparison.OrdinalIgnoreCase);
@@ -138,7 +138,7 @@ public class ExportElementCoordinates : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             count = rows.Count,
             coordinate_system = shared && toShared != null ? "shared" : "internal",

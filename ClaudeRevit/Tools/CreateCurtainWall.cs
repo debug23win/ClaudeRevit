@@ -73,7 +73,7 @@ public class CreateCurtainWall : IRevitTool
         var curve = Line.CreateBound(start, end);
         var wall = Wall.Create(doc, curve, wallType.Id, level.Id, height, 0, false, false);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = wall.Id.Value,
             type = "CurtainWall",

@@ -101,7 +101,7 @@ public class SetElementMaterial : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message, parameter = usedName }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             // ok:false when nothing actually changed — otherwise the empty transaction reads as
             // success in a truncated preview and the model moves on.

@@ -54,7 +54,7 @@ public class MoveElements : IRevitTool
 
         ElementTransformUtils.MoveElements(doc, ids, new XYZ(dx, dy, dz));
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             moved_count = ids.Count,
             translation_ft = new { x = dx, y = dy, z = dz }

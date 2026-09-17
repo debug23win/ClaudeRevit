@@ -130,7 +130,7 @@ public class FilterElements : IRevitTool
             levelFilter = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
             if (levelFilter == null)
-                return JsonSerializer.Serialize(new { error = $"Level '{name}' not found." });
+                return Services.Json.Serialize(new { error = $"Level '{name}' not found." });
         }
 
         var matched = new List<Element>();
@@ -156,7 +156,7 @@ public class FilterElements : IRevitTool
             level = e.LevelId != ElementId.InvalidElementId ? doc.GetElement(e.LevelId)?.Name : null
         }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             category,
             match = matchAny ? "any" : "all",

@@ -76,7 +76,7 @@ public class ApplyFilterToView : IRevitTool
             view.SetFilterOverrides(filterId, overrides);
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             filter_id = filterId.Value,

@@ -100,7 +100,7 @@ public class CreateRoof : IRevitTool
         var footprintMapping = new ModelCurveArray();
         var roof = doc.Create.NewFootPrintRoof(curveArray, level, roofType, out footprintMapping);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = roof.Id.Value,
             type = "Roof",

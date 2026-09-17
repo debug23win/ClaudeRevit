@@ -92,7 +92,7 @@ public class PlaceRoomTag : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             tagged_count = tagged.Count,

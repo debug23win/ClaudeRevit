@@ -38,6 +38,6 @@ public class SaveMemory : IRevitTool
         if (string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("note is empty.");
         MemoryStore.Append(note);
-        return JsonSerializer.Serialize(new { saved = true, note });
+        return Json.Serialize(new { saved = true, note });
     }
 }

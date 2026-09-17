@@ -92,4 +92,27 @@ public class ToolSearchLogicTests
         Assert.True(ToolSearchLogic.CoreToolNames.Count < 70,
             $"core grew to {ToolSearchLogic.CoreToolNames.Count}; keep it tight");
     }
+
+    // Tool names and descriptions are English; a Russian query used to score zero on every one of
+    // them and answer "nothing found" — while the very same words already drove prewarm.
+    [Theory]
+    [InlineData("арматура в плите", "Rebar")]
+    [InlineData("нужна спецификация окон", "Schedules")]
+    [InlineData("сделай разрез по оси 2", "Views")]
+    [InlineData("проложи трубы по этажу", "MEP")]
+    public void Search_understands_russian(string query, string expectedCategory)
+    {
+        var result = ToolSearchLogic.Search(Catalog(), query);
+        Assert.Contains(expectedCategory, result.Categories);
+    }
+
+    [Fact]
+    public void Search_does_not_reveal_half_the_catalogue_on_a_weak_match()
+    {
+        // Revealing is permanent for the session, so a vague query must not drag in every group
+        // that happens to share a word.
+        var result = ToolSearchLogic.Search(Catalog(), "create the view");
+        Assert.True(result.Categories.Count <= 3,
+            "revealed: " + string.Join(", ", result.Categories));
+    }
 }

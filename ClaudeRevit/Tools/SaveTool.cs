@@ -39,7 +39,7 @@ public class SaveTool : IRevitTool
         "      var doc = app.ActiveUIDocument.Document;\n" +
         "      var lvl = doc.GetElement(new ElementId(input[\"id\"].GetInt64())) as Level;\n" +
         "      lvl.Name = input[\"name\"].GetString();\n" +
-        "      return JsonSerializer.Serialize(new { ok = true, renamed = lvl.Name });\n" +
+        "      return Services.Json.Serialize(new { ok = true, renamed = lvl.Name });\n" +
         "    } } }\n" +
         "```\n" +
         "Set RequiresTransaction => true when the tool modifies the model (the host wraps Execute in a " +
@@ -84,7 +84,7 @@ public class SaveTool : IRevitTool
             throw new InvalidOperationException("source is empty.");
 
         var result = DynamicToolLoader.SaveAndLoad(name, source);
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             saved = true,
             file = result.File,

@@ -176,7 +176,7 @@ public class CreateRebar : IRevitTool
                 "Revit rejected this rebar (invalid geometry during regeneration): " + ex.Message);
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = rebar.Id.Value,
             type = "Rebar",

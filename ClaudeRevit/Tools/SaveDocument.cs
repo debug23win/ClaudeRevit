@@ -35,7 +35,7 @@ public class SaveDocument : IRevitTool
         {
             var path = sa.GetString()!;
             doc.SaveAs(path);
-            return JsonSerializer.Serialize(new { saved_as = path });
+            return Services.Json.Serialize(new { saved_as = path });
         }
 
         if (string.IsNullOrEmpty(doc.PathName))
@@ -43,6 +43,6 @@ public class SaveDocument : IRevitTool
                 "Document has never been saved — provide save_as_path for the first save.");
 
         doc.Save();
-        return JsonSerializer.Serialize(new { saved = true, path = doc.PathName });
+        return Services.Json.Serialize(new { saved = true, path = doc.PathName });
     }
 }

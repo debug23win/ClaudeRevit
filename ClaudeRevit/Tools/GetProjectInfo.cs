@@ -27,7 +27,7 @@ public class GetProjectInfo : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var pi = doc.ProjectInformation;
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             name = pi?.Name,
             number = pi?.Number,

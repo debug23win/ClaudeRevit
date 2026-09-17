@@ -35,6 +35,11 @@ public static class McpServer
     // Guidance handed to the driving model (Claude Code) via the MCP handshake — it has no access
     // to the in-Revit chat pane's system prompt, so the key rules for working Revit efficiently and
     // correctly go here. Distilled from real field runs.
+    // Also handed to the Claude Code CLI with --append-system-prompt on the subscription path: a
+    // client is free to ignore a server's handshake instructions, and these rules are the
+    // difference between driving Revit and guessing at it.
+    public static string DrivingRules => Instructions;
+
     private const string Instructions =
         "You are a senior BIM engineer and Revit-API expert driving a LIVE Autodesk Revit model through " +
         "these tools. Work precisely and safely.\n\n" +
@@ -63,7 +68,10 @@ public static class McpServer
         "but doc.Regenerate() is SUPER-LINEAR — call it ONCE at the end of a batch, never in a loop.\n\n" +
         "REVIT API — on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
         "RequestViewChange inside a transaction — use the set_active_view tool.\n\n" +
-        "SAFETY & ERRORS — every change is one undo step (Ctrl+Z). Do destructive actions (delete, mass " +
+        "SAFETY & ERRORS — over MCP each TOOL CALL is its own undo step (the in-Revit chat pane groups a " +
+        "whole turn into one, but this path has no turn boundary to group by, and a group held open " +
+        "across an idle client would block the user's own edits). So a ten-call sequence takes ten " +
+        "Ctrl+Z to unwind — say so when you propose something broad. Do destructive actions (delete, mass " +
         "edits, arbitrary code) on the smallest possible set, and confirm intent when the request is " +
         "broad. If a request is ambiguous (missing level, type or units), ask ONE clarifying question " +
         "instead of guessing. If a tool errors, report it verbatim, explain the likely cause, and fix the " +
@@ -350,10 +358,18 @@ public static class McpServer
     private static JsonArray BuildToolList()
     {
         var allowCode = SettingsStore.AllowCodeExecution;
+        var disabled = SettingsStore.DisabledToolGroups;
         var arr = new JsonArray();
         foreach (var t in ToolRegistry.Instance.All)
         {
             if (t.RequiresCodeExecutionOptIn && !allowCode) continue; // hidden unless opted in
+
+            // The groups the user switched off in Settings apply here too. They did not apply
+            // before, so a user who disabled rebar to save tokens still paid for every rebar
+            // schema on this path — and, worse, the model still had tools the user had said no to.
+            if (disabled.Count > 0 &&
+                disabled.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase))
+                continue;
             var props = new JsonObject();
             foreach (var kv in t.InputSchema.Properties ?? new Dictionary<string, JsonElement>())
                 props[kv.Key] = JsonSerializer.SerializeToNode(kv.Value);

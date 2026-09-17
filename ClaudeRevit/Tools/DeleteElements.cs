@@ -55,7 +55,7 @@ public class DeleteElements : IRevitTool
 
         var deleted = doc.Delete(ids);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             requested = ids.Count,
             deleted_count = deleted.Count,

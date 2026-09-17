@@ -61,7 +61,7 @@ public class ListLinks : IRevitTool
                 };
             }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             revit_link_count = revitLinks.Count,
             revit_links = revitLinks,

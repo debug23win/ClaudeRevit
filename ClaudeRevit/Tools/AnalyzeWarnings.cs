@@ -51,7 +51,7 @@ public class AnalyzeWarnings : IRevitTool
             affected_ids = w.GetAdditionalElements().Select(id => id.Value).ToList()
         }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             total_warnings = warnings.Count,
             returned = entries.Count,

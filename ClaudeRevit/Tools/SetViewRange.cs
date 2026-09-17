@@ -59,7 +59,7 @@ public class SetViewRange : IRevitTool
 
         view.SetViewRange(range);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             top_offset_ft = range.GetOffset(PlanViewPlane.TopClipPlane),

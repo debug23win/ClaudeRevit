@@ -58,7 +58,7 @@ public class GetElementsOnLevel : IRevitTool
             .ToList();
         var truncated = raw.Count > limit;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             level = level.Name,
             count = Math.Min(raw.Count, limit),

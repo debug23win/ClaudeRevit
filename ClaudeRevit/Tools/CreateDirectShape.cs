@@ -170,7 +170,7 @@ public class CreateDirectShape : IRevitTool
             try { ds.Name = n.GetString(); } catch { /* name may be rejected — non-fatal */ }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = ds.Id.Value,
             type = "DirectShape",

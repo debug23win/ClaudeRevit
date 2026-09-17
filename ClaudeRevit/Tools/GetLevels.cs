@@ -41,6 +41,6 @@ public class GetLevels : IRevitTool
             })
             .ToList();
 
-        return JsonSerializer.Serialize(new { count = levels.Count, levels });
+        return Services.Json.Serialize(new { count = levels.Count, levels });
     }
 }

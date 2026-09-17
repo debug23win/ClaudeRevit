@@ -65,7 +65,7 @@ public class MirrorElements : IRevitTool
         else
             ElementTransformUtils.MirrorElements(doc, ids, plane, false);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             mirrored_count = ids.Count,
             kept_originals = copy,

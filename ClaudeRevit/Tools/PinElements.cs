@@ -49,6 +49,6 @@ public class PinElements : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new { pinned, skipped_count = skipped.Count, skipped });
+        return Services.Json.Serialize(new { pinned, skipped_count = skipped.Count, skipped });
     }
 }

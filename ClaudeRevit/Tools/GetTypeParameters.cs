@@ -44,7 +44,7 @@ public class GetTypeParameters : IRevitTool
             read_only = p.IsReadOnly
         }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = typeId.Value,
             family = type.FamilyName,

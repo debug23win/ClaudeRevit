@@ -64,7 +64,7 @@ public class CreateSheet : IRevitTool
         sheet.SheetNumber = number;
         sheet.Name = name;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = sheet.Id.Value,
             type = "Sheet",

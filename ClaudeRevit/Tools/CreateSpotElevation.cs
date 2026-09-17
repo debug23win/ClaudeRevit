@@ -54,7 +54,7 @@ public class CreateSpotElevation : IRevitTool
         var reference = new Reference(element);
         var spot = doc.Create.NewSpotElevation(view, reference, origin, bend, end, origin, true);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = spot.Id.Value,
             type = "SpotElevation",

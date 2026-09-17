@@ -72,7 +72,7 @@ public class GetRebarInHost : IRevitTool
             })
             .ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             host_id = host.Id.Value,
             rebar_sets = rebars.Count,

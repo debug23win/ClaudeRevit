@@ -114,7 +114,7 @@ public class CreateLinearArray : IRevitTool
         }
         doc.Regenerate();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             array_id = array.Id.Value,
             num_members = array.NumMembers,

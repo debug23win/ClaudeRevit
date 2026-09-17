@@ -67,7 +67,7 @@ public class CreateTextWithLeader : IRevitTool
         var leader = note.AddLeader(leaderType);
         leader.End = new XYZ(lx, ly, 0);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = note.Id.Value,
             type = "TextNote",

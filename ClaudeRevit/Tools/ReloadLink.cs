@@ -46,7 +46,7 @@ public class ReloadLink : IRevitTool
         {
             case RevitLinkType rlt:
                 var result = rlt.Reload();
-                return JsonSerializer.Serialize(new
+                return Services.Json.Serialize(new
                 {
                     kind = "Revit",
                     name = rlt.Name,
@@ -54,7 +54,7 @@ public class ReloadLink : IRevitTool
                 });
             case CADLinkType cad:
                 cad.Reload();
-                return JsonSerializer.Serialize(new
+                return Services.Json.Serialize(new
                 {
                     kind = "CAD",
                     name = cad.Name,

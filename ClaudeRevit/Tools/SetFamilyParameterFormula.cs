@@ -38,6 +38,11 @@ public class SetFamilyParameterFormula : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = app.ActiveUIDocument?.Document
@@ -61,7 +66,7 @@ public class SetFamilyParameterFormula : IRevitTool
         doc.Regenerate();
 
         var (raw, mm, display) = FamilyEditorUtil.CurrentValue(fm, p);
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             name,
             formula = string.IsNullOrWhiteSpace(formula) ? null : formula,

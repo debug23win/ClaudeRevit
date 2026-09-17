@@ -46,6 +46,11 @@ public class SetFamilyParameterValue : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     private const double MmToFeet = 1.0 / Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
@@ -93,7 +98,7 @@ public class SetFamilyParameterValue : IRevitTool
         doc.Regenerate();
 
         var (raw, mm, display) = FamilyEditorUtil.CurrentValue(fm, p);
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             name,
             value_raw = raw,

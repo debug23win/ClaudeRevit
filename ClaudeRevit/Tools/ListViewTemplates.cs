@@ -31,7 +31,7 @@ public class ListViewTemplates : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var templates = Survey(doc);
-        return JsonSerializer.Serialize(new { count = templates.Count, view_templates = templates });
+        return Services.Json.Serialize(new { count = templates.Count, view_templates = templates });
     }
 
     // Shared with get_project_catalog so both tools report identical template data.

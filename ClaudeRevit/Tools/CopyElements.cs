@@ -53,7 +53,7 @@ public class CopyElements : IRevitTool
 
         var newIds = ElementTransformUtils.CopyElements(doc, ids, new XYZ(dx, dy, dz));
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             source_count = ids.Count,
             copied_count = newIds.Count,

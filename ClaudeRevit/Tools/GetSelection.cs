@@ -69,7 +69,7 @@ public class GetSelection : IRevitTool
             })
             .ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             count = ids.Count,
             listed = elements.Count,

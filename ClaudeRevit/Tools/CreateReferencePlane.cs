@@ -54,7 +54,7 @@ public class CreateReferencePlane : IRevitTool
             catch { /* name conflict — keep auto */ }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = refPlane.Id.Value,
             type = "ReferencePlane",

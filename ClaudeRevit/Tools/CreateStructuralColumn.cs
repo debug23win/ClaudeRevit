@@ -84,7 +84,7 @@ public class CreateStructuralColumn : IRevitTool
         var instance = doc.Create.NewFamilyInstance(
             new XYZ(x, y, level.Elevation), symbol, level, StructuralType.Column);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "StructuralColumn",

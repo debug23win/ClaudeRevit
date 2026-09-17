@@ -69,7 +69,7 @@ public class ArrayElements : IRevitTool
             allNewIds.AddRange(newIds.Select(n => n.Value));
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             source_count = ids.Count,
             total_items = count,

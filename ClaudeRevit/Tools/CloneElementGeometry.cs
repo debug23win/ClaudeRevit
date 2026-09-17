@@ -154,7 +154,7 @@ public class CloneElementGeometry : IRevitTool
         var bb = ds.get_BoundingBox(null);
         object size = bb == null ? "n/a" : new { w = bb.Max.X - bb.Min.X, d = bb.Max.Y - bb.Min.Y, h = bb.Max.Z - bb.Min.Z };
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = ds.Id.Value,
             type = "DirectShape",

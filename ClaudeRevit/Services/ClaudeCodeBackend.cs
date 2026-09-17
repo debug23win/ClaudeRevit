@@ -84,6 +84,13 @@ public static class ClaudeCodeBackend
         {
             args.Add("--mcp-config");
             args.Add(mcpConfigPath);
+
+            // The rules that make the difference between a model that drives Revit well and one
+            // that guesses — units, verification, batching — lived only in the MCP handshake
+            // instructions, which a client may or may not surface to the model. On this path we
+            // launch the CLI ourselves, so they go in where they are certain to be read.
+            args.Add("--append-system-prompt");
+            args.Add(McpServer.DrivingRules);
         }
         if (!string.IsNullOrWhiteSpace(allowedToolsGlob))
         {

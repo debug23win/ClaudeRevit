@@ -63,7 +63,7 @@ public class CalculateWeight : IRevitTool
 
         var elements = Collect(doc, input);
         if (elements.Count == 0)
-            return JsonSerializer.Serialize(new { total_kg = 0.0, note = "No elements matched." });
+            return Services.Json.Serialize(new { total_kg = 0.0, note = "No elements matched." });
 
         var explicitDensity = input.TryGetValue("density_kg_m3", out var dd) ? dd.GetDouble() : (double?)null;
         var writeParam = input.TryGetValue("write_to_parameter", out var wp) ? wp.GetString() : null;
@@ -73,6 +73,8 @@ public class CalculateWeight : IRevitTool
 
         foreach (var el in elements)
         {
+            ToolContext.ThrowIfCancelled();
+
             double? kg = null;
             try { kg = MassKg(doc, el, explicitDensity); } catch { }
             if (kg == null || kg.Value <= 0) { noVolume.Add(el.Id.Value); continue; }
@@ -105,7 +107,7 @@ public class CalculateWeight : IRevitTool
         }).OrderByDescending(x => x.kg).ToList();
 
         var total = rows.Sum(r => r.kg);
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             elements_weighed = rows.Count,
             total_kg = Math.Round(total, 2),

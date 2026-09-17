@@ -214,7 +214,7 @@ public class DiagnoseModel : IRevitTool
         var totalElements = 0;
         try { totalElements = new FilteredElementCollector(doc).WhereElementIsNotElementType().GetElementCount(); } catch { }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             document = doc.Title,
             total_elements = totalElements,

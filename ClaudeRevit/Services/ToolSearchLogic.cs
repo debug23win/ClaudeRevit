@@ -86,6 +86,17 @@ public static class ToolSearchLogic
 
         var deferred = tools.Where(t => !t.IsCore).ToList();
 
+        // Tool names and descriptions are English, so a Russian query used to score zero on every
+        // tool and "арматура в плите" answered "nothing found" — the same words that the prewarm
+        // table already maps to a group. Matching them here too costs one pass and turns a dead end
+        // into the right group.
+        var keyedCategories = terms.Count == 0
+            ? new List<string>()
+            : GroupKeywords
+                .Where(g => g.Keys.Any(k => terms.Any(term => term.Contains(k) || k.Contains(term))))
+                .Select(g => g.Category)
+                .ToList();
+
         int Score(ToolInfo t)
         {
             var name = t.Name.ToLowerInvariant();
@@ -98,6 +109,9 @@ public static class ToolSearchLogic
                 if (cat.Contains(term)) s += 2;
                 if (desc.Contains(term)) s += 1;
             }
+            // A keyword hit names the group directly, so it outranks an incidental word match in
+            // some unrelated tool's description.
+            if (keyedCategories.Contains(t.Category)) s += 4;
             return s;
         }
 
@@ -113,7 +127,18 @@ public static class ToolSearchLogic
                 "\"rebar\"), or just use execute_csharp if code execution is enabled.");
         }
 
-        var cats = scored.Take(12).Select(x => x.Tool.Category).Distinct().Take(4).ToList();
+        // Revealing a group is permanent for the session, so a vague query used to cost four whole
+        // groups of schemas on every later request. Only groups that actually match well get in:
+        // the best one always, the others if they are at least half as good.
+        var best = scored[0].S;
+        var cats = scored.Take(12)
+            .GroupBy(x => x.Tool.Category)
+            .Select(g => (Category: g.Key, S: g.Max(x => x.S)))
+            .OrderByDescending(x => x.S)
+            .Where((x, i) => i == 0 || x.S * 2 >= best)
+            .Take(3)
+            .Select(x => x.Category)
+            .ToList();
         var revealed = deferred.Where(t => cats.Contains(t.Category))
             .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
 

@@ -46,6 +46,11 @@ public class CreateFloorType : IRevitTool
 
     public bool RequiresTransaction => true;
 
+
+    // Adds or renames something the project catalog lists.
+
+    public bool InvalidatesCatalog => true;
+
     private const double MmToFeet = 1.0 / Units.MmPerFoot;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
@@ -61,7 +66,7 @@ public class CreateFloorType : IRevitTool
 
         var existing = allTypes.FirstOrDefault(t => t.Name == name);
         if (existing != null)
-            return JsonSerializer.Serialize(new
+            return Services.Json.Serialize(new
             {
                 created = false, id = existing.Id.Value, name,
                 note = "A floor type with this name already exists; returned unchanged."
@@ -111,7 +116,7 @@ public class CreateFloorType : IRevitTool
             newType.SetCompoundStructure(cs);
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             created = true,
             id = newType.Id.Value,

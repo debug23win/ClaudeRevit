@@ -67,7 +67,7 @@ public class GetElementHosts : IRevitTool
             catch (Exception ex) { return new { id = id.Value, error = ex.Message }; }
         }).ToList();
 
-        return JsonSerializer.Serialize(results);
+        return Services.Json.Serialize(results);
     }
 
     private static object? HostOf(Document doc, Element el)

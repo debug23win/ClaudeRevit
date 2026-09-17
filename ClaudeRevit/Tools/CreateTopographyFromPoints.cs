@@ -60,7 +60,7 @@ public class CreateTopographyFromPoints : IRevitTool
 
         var topo = TopographySurface.Create(doc, pts);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = topo.Id.Value,
             type = "TopographySurface",

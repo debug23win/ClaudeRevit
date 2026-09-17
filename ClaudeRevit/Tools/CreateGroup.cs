@@ -49,7 +49,7 @@ public class CreateGroup : IRevitTool
             catch { /* name conflict */ }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = group.Id.Value,
             group_type_id = group.GroupType.Id.Value,

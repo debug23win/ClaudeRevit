@@ -26,13 +26,13 @@ public class GetActiveViewInfo : IRevitTool
     {
         var doc = app.ActiveUIDocument?.Document;
         if (doc == null)
-            return JsonSerializer.Serialize(new { error = "No document is open." });
+            return Services.Json.Serialize(new { error = "No document is open." });
 
         var view = doc.ActiveView;
         if (view == null)
-            return JsonSerializer.Serialize(new { error = "No active view." });
+            return Services.Json.Serialize(new { error = "No active view." });
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             name = view.Name,
             view_type = view.ViewType.ToString(),

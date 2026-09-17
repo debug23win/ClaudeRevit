@@ -42,7 +42,7 @@ public class Create3DView : IRevitTool
             try { view.Name = n.GetString(); } catch { }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = view.Id.Value,
             type = "View3D",

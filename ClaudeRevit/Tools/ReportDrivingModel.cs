@@ -49,7 +49,7 @@ public class ReportDrivingModel : IRevitTool
         var model = input.TryGetValue("model", out var m) ? m.GetString() : null;
         McpSession.ReportModel(model);
 
-        return JsonSerializer.Serialize(new
+        return Json.Serialize(new
         {
             recorded = McpSession.ReportedModel,
             client = McpSession.ClientName,

@@ -80,7 +80,7 @@ public class AutonumberElements : IRevitTool
 
         var elements = Collect(doc, input);
         if (elements.Count == 0)
-            return JsonSerializer.Serialize(new { numbered = 0, note = "No elements matched." });
+            return Services.Json.Serialize(new { numbered = 0, note = "No elements matched." });
 
         var paramName = input.TryGetValue("parameter_name", out var pn) ? pn.GetString() : null;
         if (string.IsNullOrWhiteSpace(paramName)) paramName = "Mark";
@@ -121,7 +121,7 @@ public class AutonumberElements : IRevitTool
             catch (Exception ex) { failed.Add(new { id = el.Id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             parameter = paramName,
             order,

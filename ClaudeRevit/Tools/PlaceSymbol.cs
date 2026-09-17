@@ -52,7 +52,7 @@ public class PlaceSymbol : IRevitTool
         var y = input["y"].GetDouble();
         var instance = doc.Create.NewFamilyInstance(new XYZ(x, y, 0), symbol, view);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             id = instance.Id.Value,
             type = "AnnotationSymbol",

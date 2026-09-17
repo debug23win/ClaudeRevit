@@ -68,7 +68,7 @@ public class GetSheetViews : IRevitTool
                 };
             }).ToList();
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             sheet = sheet.SheetNumber + " - " + sheet.Name,
             viewport_count = viewports.Count,

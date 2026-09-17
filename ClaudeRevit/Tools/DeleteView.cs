@@ -52,7 +52,7 @@ public class DeleteView : IRevitTool
             catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             deleted_count = deleted.Count,
             deleted,

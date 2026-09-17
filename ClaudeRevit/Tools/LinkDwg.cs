@@ -60,7 +60,7 @@ public class LinkDwg : IRevitTool
         if (!linked)
             throw new InvalidOperationException("Revit refused to link the DWG. Check file path and version.");
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             link_id = linkId.Value,
             type = "DWG Link",

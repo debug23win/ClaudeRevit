@@ -49,7 +49,7 @@ public class SetViewScale : IRevitTool
 
         view.Scale = scale;
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             new_scale = view.Scale

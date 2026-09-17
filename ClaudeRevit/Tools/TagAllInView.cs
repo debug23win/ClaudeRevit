@@ -83,7 +83,7 @@ public class TagAllInView : IRevitTool
             }
         }
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             view = view.Name,
             category,

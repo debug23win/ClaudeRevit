@@ -39,7 +39,7 @@ public class UnloadFamily : IRevitTool
         var familyName = family.Name;
         var deleted = doc.Delete(id);
 
-        return JsonSerializer.Serialize(new
+        return Services.Json.Serialize(new
         {
             removed_family = familyName,
             deleted_count = deleted.Count
