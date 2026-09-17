@@ -415,6 +415,11 @@ public static class McpServer
                     $"'{name}' did not finish within 10 minutes. Revit may be showing a modal dialog " +
                     "— check the Revit window.");
             }
+            // The only way anything from the plugin reaches the model: a client never asks whether
+            // the user wanted something, so a pending request rides out on the result of whatever
+            // tool the model called next.
+            if (McpSession.TakeDirective() is { } directive) text += directive;
+
             return (ToolResult(text, false), null);
         }
         catch (Exception ex)

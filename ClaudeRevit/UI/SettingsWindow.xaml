@@ -228,6 +228,15 @@
                         <TextBlock x:Name="McpWhoText" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
                         <TextBlock x:Name="McpWhoNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
                                    Text="The client name comes from the MCP handshake. MCP carries no field for the model, so the model is asked to report itself — that half is its own claim and can be wrong or missing." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="McpResetSessionBtn" Content="Restart session" Height="26" Padding="10,0"
+                                    Click="McpResetSession_Click" />
+                            <Button x:Name="McpAskModelBtn" Content="Ask for the model above" Height="26" Padding="10,0"
+                                    Margin="8,0,0,0" Click="McpAskModel_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="McpResetNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="Restart session: forgets the reported model and starts the next subscription/Codex message as a NEW CLI session — a CLI session is pinned to the model it started with, so this is what makes a model change take effect (the conversation on that path is lost). Ask for the model above: asks the connected client to switch to the id in the override box. A server can't switch a client's model — MCP has no channel for it — so the model is told what the user wants and answers on its next tool call." />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

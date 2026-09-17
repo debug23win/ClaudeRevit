@@ -182,11 +182,17 @@ public class ChatService
 
     public ChatService() : this(false) { }
 
+    // The pane's own service. Settings needs to act on the live conversation (restart the CLI
+    // session), and the pane keeps its instance private; benchmark runs are ephemeral and must not
+    // become "the" session.
+    public static ChatService? Current { get; private set; }
+
     public ChatService(bool ephemeral)
     {
         _ephemeral = ephemeral;
         if (!ephemeral)
         {
+            Current = this;
             _history.AddRange(HistoryStore.LoadApiHistory());
             // Restore the Claude Code (subscription) session so the conversation continues after a
             // Revit restart, matching how the API history persists.
@@ -231,6 +237,22 @@ public class ChatService
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
     public bool SubscriptionMode;
+
+    // Start the next CLI message as a NEW session instead of resuming the stored one.
+    //
+    // This is the half of "change the model" that actually works: a CLI session is pinned to the
+    // model it was started with, so resuming it keeps answering as that model however the picker is
+    // set — which is exactly what looks like the plugin ignoring the setting. Dropping the session
+    // id costs the conversation's memory on that path, which is why it is a deliberate action and
+    // not something done silently on every model change.
+    public void ResetCliSessions()
+    {
+        _claudeCodeSessionId = null;
+        _codexSessionId = null;
+        PersistClaudeCodeSession();
+        PersistCodexSession();
+        Log.Info("CLI sessions reset: the next subscription/Codex message starts a new session.");
+    }
 
     private static string ClaudeCodeSessionFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
