@@ -255,11 +255,7 @@ public class ChatService
 
     // Start the next CLI message as a NEW session instead of resuming the stored one.
     //
-    // This is the half of "change the model" that actually works: a CLI session is pinned to the
-    // model it was started with, so resuming it keeps answering as that model however the picker is
-    // set — which is exactly what looks like the plugin ignoring the setting. Dropping the session
-    // id costs the conversation's memory on that path, which is why it is a deliberate action and
-    // not something done silently on every model change.
+    // A deliberate conversation reset. Model selection itself is forwarded on every turn.
     public void ResetCliSessions()
     {
         _claudeCodeSessionId = null;
@@ -416,7 +412,8 @@ public class ChatService
     // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
     private async Task SendViaCodexAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
-        string? model, CancellationToken ct)
+        string? model, CancellationToken ct, string? effort = null,
+        string? imageBase64 = null, string? imageMime = null)
     {
         if (!McpServer.IsRunning)
         {
@@ -444,11 +441,24 @@ public class ChatService
 
         var toolCount = 0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var res = await CodexBackend.RunAsync(
-            SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
-            onText: Append,
-            onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, resumeSessionId: _codexSessionId);
+        string? imagePath = null;
+        CodexBackend.Result res;
+        try
+        {
+            if (!string.IsNullOrEmpty(imageBase64))
+            {
+                var suffix = imageMime == "image/png" ? ".png" : ".jpg";
+                imagePath = Path.Combine(McpServer.ClientWorkDir(), "image-" + Guid.NewGuid().ToString("N") + suffix);
+                await File.WriteAllBytesAsync(imagePath, Convert.FromBase64String(imageBase64), ct);
+            }
+            res = await CodexBackend.RunAsync(
+                McpServer.DrivingRules + "\n\n" + contextedPrompt,
+                McpServer.ClientWorkDir(), McpServer.Url, SettingsStore.McpToken, _codexSessionId,
+                onText: Append,
+                onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
+                ct, imagePath: imagePath, model: model, effort: effort, executable: SettingsStore.CodexExe);
+        }
+        finally { if (imagePath != null) { try { File.Delete(imagePath); } catch { } } }
 
         _codexSessionId = res.SessionId ?? _codexSessionId;
         PersistCodexSession();
@@ -466,24 +476,6 @@ public class ChatService
         }
         if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
 
-        // The installed CLI rejected part of our command line and the answer came from a retry with
-        // fewer flags. Worth saying: the work was done, but this run may be missing tool progress
-        // and token counts, and the same step-down will happen every time until Codex is updated.
-        if (!string.IsNullOrEmpty(res.FlagsRejected))
-            Append("\n\n⚠ Your Codex CLI rejected part of the command line, so this run was repeated " +
-                   "with fewer flags — the answer is real, but tool progress and token counts may be " +
-                   "missing. Updating Codex should restore them. " +
-                   "It said: " + res.FlagsRejected!.Split('\n')[0].Trim());
-
-        // A run that answered without touching a single Revit tool almost always means Codex never
-        // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads
-        // as the model refusing the task. Skipped after a flag-rejection retry, where no tool call
-        // is observable in the first place and the warning would be pure noise.
-        if (toolCount == 0 && bubble != null && string.IsNullOrEmpty(res.FlagsRejected))
-            Append("\n\n⚠ No Revit tools were called. Check that the clauderevit MCP server is " +
-                   "registered in your Codex config.toml (Settings → MCP shows the snippet) and that " +
-                   "the MCP server is enabled here.");
-
         if (SettingsStore.ShowTaskDiagnostics && bubble != null)
         {
             var tok = res.InputTokens + res.OutputTokens;
@@ -495,7 +487,7 @@ public class ChatService
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
-        string? modelAlias, CancellationToken ct)
+        string? modelAlias, CancellationToken ct, string? effort = null)
     {
         if (!McpServer.IsRunning)
         {
@@ -533,7 +525,7 @@ public class ChatService
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, model: modelAlias);
+            ct, model: modelAlias, effort: effort);
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();
@@ -575,12 +567,14 @@ public class ChatService
         string model,
         CancellationToken ct = default,
         string? imageBase64 = null,
-        string? imageMime = null)
+        string? imageMime = null,
+        McpAgentSelection? mcpSelection = null)
     {
         // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
         // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
-        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime), ct);
+        var subscription = SubscriptionMode;
+        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection), ct);
     }
 
     private async Task SendCoreAsync(
@@ -589,36 +583,40 @@ public class ChatService
         Dispatcher ui,
         CancellationToken ct,
         string? imageBase64,
-        string? imageMime)
+        string? imageMime,
+        bool subscription,
+        McpAgentSelection? mcpSelection)
     {
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
         // schemas, no history compaction here) and just stream its output into the pane.
-        if (model == "claudecode" || SubscriptionMode)
+        var agent = McpAgentSelection.Resolve(model, subscription, mcpSelection);
+        if (agent != null)
         {
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
-            // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
-            // A free-text override in Settings wins, so a model newer than this release can be used.
-            var over = SettingsStore.McpModelOverride;
-            var alias = !string.IsNullOrWhiteSpace(over) ? over.Trim()
-                      : model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
-            await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
-            return;
-        }
-
-        // The OpenAI counterpart: the local Codex CLI drives the same MCP server. Same shape as
-        // above — Codex runs its own loop, so the API pipeline is bypassed entirely.
-        // "codex" uses whatever model Codex is configured with; "codex:<model-id>" pins one.
-        if (model == "codex" || model.StartsWith("codex:", StringComparison.Ordinal))
-        {
-            var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
-            if (string.IsNullOrWhiteSpace(userText)) return;
-            var codexOver = SettingsStore.McpModelOverride;
-            var codexModel = !string.IsNullOrWhiteSpace(codexOver) ? codexOver.Trim()
-                           : model.Length > 6 ? model.Substring(6) : null;
-            await SendViaCodexAsync(conversation, userText, ui, codexModel, ct);
+            var chosenModel = agent.Model;
+            if (mcpSelection == null)
+            {
+                // Older benchmark calls retain their explicit model tags. Migrate the old shared
+                // override only to its matching provider, never to both agents.
+                chosenModel = McpAgentSelection.MigrateOverride(agent.Agent, SettingsStore.McpModelOverride) ?? chosenModel;
+                if (agent.Agent == "claudecode" && chosenModel == null && model != "claudecode")
+                    chosenModel = ClaudeCodeBackend.ModelAlias(model);
+            }
+            if (agent.Agent == "codex")
+            {
+                if (mcpSelection != null)
+                {
+                    var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), ct);
+                    var validated = CodexModels.Select(models, chosenModel, agent.Effort);
+                    chosenModel = validated.Model;
+                    agent = agent with { Effort = validated.Effort };
+                }
+                await SendViaCodexAsync(conversation, userText, ui, chosenModel, ct, agent.Effort, imageBase64, imageMime);
+            }
+            else await SendViaClaudeCodeAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
             return;
         }
 
@@ -1529,6 +1527,7 @@ public class ChatService
             var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
             for (int j = 0; j < turn.Blocks.Count; j++)
             {
+                if (turn.Blocks[j] is ChatOpenAIReasoningBlock) continue;
                 var cache = isLast && j == turn.Blocks.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;

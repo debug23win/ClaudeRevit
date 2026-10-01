@@ -16,7 +16,7 @@
 
 #define MyAppName "Claude Revit"
 #define MyAppPublisher "roubaudal-maker"
-#define MyAppURL "https://github.com/roubaudal-maker/ClaudeRevit"
+#define MyAppURL "https://github.com/debug23win/ClaudeRevit"
 
 #ifndef AppVersion
   #define AppVersion "v0.0-dev"

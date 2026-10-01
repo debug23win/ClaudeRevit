@@ -38,6 +38,14 @@ jobs:
           if (-not $tag.StartsWith("v")) { $tag = "v$tag" }
           "version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      - name: Unit and pane checks before packaging
+        shell: pwsh
+        run: |
+          dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Unit tests failed" }
+          dotnet run --project ClaudeRevit.PaneTests -c Release -- pane-qa
+          if ($LASTEXITCODE -ne 0) { throw "Pane checks failed" }
+
       # One add-in DLL cannot load into every Revit: 2025/2026 host .NET 8, 2027 hosts
       # .NET 10. Build each supported version against its matching Revit API reference
       # package and stage it under installer\payload\<year>\ for the installer to bundle,

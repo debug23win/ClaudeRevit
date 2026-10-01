@@ -64,7 +64,7 @@ public static class ClaudeCodeBackend
     public static async Task<Result> RunAsync(
         string exe, string prompt, string workDir, string mcpConfigPath, string? resumeSessionId,
         string allowedToolsGlob, Action<string> onText, Action<string> onTool, CancellationToken ct,
-        string? model = null)
+        string? model = null, string? effort = null)
     {
         var args = new List<string>
         {
@@ -73,11 +73,7 @@ public static class ClaudeCodeBackend
             "--verbose",
             "--include-partial-messages"
         };
-        if (!string.IsNullOrWhiteSpace(model))
-        {
-            args.Add("--model");
-            args.Add(model!);
-        }
+        McpAgentSelection.AddClaudeOptions(args, model, effort);
         // MCP + tools are for the "drive Revit" path. The judge runs with neither (empty) — a pure
         // text-grading call — so skip the flags; an empty allowedTools glob denies every tool.
         if (!string.IsNullOrWhiteSpace(mcpConfigPath))

@@ -24,7 +24,7 @@ public static class HistoryStore
             Directory.CreateDirectory(dir);
             var dto = new FileDto(
                 2,
-                uiMessages.Select(m => new UiMessageDto(m.Role, m.ToolName, m.Text, m.IsError)).ToList(),
+                uiMessages.Select(m => new UiMessageDto(m.Role, m.ToolName, m.Text, m.IsError, m.AssistantName)).ToList(),
                 apiHistory.Select(ToDto).ToList());
             // Write beside the file and swap it in, rather than over it. A crash or a full disk
             // halfway through an in-place write leaves a truncated JSON file, and the next start
@@ -46,7 +46,8 @@ public static class HistoryStore
             Role = d.Role,
             ToolName = d.ToolName,
             Text = d.Text,
-            IsError = d.IsError
+            IsError = d.IsError,
+            AssistantName = d.AssistantName ?? "Assistant"
         }).ToList();
     }
 
@@ -116,6 +117,7 @@ public static class HistoryStore
         t.Role,
         t.Blocks.Select(b => b switch
         {
+            ChatOpenAIReasoningBlock x => new BlockDto("openai_reasoning", null, null, x.Model, x.ItemJson, null, null, false, null, null),
             ChatToolUseBlock x => new BlockDto("tool_use", null, x.Id, x.Name, x.InputJson, null, null, false, null, null),
             ChatToolResultBlock x => new BlockDto("tool_result", null, null, null, null, x.ToolUseId, x.Content, x.IsError, null, null),
             ChatThinkingBlock x => new BlockDto("thinking", null, null, null, null, null, null, false, x.Thinking, x.Signature),
@@ -132,6 +134,7 @@ public static class HistoryStore
         Role = d.Role,
         Blocks = d.Blocks.Select(b => (ChatBlock)(b.Type switch
         {
+            "openai_reasoning" => new ChatOpenAIReasoningBlock(b.Name ?? "", b.InputJson ?? "{}"),
             "tool_use" => new ChatToolUseBlock(b.Id ?? "", b.Name ?? "", b.InputJson ?? "{}"),
             "tool_result" => new ChatToolResultBlock(b.ToolUseId ?? "", b.Content ?? "", b.IsError),
             "thinking" => new ChatThinkingBlock(b.Thinking ?? "", b.Signature ?? ""),
@@ -163,7 +166,7 @@ public static class HistoryStore
     }
 
     private sealed record FileDto(int Version, List<UiMessageDto> Ui, List<ApiMessageDto> Api);
-    private sealed record UiMessageDto(string Role, string? ToolName, string Text, bool IsError);
+    private sealed record UiMessageDto(string Role, string? ToolName, string Text, bool IsError, string? AssistantName = null);
     private sealed record ApiMessageDto(string Role, List<BlockDto> Blocks);
     private sealed record BlockDto(
         string Type, string? Text, string? Id, string? Name,

@@ -32,16 +32,15 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="6,4">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ComboBox Grid.Column="0" x:Name="ModelPicker"
+            <WrapPanel>
+                <StackPanel>
+                <ComboBox x:Name="AgentPicker" Width="190" Height="24" Margin="0,0,0,4"
+                          SelectionChanged="AgentPicker_SelectionChanged">
+                    <ComboBoxItem Tag="api">API</ComboBoxItem>
+                    <ComboBoxItem Tag="claudecode">Claude Code · MCP</ComboBoxItem>
+                    <ComboBoxItem Tag="codex">Codex · MCP</ComboBoxItem>
+                </ComboBox>
+                <ComboBox x:Name="ModelPicker"
                           Width="190" Height="24" VerticalContentAlignment="Center"
                           SelectionChanged="ModelPicker_SelectionChanged">
                     <ComboBoxItem Tag="auto" IsSelected="True">Auto (cost-optimized)</ComboBoxItem>
@@ -53,17 +52,23 @@
                     <ComboBoxItem Tag="haiku-4-5">Haiku 4.5 (fastest)</ComboBoxItem>
                     <ComboBoxItem Tag="sonnet-4-6">Sonnet 4.6</ComboBoxItem>
                     <ComboBoxItem Tag="opus-4-7">Opus 4.7</ComboBoxItem>
-                    <ComboBoxItem Tag="claudecode">Claude Code (subscription)</ComboBoxItem>
-                    <ComboBoxItem Tag="codex">Codex / OpenAI via MCP</ComboBoxItem>
-                    <ComboBoxItem Tag="codex:gpt-6-astra">Codex · GPT-6 Astra</ComboBoxItem>
-                    <ComboBoxItem Tag="codex:gpt-5.6-sol">Codex · GPT-5.6 Sol</ComboBoxItem>
-                    <ComboBoxItem Tag="codex:gpt-5.6-terra">Codex · GPT-5.6 Terra</ComboBoxItem>
                     <ComboBoxItem Tag="alt" x:Name="AltModelItem">Alt model (set up in ⚙)</ComboBoxItem>
                 </ComboBox>
-                <CheckBox Grid.Column="1" x:Name="SubscriptionBox" Content="Subscription"
-                          VerticalAlignment="Center" Margin="10,0,0,0"
-                          Checked="SubscriptionBox_Changed" Unchecked="SubscriptionBox_Changed"
-                          ToolTip="Run the selected model through the Claude Code CLI on your Pro/Max subscription (via the MCP server) instead of the pay-per-token API — zero API cost. Needs the Claude Code CLI installed. Note: the Auto advisor/haiku→opus escalation does not apply here — Claude Code runs its own loop with the one chosen model (Auto = its default model)." />
+                <StackPanel x:Name="McpChoices" Visibility="Collapsed">
+                    <ComboBox x:Name="McpModelPicker" Width="190" Height="24" IsEditable="True"
+                              DisplayMemberPath="Label" SelectedValuePath="Id"
+                              SelectionChanged="McpModelPicker_SelectionChanged"
+                              LostKeyboardFocus="McpModelPicker_LostKeyboardFocus"
+                              ToolTip="Model ID. Empty uses the agent default. You can type a full model ID." />
+                    <ComboBox x:Name="McpEffortPicker" Width="190" Height="24" Margin="0,4,0,0"
+                              DisplayMemberPath="Label" SelectedValuePath="Id"
+                              SelectionChanged="McpEffortPicker_SelectionChanged"
+                              ToolTip="Reasoning effort for this agent and model." />
+                    <Button x:Name="RefreshModelsButton" Content="Refresh models" Height="24" Margin="0,4,0,0"
+                            Click="RefreshModelsButton_Click" />
+                </StackPanel>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="6,0,0,0">
                 <Button Grid.Column="2" x:Name="ClearButton"
                         Content="Clear" Height="24" Padding="10,0" Margin="0,0,4,0"
                         Click="ClearButton_Click"
@@ -80,7 +85,8 @@
                         Content="⚙" Height="24" Width="28" FontSize="14"
                         Click="SettingsButton_Click"
                         ToolTip="Settings — set or change your API key." />
-            </Grid>
+                </StackPanel>
+            </WrapPanel>
         </Border>
 
         <!-- ListBox, not ItemsControl-in-a-ScrollViewer: the latter gives items infinite

@@ -86,6 +86,7 @@
       <ReleaseFiles Include="$(TargetPath)" />
       <ReleaseFiles Include="@(ReferenceCopyLocalPaths)" />
       <ReleaseFiles Include="$(ProjectDir)ClaudeRevit.addin" />
+      <ReleaseFiles Include="$(ProjectDir)..\scripts\revit-mcp-bridge.ps1" />
     </ItemGroup>
     <MakeDir Directories="$(ReleaseDir)" />
     <Copy SourceFiles="@(ReleaseFiles)" DestinationFolder="$(ReleaseDir)" />

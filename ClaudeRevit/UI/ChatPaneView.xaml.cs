@@ -1,7 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,6 +24,15 @@ public partial class ChatPaneView : UserControl
     private readonly ChatService _service = new();
     private CancellationTokenSource? _cts;
     private string _selectedModel = "auto";
+    private string _selectedAgent = "api";
+    private bool _settingChoices;
+    private bool _choicesReady;
+    private bool _refreshingModels;
+    private IReadOnlyList<CodexModel> _codexModels = Array.Empty<CodexModel>();
+    private sealed record Choice(string Id, string Label);
+    private static string L(string english, string russian) =>
+        (SettingsStore.UiLanguage == "ru" || (SettingsStore.UiLanguage.Length == 0 && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru"))
+            ? russian : english;
 
     // An image attached for the next message (base64 + MIME), downscaled on attach.
     private string? _pendingImageBase64;
@@ -29,6 +41,13 @@ public partial class ChatPaneView : UserControl
     public ChatPaneView()
     {
         InitializeComponent();
+        _choicesReady = true;
+        _settingChoices = true;
+        _selectedAgent = SettingsStore.ChatAgent;
+        AgentPicker.SelectedItem = AgentPicker.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == _selectedAgent);
+        _settingChoices = false;
+        ApplyAgentChoices();
+        Loaded += async (_, _) => { if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync(); };
         DataContext = this;
         Messages.CollectionChanged += OnMessagesChanged;
 
@@ -287,6 +306,8 @@ public partial class ChatPaneView : UserControl
             _service.RecreateClient();
             UpdateAltModelLabel();
             UpdateAssistantLabel();
+            _codexModels = Array.Empty<CodexModel>();
+            ApplyAgentChoices();
 
             // Turning code execution on now loads any previously-saved custom tools without a
             // Revit restart (LoadAll otherwise only runs at startup, so saved tools would stay
@@ -315,26 +336,135 @@ public partial class ChatPaneView : UserControl
         }
     }
 
-    // "Subscription" toggle: route the selected model through the Claude Code CLI (subscription)
-    // instead of the API. Applies in both chat and — via its own checkbox — the benchmark.
-    private void SubscriptionBox_Changed(object sender, RoutedEventArgs e)
+    private async void AgentPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _service.SubscriptionMode = SubscriptionBox.IsChecked == true;
+        if (!_choicesReady || _settingChoices || AgentPicker.SelectedItem is not ComboBoxItem item) return;
+        _selectedAgent = (string)item.Tag;
+        SettingsStore.ChatAgent = _selectedAgent;
+        ApplyAgentChoices();
         UpdateAssistantLabel();
+        if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync();
+    }
+
+    private void ApplyAgentChoices()
+    {
+        if (!_choicesReady) return;
+        _settingChoices = true;
+        ModelPicker.Visibility = _selectedAgent == "api" ? Visibility.Visible : Visibility.Collapsed;
+        McpChoices.Visibility = _selectedAgent == "api" ? Visibility.Collapsed : Visibility.Visible;
+        RefreshModelsButton.Visibility = _selectedAgent == "codex" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshModelsButton.Content = L("Refresh models", "Обновить модели");
+        McpModelPicker.ToolTip = L("Choose a model or type its full ID. Automatic uses the agent default.", "Выберите модель или введите её полный ID. «Автоматически» использует модель агента по умолчанию.");
+        McpEffortPicker.ToolTip = L("Reasoning effort for this model.", "Глубина рассуждений для выбранной модели.");
+        if (_selectedAgent != "api")
+        {
+            var selection = SettingsStore.GetAgentSelection(_selectedAgent);
+            var choices = new List<Choice> { new("", L("Automatic", "Автоматически")) };
+            if (_selectedAgent == "codex") choices.AddRange(_codexModels.Select(m => new Choice(m.Id, m.Name)));
+            else choices.AddRange(new[] { new Choice("sonnet", "Claude Sonnet"), new Choice("opus", "Claude Opus"), new Choice("haiku", "Claude Haiku") });
+            if (!string.IsNullOrEmpty(selection.Model) && !choices.Any(c => c.Id == selection.Model))
+                choices.Add(new(selection.Model, selection.Model));
+            McpModelPicker.ItemsSource = choices;
+            McpModelPicker.SelectedValue = selection.Model ?? "";
+        }
+        _settingChoices = false;
+        PopulateEfforts();
+    }
+
+    private void PopulateEfforts()
+    {
+        if (_selectedAgent == "api") return;
+        _settingChoices = true;
+        var selection = SettingsStore.GetAgentSelection(_selectedAgent);
+        var choices = new List<Choice> { new("", L("Default", "По умолчанию")) };
+        var model = string.IsNullOrEmpty(selection.Model)
+            ? _codexModels.FirstOrDefault(m => m.IsDefault) ?? _codexModels.FirstOrDefault()
+            : _codexModels.FirstOrDefault(m => m.Id == selection.Model);
+        var levels = _selectedAgent == "codex" ? model?.Efforts ?? Array.Empty<string>()
+            : new[] { "low", "medium", "high", "xhigh", "max" };
+        choices.AddRange(levels.Select(level => new Choice(level, level switch
+        {
+            "none" => L("None", "Без дополнительных рассуждений"), "minimal" => L("Minimal", "Минимальная"),
+            "low" => L("Low", "Низкая"), "medium" => L("Medium", "Средняя"), "high" => L("High", "Высокая"),
+            "xhigh" => L("Very high", "Очень высокая"), "max" => L("Maximum", "Максимальная"), _ => level
+        })));
+        if (!string.IsNullOrEmpty(selection.Effort) && !choices.Any(c => c.Id == selection.Effort))
+            choices.Add(new(selection.Effort, selection.Effort + L(" — unavailable", " — недоступно")));
+        McpEffortPicker.ItemsSource = choices;
+        McpEffortPicker.SelectedValue = selection.Effort ?? "";
+        _settingChoices = false;
+    }
+
+    private void McpModelPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_choicesReady || _settingChoices || _selectedAgent == "api" || McpModelPicker.SelectedItem is not Choice choice) return;
+        var selection = SettingsStore.GetAgentSelection(_selectedAgent);
+        // A level chosen for a different model must not silently override the new model's default.
+        SettingsStore.SaveAgentSelection(selection with { Model = choice.Id, Effort = "" });
+        PopulateEfforts();
+    }
+
+    private void McpModelPicker_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => CaptureTypedModel();
+
+    private void CaptureTypedModel()
+    {
+        if (_settingChoices || _selectedAgent == "api") return;
+        var model = McpModelPicker.SelectedItem is Choice choice && McpModelPicker.Text == choice.Label
+            ? choice.Id : McpModelPicker.Text.Trim();
+        var saved = SettingsStore.GetAgentSelection(_selectedAgent);
+        if (model == saved.Model) return;
+        SettingsStore.SaveAgentSelection(saved with { Model = model, Effort = "" });
+        PopulateEfforts();
+    }
+
+    private void McpEffortPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_choicesReady || _settingChoices || _selectedAgent == "api") return;
+        if (McpEffortPicker.SelectedValue is string effort)
+            SettingsStore.SaveAgentSelection(SettingsStore.GetAgentSelection(_selectedAgent) with { Effort = effort });
+    }
+
+    private async void RefreshModelsButton_Click(object sender, RoutedEventArgs e) => await RefreshModelsAsync();
+
+    private async Task RefreshModelsAsync()
+    {
+        if (_cts != null || _refreshingModels) return;
+        CaptureTypedModel();
+        _refreshingModels = true;
+        SetAgentControlsEnabled(false);
+        SendButton.IsEnabled = false;
+        StatusText.Text = L("Loading models…", "Загрузка моделей…");
+        try
+        {
+            _codexModels = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), CancellationToken.None);
+            ApplyAgentChoices();
+            StatusText.Text = L($"Codex: {_codexModels.Count} models", $"Codex: {_codexModels.Count} моделей");
+        }
+        catch (Exception ex) { StatusText.Text = "Codex: " + ex.Message; }
+        finally { _refreshingModels = false; SetAgentControlsEnabled(true); SendButton.IsEnabled = true; }
+    }
+
+    private void SetAgentControlsEnabled(bool enabled)
+    {
+        AgentPicker.IsEnabled = ModelPicker.IsEnabled = McpModelPicker.IsEnabled = McpEffortPicker.IsEnabled = enabled;
+        RefreshModelsButton.IsEnabled = SettingsButton.IsEnabled = BenchmarkButton.IsEnabled = ClearButton.IsEnabled = enabled;
     }
 
     // Keep the assistant name shown in the chat in sync with the selected model, so an
     // alt-provider reply (Grok, Gemini, a local model…) isn't labelled "Claude".
     private void UpdateAssistantLabel() =>
         ChatMessage.AssistantLabel =
-            (SubscriptionBox?.IsChecked == true || _selectedModel == "claudecode") ? "Claude Code"
+            _selectedAgent == "codex" ? "Codex"
+            : _selectedAgent == "claudecode" ? "Claude Code"
             : _selectedModel == "alt" ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
             : "Claude";
 
     private async Task SendAsync()
     {
         var text = InputBox.Text.Trim();
-        if ((string.IsNullOrEmpty(text) && _pendingImageBase64 == null) || _cts != null) return;
+        if ((string.IsNullOrEmpty(text) && _pendingImageBase64 == null) || _cts != null || _refreshingModels) return;
+        CaptureTypedModel();
+        var selection = _selectedAgent == "api" ? null : SettingsStore.GetAgentSelection(_selectedAgent);
         if (string.IsNullOrEmpty(text)) text = "(see attached image)";
 
         // Take and clear the pending image so it rides with THIS message only.
@@ -357,11 +487,12 @@ public partial class ChatPaneView : UserControl
 
         Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 
-        _service.SubscriptionMode = SubscriptionBox.IsChecked == true;
+        _service.SubscriptionMode = false;
         _cts = new CancellationTokenSource();
+        SetAgentControlsEnabled(false);
         try
         {
-            await _service.SendAsync(Messages, _selectedModel, _cts.Token, image, imageMime);
+            await _service.SendAsync(Messages, _selectedModel, _cts.Token, image, imageMime, selection);
             StatusText.Text = "";
         }
         catch (OperationCanceledException)
@@ -379,6 +510,7 @@ public partial class ChatPaneView : UserControl
             _cts?.Dispose();
             _cts = null;
             SendButton.Content = "Send";
+            SetAgentControlsEnabled(true);
             InputBox.Focus();
         }
     }

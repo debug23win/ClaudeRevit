@@ -177,6 +177,33 @@ public static class SettingsStore
         set { Current.McpModelOverride = value; Save(); }
     }
 
+    public static string ChatAgent
+    {
+        get => Current.ChatAgent is "codex" or "claudecode" ? Current.ChatAgent : "api";
+        set { lock (Gate) { Current.ChatAgent = value; Save(); } }
+    }
+
+    public static McpAgentSelection GetAgentSelection(string agent)
+    {
+        lock (Gate)
+        {
+            var codex = agent == "codex";
+            var model = codex ? Current.CodexModel : Current.ClaudeCodeModel;
+            var effort = codex ? Current.CodexEffort : Current.ClaudeCodeEffort;
+            return new(agent, model ?? McpAgentSelection.MigrateOverride(agent, Current.McpModelOverride), effort);
+        }
+    }
+
+    public static void SaveAgentSelection(McpAgentSelection selection)
+    {
+        lock (Gate)
+        {
+            if (selection.Agent == "codex") { Current.CodexModel = selection.Model ?? ""; Current.CodexEffort = selection.Effort ?? ""; }
+            else { Current.ClaudeCodeModel = selection.Model ?? ""; Current.ClaudeCodeEffort = selection.Effort ?? ""; }
+            Save();
+        }
+    }
+
     // Max tool-call rounds the assistant may take within a single user prompt before it
     // stops and asks to continue. Clamped to a sane range so a stray value can't wedge a
     // turn into thousands of API calls. Default 24.
@@ -302,6 +329,11 @@ public static class SettingsStore
         public string ClaudeCodeExe { get; set; } = "claude";
         public string CodexExe { get; set; } = "codex";
         public string McpModelOverride { get; set; } = "";
+        public string ChatAgent { get; set; } = "api";
+        public string? CodexModel { get; set; }
+        public string? CodexEffort { get; set; }
+        public string? ClaudeCodeModel { get; set; }
+        public string? ClaudeCodeEffort { get; set; }
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";

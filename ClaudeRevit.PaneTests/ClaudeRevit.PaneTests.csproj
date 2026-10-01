@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Page Include="..\ClaudeRevit\UI\ChatPaneView.xaml" Link="ChatPaneView.xaml" />
+    <Compile Include="..\ClaudeRevit\UI\ChatPaneView.xaml.cs" Link="ChatPaneView.xaml.cs" />
+    <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="ChatMessage.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="McpAgentSelection.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexModels.cs" Link="CodexModels.cs" />
+  </ItemGroup>
+</Project>
