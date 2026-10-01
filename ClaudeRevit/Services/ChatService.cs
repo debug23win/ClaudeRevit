@@ -255,11 +255,7 @@ public class ChatService
 
     // Start the next CLI message as a NEW session instead of resuming the stored one.
     //
-    // This is the half of "change the model" that actually works: a CLI session is pinned to the
-    // model it was started with, so resuming it keeps answering as that model however the picker is
-    // set — which is exactly what looks like the plugin ignoring the setting. Dropping the session
-    // id costs the conversation's memory on that path, which is why it is a deliberate action and
-    // not something done silently on every model change.
+    // A deliberate conversation reset. Model selection itself is forwarded on every turn.
     public void ResetCliSessions()
     {
         _claudeCodeSessionId = null;
@@ -416,7 +412,8 @@ public class ChatService
     // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
     private async Task SendViaCodexAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
-        string? model, CancellationToken ct, string? effort = null)
+        string? model, CancellationToken ct, string? effort = null,
+        string? imageBase64 = null, string? imageMime = null)
     {
         if (!McpServer.IsRunning)
         {
@@ -444,11 +441,24 @@ public class ChatService
 
         var toolCount = 0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var res = await CodexBackend.RunAsync(
-            SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
-            onText: Append,
-            onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, resumeSessionId: _codexSessionId, effort: effort);
+        string? imagePath = null;
+        CodexBackend.Result res;
+        try
+        {
+            if (!string.IsNullOrEmpty(imageBase64))
+            {
+                var suffix = imageMime == "image/png" ? ".png" : ".jpg";
+                imagePath = Path.Combine(McpServer.ClientWorkDir(), "image-" + Guid.NewGuid().ToString("N") + suffix);
+                await File.WriteAllBytesAsync(imagePath, Convert.FromBase64String(imageBase64), ct);
+            }
+            res = await CodexBackend.RunAsync(
+                McpServer.DrivingRules + "\n\n" + contextedPrompt,
+                McpServer.ClientWorkDir(), McpServer.Url, SettingsStore.McpToken, _codexSessionId,
+                onText: Append,
+                onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
+                ct, imagePath: imagePath, model: model, effort: effort, executable: SettingsStore.CodexExe);
+        }
+        finally { if (imagePath != null) { try { File.Delete(imagePath); } catch { } } }
 
         _codexSessionId = res.SessionId ?? _codexSessionId;
         PersistCodexSession();
@@ -465,24 +475,6 @@ public class ChatService
             return;
         }
         if (bubble == null && !string.IsNullOrEmpty(res.Text)) Append(res.Text);
-
-        // The installed CLI rejected part of our command line and the answer came from a retry with
-        // fewer flags. Worth saying: the work was done, but this run may be missing tool progress
-        // and token counts, and the same step-down will happen every time until Codex is updated.
-        if (!string.IsNullOrEmpty(res.FlagsRejected))
-            Append("\n\n⚠ Your Codex CLI rejected part of the command line, so this run was repeated " +
-                   "with fewer flags — the answer is real, but tool progress and token counts may be " +
-                   "missing. Updating Codex should restore them. " +
-                   "It said: " + res.FlagsRejected!.Split('\n')[0].Trim());
-
-        // A run that answered without touching a single Revit tool almost always means Codex never
-        // reached our MCP server — say so, because "it replied but nothing changed" otherwise reads
-        // as the model refusing the task. Skipped after a flag-rejection retry, where no tool call
-        // is observable in the first place and the warning would be pure noise.
-        if (toolCount == 0 && bubble != null && string.IsNullOrEmpty(res.FlagsRejected))
-            Append("\n\n⚠ No Revit tools were called. Check that the clauderevit MCP server is " +
-                   "registered in your Codex config.toml (Settings → MCP shows the snippet) and that " +
-                   "the MCP server is enabled here.");
 
         if (SettingsStore.ShowTaskDiagnostics && bubble != null)
         {
@@ -622,7 +614,7 @@ public class ChatService
                     chosenModel = validated.Model;
                     agent = agent with { Effort = validated.Effort };
                 }
-                await SendViaCodexAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
+                await SendViaCodexAsync(conversation, userText, ui, chosenModel, ct, agent.Effort, imageBase64, imageMime);
             }
             else await SendViaClaudeCodeAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
             return;
@@ -1535,6 +1527,7 @@ public class ChatService
             var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
             for (int j = 0; j < turn.Blocks.Count; j++)
             {
+                if (turn.Blocks[j] is ChatOpenAIReasoningBlock) continue;
                 var cache = isLast && j == turn.Blocks.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;

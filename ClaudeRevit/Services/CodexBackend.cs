@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -9,300 +10,152 @@ using System.Threading.Tasks;
 
 namespace ClaudeRevit.Services;
 
-// Runs the local `codex` CLI headless so OpenAI models can drive Revit THROUGH our MCP server —
-// the OpenAI counterpart of ClaudeCodeBackend.
-//
-// Why a local CLI rather than calling the OpenAI API directly: cloud ChatGPT cannot reach an MCP
-// server on 127.0.0.1, and exposing one to the internet would put model-editing (and, with code
-// execution on, arbitrary C#) behind nothing but a bearer token. Codex runs on the user's machine
-// and supports Streamable-HTTP MCP servers, so it reaches ours over loopback with no tunnel.
-//
-// MCP wiring is NOT injected per-run on purpose. Codex reads both its config and its credentials
-// from CODEX_HOME, so pointing that at a temporary directory to inject an MCP config would also
-// hide the user's login. Instead the server is registered once in the user's own config.toml —
-// Settings shows the exact snippet — and we just launch `codex exec` against it.
-//
-// Written without a machine to test against: every failure path returns the CLI's own message
-// verbatim rather than a guess, so a wrong flag or a missing login is visible instead of silent.
+// Separate from ClaudeCodeBackend: the working Claude subscription path is unchanged.
 public static class CodexBackend
 {
     public sealed class Result
     {
-        public string Text = "";
-        public string? Error;
-        public long InputTokens;
-        public long OutputTokens;
-        public int NumTurns;
-        // Captured from the stream so the next message can continue this conversation.
         public string? SessionId;
-        // Set when the installed CLI rejected our flags and the run had to be retried without them:
-        // the answer is real, but the user should hear that their Codex expects a different command
-        // line (and that live progress is therefore missing).
-        public string? FlagsRejected;
+        public string? Error;
+        public string Text = "";
+        public long InputTokens, OutputTokens;
+        public bool Completed;
     }
 
-    // The MCP server name we tell users to register; also how we spot its tool calls in the stream.
-    public const string ServerName = "clauderevit";
-
-    // The snippet a user pastes into %USERPROFILE%\.codex\config.toml (Settings shows this).
-    //
-    // The [features] line matters on older Codex builds: those only pick up stdio servers and
-    // ignore a `url` entry entirely, which looks exactly like "the tools aren't there" rather than
-    // like a version problem. Newer builds take the HTTP transport from `url` alone and the flag is
-    // harmless, so it is always included.
-    public static string ConfigSnippet() =>
-        $"[features]\n" +
-        $"experimental_use_rmcp_client = true   # older Codex ignores url-based servers without this\n\n" +
-        $"[mcp_servers.{ServerName}]\n" +
-        $"url = \"{McpServer.Url}\"\n" +
-        $"bearer_token_env_var = \"CLAUDEREVIT_MCP_TOKEN\"\n\n" +
-        $"# Then set the environment variable once (PowerShell) and restart Revit:\n" +
-        $"#   setx CLAUDEREVIT_MCP_TOKEN \"{SettingsStore.McpToken}\"";
-
-    public static async Task<Result> RunAsync(
-        string exe, string prompt, string workDir, string? model,
-        Action<string> onText, Action<string> onTool, CancellationToken ct,
-        string? resumeSessionId = null, string? effort = null)
+    public static string? ResolveExecutable(string? requestedExe = null)
     {
-        // Revit's GUI process usually has a narrower PATH than the user's shell, so resolve to a
-        // full path first (shared with the Claude Code path).
-        var resolved = ClaudeCodeBackend.Resolve(string.IsNullOrWhiteSpace(exe) ? "codex" : exe);
-        if (resolved == null)
-            return new Result
-            {
-                Error = "Codex CLI not found. " + CodexCli.InstallAdvice
-            };
-
-        // The search can land on another agent's CLI (they live in the same folders), and running the
-        // wrong one produces a complaint about our flags that reads as a broken Codex install.
-        if (!CodexCli.LooksLikeCodexBinary(resolved))
-            return new Result
-            {
-                Error =
-                    $"'{resolved}' is not the Codex CLI. Set the full path to codex.exe/codex.cmd in " +
-                    "Settings → MCP, or clear the field once Codex is installed and on PATH."
-            };
-
-        // Which file was actually launched is the first thing worth knowing when a run misbehaves —
-        // the name asked for and the program that runs are not always the same thing.
-        Log.Info($"Codex: launching {resolved}");
-
-        var lastMsgPath = Path.Combine(Path.GetTempPath(), $"clauderevit-codex-{Guid.NewGuid():N}.txt");
-
-        // The exec flags have moved between Codex releases — they are parsed per subcommand, and
-        // some are newer than others — and a rejected flag fails the whole run with a parse error
-        // before the model is ever asked anything. So each rejection steps one level down instead
-        // of ending the turn: first without the git-repo-check waiver, then without the reporting
-        // flags, where the answer comes from plain stdout and live progress is lost. What the CLI
-        // objected to is kept and reported, because the same step-down will happen every run until
-        // Codex is updated.
-        Result? first = null;
-
-        foreach (var level in new[] { CodexCli.Level.Full, CodexCli.Level.NoGitWaiver, CodexCli.Level.Bare })
+        if (!string.IsNullOrWhiteSpace(requestedExe) && (requestedExe.Contains('\\') || requestedExe.Contains('/')))
+            return File.Exists(requestedExe) && CodexCli.LooksLikeCodexBinary(requestedExe) ? requestedExe : null;
+        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
         {
-            var args = CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, level, effort);
-            var res = await RunOnceAsync(
-                resolved, args, workDir,
-                level == CodexCli.Level.Bare ? null : lastMsgPath,
-                onText, onTool, ct);
-
-            first ??= res;
-
-            // No amount of flag juggling reaches MCP on the legacy Node CLI — say so instead of
-            // stepping down through attempts that cannot work.
-            if (CodexCli.LooksLikeLegacyNodeCli(res.Error))
+            foreach (var suffix in new[] { ".exe", ".cmd", ".bat" })
             {
-                first.Error = $"{resolved} rejected a flag the current Codex accepts. " +
-                              CodexCli.LegacyCliAdvice + " It said: " + FirstLine(res.Error);
-                return first;
-            }
-
-            if (!CodexCli.LooksLikeUsageError(res.Error))
-            {
-                // A real answer (or a real failure): done either way. If we had to step down to get
-                // here, say which complaint made us.
-                if (!ReferenceEquals(res, first) && string.IsNullOrEmpty(res.Error))
-                    res.FlagsRejected = first.Error;
-                return res;
+                var path = Path.Combine(dir.Trim('"'), "codex" + suffix);
+                if (File.Exists(path)) return path;
             }
         }
-
-        // Every level was rejected: report the first complaint, which names the flag that started it.
-        return first!;
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
+        if (Directory.Exists(root))
+        {
+            var found = Directory.EnumerateFiles(root, "codex.exe", SearchOption.AllDirectories)
+                .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+            if (found != null) return found;
+        }
+        var native = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "codex.exe");
+        return File.Exists(native) ? native : null;
     }
 
-    private static string FirstLine(string? s) =>
-        (s ?? "").Split('\n')[0].Trim();
+    public static string ConfigSnippet(string url) =>
+        "[mcp_servers.clauderevit]\nurl = " + JsonSerializer.Serialize(url) +
+        "\nbearer_token_env_var = \"CLAUDEREVIT_MCP_TOKEN\"\n" +
+        "# External clients: set CLAUDEREVIT_MCP_TOKEN to the token shown above.\n" +
+        "# The in-Revit pane configures this connection automatically.";
 
-    // lastMsgPath non-null means the run was launched with --output-last-message, so the final
-    // answer is read from that file: it is the authoritative answer, instead of one inferred from
-    // an event stream whose exact shape is not contractual. Null means the bare retry, where stdout
-    // is the answer.
-    private static async Task<Result> RunOnceAsync(
-        string resolved, List<string> args, string workDir, string? lastMsgPath,
-        Action<string> onText, Action<string> onTool, CancellationToken ct)
+    public static List<string> Arguments(string url, string? sessionId, string? imagePath = null,
+        string? model = null, string? effort = null)
     {
+        var args = new List<string> { "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
+            "--sandbox", "read-only", "-c", "features.shell_tool=false", "-c", "features.multi_agent=false",
+            "-c", "web_search=\"disabled\"", "-c",
+            "mcp_servers.clauderevit={url=" + JsonSerializer.Serialize(url) +
+            ",bearer_token_env_var=\"CLAUDEREVIT_MCP_TOKEN\",required=true,tool_timeout_sec=120,default_tools_approval_mode=\"approve\"}" };
+        if (!string.IsNullOrWhiteSpace(model)) args.AddRange(new[] { "--model", model.Trim() });
+        if (!string.IsNullOrWhiteSpace(effort)) CodexConfiguration.Add(args, "model_reasoning_effort", effort.Trim());
+        if (!string.IsNullOrWhiteSpace(sessionId)) { args.Add("resume"); args.Add(sessionId); }
+        if (imagePath != null) { args.Add("--image"); args.Add(imagePath); }
+        args.Add("-"); // Prompt goes to stdin, never through a shell or command line.
+        return args;
+    }
+
+    private static Process Start(string exe, IEnumerable<string> args, string workDir, string? token = null)
+    {
+        var shim = exe.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || exe.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
+        var psi = new ProcessStartInfo(shim ? "cmd.exe" : exe) { WorkingDirectory = workDir, UseShellExecute = false,
+            CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true,
+            RedirectStandardError = true, StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
+        if (shim) { psi.ArgumentList.Add("/c"); psi.ArgumentList.Add(exe); }
+        foreach (var arg in args) psi.ArgumentList.Add(arg);
+        psi.Environment.Remove("OPENAI_API_KEY");
+        psi.Environment.Remove("CODEX_API_KEY");
+        if (token != null) psi.Environment["CLAUDEREVIT_MCP_TOKEN"] = token;
+        return Process.Start(psi) ?? throw new InvalidOperationException("Could not start Codex.");
+    }
+
+    public static async Task<Result> RunAsync(string prompt, string workDir, string url, string token,
+        string? sessionId, Action<string> onText, Action<string> onTool, CancellationToken ct,
+        string? imagePath = null, string? model = null, string? effort = null, string? executable = null)
+    {
+        var exe = ResolveExecutable(executable) ?? throw new InvalidOperationException(
+            "Install the Codex desktop app and sign in with ChatGPT to use the OpenAI subscription.");
+        Directory.CreateDirectory(workDir);
+        // Verify subscription auth without reading/copying credentials or logging the user out.
+        using (var login = Start(exe, new[] { "login", "status" }, workDir))
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            using var killLogin = timeout.Token.Register(() => { try { login.Kill(true); } catch { } });
+            var stdout = login.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = login.StandardError.ReadToEndAsync(timeout.Token);
+            await login.WaitForExitAsync(timeout.Token);
+            var status = await stdout + await stderr;
+            if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Sign in to Codex with ChatGPT first. This subscription mode does not use an OpenAI API key.");
+        }
+        using var process = Start(exe, Arguments(url, sessionId, imagePath, model, effort), workDir, token);
+        using var cancel = ct.Register(() => { try { process.Kill(true); } catch { } });
+        var errors = process.StandardError.ReadToEndAsync(ct); // drain concurrently to avoid pipe deadlock
         var result = new Result();
-        var jsonStream = lastMsgPath != null;
-
-        var viaCmd = resolved.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
-                     resolved.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
-
-        Process proc;
         try
         {
-            if (viaCmd)
-            {
-                var cmdArgs = new List<string> { "/c", resolved };
-                cmdArgs.AddRange(args);
-                proc = Start("cmd.exe", cmdArgs, workDir);
-            }
-            else proc = Start(resolved, args, workDir);
-        }
-        catch (Exception ex)
-        {
-            result.Error = $"Can't launch Codex ('{resolved}'): {ex.Message}";
+            await process.StandardInput.WriteAsync(prompt.AsMemory(), ct);
+            process.StandardInput.Close();
+            while (await process.StandardOutput.ReadLineAsync(ct) is { } line)
+                ParseLine(line, result, onText, onTool);
+            await process.WaitForExitAsync(ct);
+            var error = await errors;
+            if (process.ExitCode != 0 || !result.Completed)
+                result.Error ??= string.IsNullOrWhiteSpace(error) ? "Codex did not complete the turn." : TextUtil.Truncate(error.Trim(), 1800);
             return result;
         }
-
-        try
-        {
-            proc.StandardInput.Close();   // the prompt is an argument; nothing to feed
-
-            // Concurrent drain — same pipe-buffer deadlock as the Claude Code path.
-            var errTask = proc.StandardError.ReadToEndAsync();
-
-            string? line;
-            while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (jsonStream) ParseLine(line, result, onText, onTool);
-                else
-                {
-                    // The bare retry has no event stream: stdout IS the answer, so take it as it
-                    // comes. Codex's own banner lines are dropped — they are not part of the reply.
-                    if (CodexCli.IsBannerLine(line)) continue;
-                    result.Text += line + "\n";
-                    onText(line + "\n");
-                }
-            }
-
-            var err = await errTask;
-            await proc.WaitForExitAsync(ct);
-
-            // The authoritative answer.
-            try
-            {
-                if (File.Exists(lastMsgPath))
-                {
-                    var final = (await File.ReadAllTextAsync(lastMsgPath, ct)).Trim();
-                    if (final.Length > 0) result.Text = final;
-                }
-            }
-            catch { /* fall back to whatever the stream yielded */ }
-
-            if (proc.ExitCode != 0 && string.IsNullOrEmpty(result.Text))
-                result.Error = string.IsNullOrWhiteSpace(err)
-                    ? $"Codex exited with code {proc.ExitCode}."
-                    : err.Trim();
-
-            // A run that starts but never reaches Revit is the failure users hit first, and the
-            // symptom (an answer with no model changes) is easy to misread as the model refusing.
-            if (string.IsNullOrEmpty(result.Error) && result.NumTurns == 0 &&
-                !string.IsNullOrEmpty(result.Text))
-                result.Error = null;   // plain text answers are legitimate; don't invent an error
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { }
-            throw;
-        }
-        catch (Exception ex) { result.Error = ex.Message; }
-        finally
-        {
-            try { if (File.Exists(lastMsgPath)) File.Delete(lastMsgPath); } catch { }
-        }
-
-        return result;
+        catch { try { process.Kill(true); } catch { } throw; }
     }
 
-    // Best-effort progress parsing. The JSONL event shape is not a stable contract, so every field
-    // is probed defensively and an unrecognised line is simply ignored.
-    private static void ParseLine(string line, Result result, Action<string> onText, Action<string> onTool)
+    public static void ParseLine(string line, Result result, Action<string> onText, Action<string> onTool)
     {
-        if (string.IsNullOrWhiteSpace(line) || line[0] != '{') return;
-        try
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(line); } catch (JsonException) { return; }
+        using (doc)
         {
-            using var doc = JsonDocument.Parse(line);
             var root = doc.RootElement;
-
-            var type = root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
-
-            // Tool/function calls: surface the tool name so the pane shows progress. Codex prefixes
-            // MCP tools with the server name, so strip it for readability.
-            if (type.Contains("tool", StringComparison.OrdinalIgnoreCase) ||
-                type.Contains("function", StringComparison.OrdinalIgnoreCase) ||
-                type.Contains("mcp", StringComparison.OrdinalIgnoreCase))
+            if (!root.TryGetProperty("type", out var typeNode)) return;
+            var type = typeNode.GetString();
+            if (type == "thread.started") result.SessionId = root.GetProperty("thread_id").GetString();
+            else if (type == "turn.completed")
             {
-                var name = FirstString(root, "name", "tool", "tool_name");
-                if (!string.IsNullOrEmpty(name))
+                result.Completed = true;
+                if (root.TryGetProperty("usage", out var usage))
                 {
-                    var shown = name!.StartsWith(ServerName + "__", StringComparison.Ordinal)
-                        ? name.Substring(ServerName.Length + 2)
-                        : name;
-                    result.NumTurns++;
-                    onTool(shown);
+                    if (usage.TryGetProperty("input_tokens", out var i)) result.InputTokens = i.GetInt64();
+                    if (usage.TryGetProperty("output_tokens", out var o)) result.OutputTokens = o.GetInt64();
                 }
             }
-
-            // Assistant text as it streams.
-            var text = FirstString(root, "text", "delta", "content", "message");
-            if (!string.IsNullOrEmpty(text) && type.IndexOf("error", StringComparison.OrdinalIgnoreCase) < 0)
+            else if (type is "turn.failed" or "error")
+                result.Error = root.TryGetProperty("message", out var m) ? m.GetString()
+                    : root.TryGetProperty("error", out var e) && e.TryGetProperty("message", out m) ? m.GetString() : "Codex turn failed.";
+            else if (type is "item.started" or "item.completed" && root.TryGetProperty("item", out var item))
             {
-                result.Text += text;
-                onText(text!);
-            }
-
-            // Session id, wherever it appears — needed to continue the conversation next message.
-            var sid = FirstString(root, "session_id", "sessionId", "conversation_id", "thread_id");
-            if (!string.IsNullOrEmpty(sid)) result.SessionId = sid;
-
-            // Token usage, wherever it appears.
-            if (root.TryGetProperty("usage", out var u) && u.ValueKind == JsonValueKind.Object)
-            {
-                if (u.TryGetProperty("input_tokens", out var it) && it.TryGetInt64(out var itv)) result.InputTokens += itv;
-                if (u.TryGetProperty("output_tokens", out var ot) && ot.TryGetInt64(out var otv)) result.OutputTokens += otv;
+                var itemType = item.GetProperty("type").GetString();
+                if (type == "item.completed" && itemType == "agent_message")
+                {
+                    var text = item.GetProperty("text").GetString() ?? "";
+                    if (result.Text.Length > 0) text = "\n\n" + text;
+                    result.Text += text;
+                    onText(text);
+                }
+                else if (type == "item.started" && itemType == "mcp_tool_call")
+                    onTool(item.TryGetProperty("tool", out var tool) ? tool.GetString() ?? "Revit" : "Revit");
             }
         }
-        catch { /* not JSON we understand */ }
-    }
-
-    private static string? FirstString(JsonElement root, params string[] names)
-    {
-        foreach (var n in names)
-            if (root.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String)
-                return v.GetString();
-        return null;
-    }
-
-    private static Process Start(string file, List<string> args, string workDir)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = file,
-            WorkingDirectory = workDir,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            // Same reason as the Claude path: without this the prompt is encoded with the OS default
-            // (CP1251 on a Russian Windows) and non-ASCII requests arrive as mojibake.
-            StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
-        };
-        foreach (var a in args) psi.ArgumentList.Add(a);
-        return Process.Start(psi)!;
     }
 }

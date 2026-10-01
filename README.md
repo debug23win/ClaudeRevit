@@ -1,5 +1,9 @@
 # Claude Revit
 
+MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a model
+and reasoning effort. Choices are saved independently. Codex reads its model
+catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
+
 **English** | [Русский](README.ru.md)
 
 Claude AI in Autodesk Revit — a dockable chat pane with **186+ tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
@@ -14,9 +18,9 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **186+ tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **OpenAI models can drive Revit too (via MCP)** — the local **Codex CLI** connects to the same MCP server, so GPT-6 Astra / GPT-5.6 Sol-Terra-Luna edit the model through the Revit tools. Cloud ChatGPT can't reach a `127.0.0.1` server, and exposing one publicly would put model editing behind nothing but a token — Codex runs on your machine, so no tunnel is needed. Follow-up messages continue the same Codex conversation, and the session survives a Revit restart.
-- **See who is driving** — Settings shows the connected MCP client (from the handshake) and the model (which the model reports itself, so it's labelled as such — MCP carries no field for it). A free-text "Model for MCP runs" box accepts any model id, so a newly released model works without updating the plugin.
+- **See who is driving** — replies keep their agent names. Settings show an external MCP client from its handshake and its self-reported model, which may be missing or inaccurate.
 - **Auto (cost-optimized) mode** — the default: a cheap model (Sonnet 5) runs every turn and consults a stronger advisor (Opus 4.8, or Fable 5) mid-turn *only when it needs a plan*, via Anthropic's advisor tool. The cheap model's prompt cache stays warm all session; the advisor is billed only for the short consult. A legacy whole-turn model-switch is available in Settings.
-- **Subscription mode (MCP / Claude Code)** — drive Revit on your **Claude Pro/Max subscription** instead of the pay-per-token API. The plugin runs a local **MCP server** (127.0.0.1, token-protected) exposing the Revit tools; the **Claude Code CLI** runs headless in the background and drives them. Tick **Subscription** in the model dropdown (or connect the MCP server to the Claude Desktop app with the ready-made config in Settings). Zero API cost.
+- **Subscription agents (MCP)** — choose Claude Code · MCP or Codex · MCP, then a model and reasoning effort. Official CLIs drive the local Revit tools; agent settings and conversations are saved separately.
 - **Model benchmark (📊)** — run a graded task set (basics, composite, rebar, steel, **documentation**) on any model — including through MCP — and compare pass rate, rounds, tokens and time. The documentation set is the real discriminator: sheet sets with placed viewports, schedules with fields plus a CSV export, annotating a specific view, filter-then-fix with a verified count, and a diagnose→clean→prove audit. Each needs a chain of tools where a wrong intermediate result only shows at the end, so a model that doesn't check its own work fails them. The judge is selectable (keep it fixed across compared runs). An independent judge grades strictly from an objective before/after probe (never the model's own claims); both the tested model and the judge can run on the subscription for a zero-API-cost benchmark.
 - **Lazy-loaded toolset** — only a core set of tools rides in each request; specialised groups (rebar, MEP, schedules, sheets, annotation, sections, family editing, export) are revealed on demand via `find_tools`, cutting the per-request tool-schema cost by ~⅔ (a big saving on non-caching alt models). `run_batch` repeats one tool over many items in one turn, each item in its own sub-transaction, so an item that fails rolls back on its own instead of leaving half its edits behind (it declines to wrap tools you've put behind the confirmation prompt — those are still asked one by one). In subscription (MCP) mode the handshake also hands the model a full tool index so it can call the right tool without a discovery round-trip.
 - **Smart element filter** — `filter_elements` answers "all walls taller than 3 m on Level 2, and total their length" in one call: unit-aware predicates (mm/m²/m³ pseudo-parameters computed from geometry), AND/OR logic, level/active-view scoping, and an optional count/sum/avg/min/max aggregate.
@@ -88,9 +92,7 @@ subscription, not the API.
    is blocked in your region — for install *and* for every run.)
 2. **Enable the MCP server** in Settings → MCP (set a port if you like; the plugin locates
    `claude` automatically, or enter its full path).
-3. **In the chat**, tick **Subscription** in the model dropdown — the selected model
-   (Opus / Sonnet / Haiku) then runs on the subscription via the CLI. Or pick
-   **Claude Code (subscription)** to use the CLI's default model.
+3. **In the chat**, choose **Claude Code · MCP**, then a model and reasoning effort. Automatic uses the CLI default.
 
 You can also point the **Claude Desktop app** (or any MCP client) at the server — a
 ready-to-paste config is shown in Settings → MCP.
@@ -102,24 +104,13 @@ ready-to-paste config is shown in Settings → MCP.
 
 ## Driving Revit with OpenAI models (Codex)
 
-Cloud ChatGPT can't reach a server on `127.0.0.1`, so OpenAI models drive Revit through the
-**Codex CLI**, which runs on your machine and speaks to the same MCP server. No tunnel, and
-nothing exposed to the internet.
+Install Codex and sign in with ChatGPT. Choose **Codex · MCP**, refresh the model
+list, then select a model and reasoning effort. The pane configures the local MCP
+connection automatically for each process; no API key or manual server registration
+is needed. Codex choices are saved separately from Claude Code.
 
-1. **Install Codex** (no Node.js required — this is the standalone installer):
-   ```powershell
-   powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
-   ```
-   Then run `codex` once and sign in. `npm i -g @openai/codex` works too if you already have npm.
-2. **Register the server**: paste the snippet from Settings → MCP into
-   `%USERPROFILE%\.codex\config.toml`, run the `setx CLAUDEREVIT_MCP_TOKEN …` line it shows, and
-   restart Revit (a new environment variable only reaches new processes).
-3. **In the chat**, pick **Codex / OpenAI via MCP** in the model dropdown — or one of the pinned
-   `Codex · GPT-…` entries to fix the model.
-
-Unlike the Claude Code path, the MCP server can't be passed per run: Codex reads it from your own
-`config.toml`, because that folder also holds your login and pointing `CODEX_HOME` elsewhere would
-hide it.
+Release packages include `revit-mcp-bridge.ps1` for external Codex clients.
+[Setup and validation details](docs/openai-codex.md).
 
 ---
 

@@ -56,16 +56,19 @@ public class McpAgentSelectionTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void CodexModelEffortAndSessionSurviveEveryCompatibilityRetry(int level)
+    [InlineData(null)]
+    [InlineData("session")]
+    public void CodexModelEffortArePassedForFreshAndResumedSessions(string? session)
     {
-        var args = CodexCli.BuildArgs("request", "gpt-test", "session", "last.txt", (CodexCli.Level)level, "high");
+        var args = CodexBackend.Arguments("http://127.0.0.1:8788/mcp", session, model: "gpt-test", effort: "high");
         Assert.Equal("gpt-test", args[args.IndexOf("--model") + 1]);
         Assert.Contains("model_reasoning_effort=\"high\"", args);
-        Assert.True(args.IndexOf("-c") < args.IndexOf("resume"));
-        Assert.Equal("session", args[args.IndexOf("resume") + 1]);
+        if (session != null)
+        {
+            Assert.True(args.IndexOf("--model") < args.IndexOf("resume"));
+            Assert.Equal(session, args[args.IndexOf("resume") + 1]);
+        }
+        Assert.Equal("-", args.Last());
     }
 
     [Fact]

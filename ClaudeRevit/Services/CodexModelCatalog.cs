@@ -15,7 +15,7 @@ public static class CodexModelCatalog
     // Codex home/login. Keep it separate from the Revit MCP server and its bearer token.
     public static async Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct)
     {
-        var resolved = ClaudeCodeBackend.Resolve(string.IsNullOrWhiteSpace(exe) ? "codex" : exe);
+        var resolved = CodexBackend.ResolveExecutable(exe);
         if (resolved == null || !CodexCli.LooksLikeCodexBinary(resolved))
             throw new IOException("Codex CLI not found. Set its path in Settings → MCP.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -29,6 +29,8 @@ public static class CodexModelCatalog
             StandardInputEncoding = new UTF8Encoding(false), StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        start.Environment.Remove("OPENAI_API_KEY");
+        start.Environment.Remove("CODEX_API_KEY");
         if (shim) { start.ArgumentList.Add("/c"); start.ArgumentList.Add(resolved); }
         start.ArgumentList.Add("app-server");
         using var process = Process.Start(start) ?? throw new IOException("Cannot start Codex.");
@@ -49,7 +51,7 @@ public static class CodexModelCatalog
             {
                 using var document = JsonDocument.Parse(line);
                 var reply = document.RootElement;
-                if (!reply.TryGetProperty("id", out var id) || !id.TryGetInt32(out var number) || reply.TryGetProperty("method", out _)) continue;
+                if (!reply.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.Number || !id.TryGetInt32(out var number) || reply.TryGetProperty("method", out _)) continue;
                 if (reply.TryGetProperty("error", out var error)) throw new IOException("Codex: " + error);
                 if (number == 1)
                 {

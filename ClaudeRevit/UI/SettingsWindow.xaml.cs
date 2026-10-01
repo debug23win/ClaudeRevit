@@ -64,7 +64,7 @@ public partial class SettingsWindow : Window
         McpPortBox.Text = SettingsStore.McpPort.ToString();
         ClaudeCodeExeBox.Text = SettingsStore.ClaudeCodeExe;
         CodexExeBox.Text = SettingsStore.CodexExe;
-        CodexConfigBox.Text = CodexBackend.ConfigSnippet();
+        CodexConfigBox.Text = CodexBackend.ConfigSnippet(McpServer.Url);
         McpModelOverrideBox.Text = SettingsStore.McpModelOverride;
         McpWhoText.Text = McpSession.Describe();
         UpdateMcpConfig();
@@ -214,16 +214,25 @@ public partial class SettingsWindow : Window
             "Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)",
             "Эксперимент: MCP-сервер (рулить Revit из Claude Code / Desktop по подписке)");
         McpNote.Text = L(
-            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
-            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. Панель чата в Revit по-прежнему на API-ключе. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
+            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. In the pane, choose API, Claude Code · MCP or Codex · MCP. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
+            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. В панели выбирайте API, Claude Code · MCP или Codex · MCP. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
         McpPortLabel.Text = L("Port:", "Порт:");
         McpWhoLabel.Text = L("Currently driving Revit", "Кто сейчас управляет Revit");
         McpWhoText.Text = McpSession.Describe(_lang == "ru");
         McpResetSessionBtn.Content = L("Restart session", "Перезапустить сессию");
         McpAskModelBtn.Content = L("Ask for the model above", "Запросить модель сверху");
         McpResetNote.Text = L(
-            "Restart session: forgets the reported model and starts the next subscription/Codex message as a NEW CLI session — a CLI session is pinned to the model it started with, so this is what makes a model change take effect (the conversation on that path is lost). Ask for the model above: asks the connected client to switch to the id in the override box. A server can't switch a client's model — MCP has no channel for it — so the model is told what the user wants and answers on its next tool call.",
-            "«Перезапустить сессию»: забывает сообщённую модель и начинает следующее сообщение по подписке / через Codex как НОВУЮ сессию CLI — сессия CLI привязана к модели, с которой её запустили, поэтому именно так смена модели и вступает в силу (переписка на этом пути теряется). «Запросить модель сверху»: просит подключённого клиента перейти на идентификатор из поля переопределения. Сервер не может переключить модель клиента — в MCP для этого нет канала, — поэтому модели сообщают, чего хочет пользователь, и она отвечает на следующем вызове инструмента.");
+            "Restart session clears the pane CLI conversations. Model changes in the pane apply to the next message while resuming the conversation. The request button asks an external MCP client to change its model on its next tool call; the server cannot force that change.",
+            "Перезапуск очищает сессии CLI панели. Выбор новой модели в панели применяется к следующему сообщению с продолжением диалога. Кнопка запроса просит внешнего MCP-клиента сменить модель на следующем вызове инструмента; сервер не может выполнить эту смену сам.");
+        McpModelLabel.Text = L(
+            "External model request / legacy benchmark override",
+            "Запрос модели внешнему клиенту / переопределение бенчмарка");
+        McpModelNote.Text = L(
+            "Choose the pane agent, model and reasoning level directly in the chat. This field is for external-client requests and legacy benchmark runs. An old saved override is migrated only to its matching agent.",
+            "Агента, модель и глубину рассуждений панели выбирайте прямо в чате. Это поле используется для запросов внешнему клиенту и прежних вызовов бенчмарка. Старое сохранённое значение переносится только к соответствующему агенту.");
+        CodexNote.Text = L(
+            "Set an explicit Codex CLI path if needed; otherwise the pane finds PATH or the Codex desktop installation. Sign in to Codex with ChatGPT once. The pane configures MCP automatically for each process. The snippet below is only for external Codex clients.",
+            "При необходимости укажите полный путь к Codex CLI; иначе панель ищет его в PATH или в установке Codex. Один раз войдите в Codex через ChatGPT. Панель настраивает MCP для каждого процесса автоматически. Сниппет ниже нужен только внешним клиентам Codex.");
         ClaudeCodeExeLabel.Text = L(
             "Claude Code executable (for the in-pane / benchmark subscription path)",
             "Путь к Claude Code (для панели / бенчмарка по подписке)");
