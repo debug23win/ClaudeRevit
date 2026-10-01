@@ -19,6 +19,8 @@ namespace ClaudeRevit.Services
     }
     public sealed class ChatService
     {
+        private string _scope = DocumentSessions.Scope;
+        public static readonly Dictionary<string, List<ChatMessage>> Saved = new();
         public bool SubscriptionMode { get; set; }
         public Func<string, string, Task<bool>>? ConfirmToolAsync;
         public Action<int, int>? OnRound;
@@ -30,7 +32,10 @@ namespace ClaudeRevit.Services
             SentSelection = selection;
             return Pending?.Task.WaitAsync(ct) ?? Task.CompletedTask;
         }
-        public void SaveHistory(IEnumerable<ChatMessage> messages) { }
+        public bool WorkspaceIsCurrent => _scope == DocumentSessions.Scope;
+        public void SwitchWorkspace() => _scope = DocumentSessions.Scope;
+        public List<ChatMessage> LoadUiMessages() => Saved.TryGetValue(_scope, out var saved) ? new(saved) : new();
+        public void SaveHistory(IEnumerable<ChatMessage> messages) => Saved[_scope] = messages.ToList();
         public void ClearHistory() { }
         public void RecreateClient() { }
     }
@@ -43,6 +48,12 @@ namespace ClaudeRevit.Services
             });
     }
     public static class McpServer { public static string ClientWorkDir() => Environment.CurrentDirectory; }
+    public static class DocumentSessions
+    {
+        public static string Scope = "a";
+        public static event Action<bool>? Changed;
+        public static void Change(string scope, bool managed) { Scope = scope; Changed?.Invoke(managed); }
+    }
     public static class HistoryStore { public static List<ChatMessage> LoadUiMessages() => new(); }
     public static class UsageTracker
     {

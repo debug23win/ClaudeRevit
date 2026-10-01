@@ -15,11 +15,13 @@ namespace ClaudeRevit.Tools;
 internal static class ToolContext
 {
     [ThreadStatic] private static CancellationToken _ct;
+    [ThreadStatic] private static bool _executing;
+    public static bool IsExecuting => _executing;
 
     public static CancellationToken Current => _ct;
 
-    public static void Set(CancellationToken ct) => _ct = ct;
-    public static void Clear() => _ct = default;
+    public static void Set(CancellationToken ct) { _ct = ct; _executing = true; }
+    public static void Clear() { _ct = default; _executing = false; }
 
     // Call inside long loops. Throws OperationCanceledException, which the dispatcher already
     // reports as a cancelled call rather than a tool failure.

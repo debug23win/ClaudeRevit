@@ -4,6 +4,11 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
+**v3.6:** project-scoped conversations, isolated MCP clients, cancellation that reaches
+queued Revit operations, and built-in BIMStarter/ADSK standard inspection.
+See [project sessions and cancellation](docs/sessions-and-cancellation.md) and
+[templates, shared parameters and complex families](docs/bim-standards.md).
+
 **English** | [Русский](README.ru.md)
 
 Claude AI in Autodesk Revit — a dockable chat pane with **186+ tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
@@ -15,6 +20,9 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 ## Features
 
 - **Dockable chat pane** in Revit, with streaming responses
+- **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Switching documents manually stops the current task before loading the other conversation.
+- **Independent MCP clients** — model reports, settings directives and cancellation belong to each connection. Settings let you select a connected client. Stop cancels this pane's queued work and waits for a running Revit operation to settle.
+- **BIMStarter/ADSK context** — `get_project_standards` reads actual shared GUIDs, binding categories, instance/type scope, units, browser organization and schedule fields/filters/sorting. `get_shared_parameter_catalog` searches 313 verified BIMStarter 2020 GUIDs (RU/ENG) plus Revit's configured FOP. `set_parameter` accepts a shared GUID. The bundled reference contains BIMStarter's imported ADSK group; use the actual ADSK FOP for its complete catalog.
 - **186+ tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **OpenAI models can drive Revit too (via MCP)** — the local **Codex CLI** connects to the same MCP server, so GPT-6 Astra / GPT-5.6 Sol-Terra-Luna edit the model through the Revit tools. Cloud ChatGPT can't reach a `127.0.0.1` server, and exposing one publicly would put model editing behind nothing but a token — Codex runs on your machine, so no tunnel is needed. Follow-up messages continue the same Codex conversation, and the session survives a Revit restart.
@@ -109,7 +117,8 @@ list, then select a model and reasoning effort. The pane configures the local MC
 connection automatically for each process; no API key or manual server registration
 is needed. Codex choices are saved separately from Claude Code.
 
-Release packages include `revit-mcp-bridge.ps1` for external Codex clients.
+Release packages include `revit-mcp-bridge.ps1` and `revit-mcp-bridge.cs` for external
+Codex clients; keep both files in the same folder when copying the bridge.
 [Setup and validation details](docs/openai-codex.md).
 
 ---

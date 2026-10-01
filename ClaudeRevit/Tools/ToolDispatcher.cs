@@ -54,7 +54,7 @@ public class ToolDispatcher : IExternalEventHandler
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => tcs.TrySetCanceled(ct));
-        _queue.Enqueue(new BeginTurnJob(label, tcs));
+        _queue.Enqueue(new BeginTurnJob(label, tcs, ct, Services.DocumentSessions.CurrentDocumentKey));
         _event.Raise();
         return tcs.Task;
     }
@@ -71,15 +71,15 @@ public class ToolDispatcher : IExternalEventHandler
     public Task<string> ExecuteAsync(
         string name,
         IReadOnlyDictionary<string, JsonElement> input,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? documentKey = null)
     {
-        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ct.Register(() => tcs.TrySetCanceled(ct));
+        var operation = new Services.QueuedOperation<string>(ct);
         // The token travels WITH the job: cancelling only the TCS would leave the job queued, and it
         // would still run on the next Idling — mutating the model after the user hit Stop.
-        _queue.Enqueue(new ToolJob(name, input, tcs, ct));
+        _queue.Enqueue(new ToolJob(name, input, operation,
+            documentKey ?? Services.DocumentSessions.CurrentDocumentKey, Services.McpSession.Executing));
         _event.Raise();
-        return tcs.Task;
+        return operation.Task;
     }
 
     public Task<string> GetProjectContextAsync(CancellationToken ct = default)
@@ -135,10 +135,10 @@ public class ToolDispatcher : IExternalEventHandler
                 case BeginTurnJob b: HandleBeginTurn(app, b); break;
                 case EndTurnJob e: HandleEndTurn(e); break;
                 case ToolJob t: HandleTool(app, t); break;
-                case GetContextJob g: HandleGetContext(app, g); break;
-                case FocusElementJob f: HandleFocusElement(app, f); break;
-                case AllIdsJob a: HandleAllIds(app, a); break;
-                case ProbeJob p: HandleProbe(app, p); break;
+                case GetContextJob g when !g.Tcs.Task.IsCompleted: HandleGetContext(app, g); break;
+                case FocusElementJob f when !f.Tcs.Task.IsCompleted: HandleFocusElement(app, f); break;
+                case AllIdsJob a when !a.Tcs.Task.IsCompleted: HandleAllIds(app, a); break;
+                case ProbeJob p when !p.Tcs.Task.IsCompleted: HandleProbe(app, p); break;
             }
         }
     }
@@ -271,8 +271,11 @@ public class ToolDispatcher : IExternalEventHandler
 
     private void HandleBeginTurn(UIApplication app, BeginTurnJob job)
     {
+        if (job.Ct.IsCancellationRequested || job.Tcs.Task.IsCompleted) return;
         try
         {
+            if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
+                throw new InvalidOperationException("The active document changed before the turn started. Send the request again in the intended document.");
             _suppressTurn = true;
             var doc = app.ActiveUIDocument?.Document;
             if (doc != null && _activeGroup == null)
@@ -312,9 +315,9 @@ public class ToolDispatcher : IExternalEventHandler
     {
         // Cancelled while queued (user pressed Stop): drop it instead of editing the model for a
         // turn nobody is waiting for any more.
-        if (job.Ct.IsCancellationRequested)
+        if (!job.Operation.TryStart())
         {
-            job.Tcs.TrySetCanceled(job.Ct);
+            job.Operation.Dispose();
             Services.Log.Info($"tool ✗ {job.Name} — skipped, cancelled before it ran");
             return;
         }
@@ -322,9 +325,18 @@ public class ToolDispatcher : IExternalEventHandler
         // Log before running so, if a tool corrupts the model and Revit crashes on the
         // next redraw, the log's last line names the culprit tool and its arguments.
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
+        using var operation = job.Operation;
+        using var sessionContext = Services.McpSession.Enter(job.Session);
         ToolContext.Set(job.Ct);
+        string? completedResult = null;
+        Exception? completedError = null;
+        bool cancelled = false;
         try
         {
+            if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
+                throw new InvalidOperationException("The active document changed while this operation was queued. No changes were made; retry in the intended document.");
+            if (_activeGroup != null && job.Session != null)
+                throw new InvalidOperationException("The chat pane is running a grouped API turn. Retry this MCP operation after it finishes.");
             var tool = _registry.Get(job.Name)
                 ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
 
@@ -370,6 +382,7 @@ public class ToolDispatcher : IExternalEventHandler
                 try
                 {
                     result = tool.Execute(job.Input, app);
+                    job.Ct.ThrowIfCancellationRequested();
                     var status = tx.Commit();
 
                     // An unresolved error rolls the transaction back WITHOUT throwing — surface
@@ -395,7 +408,18 @@ public class ToolDispatcher : IExternalEventHandler
             }
             else
             {
-                result = tool.Execute(job.Input, app);
+                // Script tools manage their own transactions. An outer group can roll those
+                // back when cancellation arrives while synchronous code is executing.
+                var doc = app.ActiveUIDocument?.Document;
+                using var group = tool.IsScriptTool && doc != null ? new TransactionGroup(doc, "Claude script") : null;
+                group?.Start();
+                try
+                {
+                    result = tool.Execute(job.Input, app);
+                    job.Ct.ThrowIfCancellationRequested();
+                    group?.Assimilate();
+                }
+                catch { if (group?.GetStatus() == TransactionStatus.Started) group.RollBack(); throw; }
             }
             // Script tools report failures as normal {"ok":false,...} results without
             // throwing — read the flag from the result, or the journal would advertise
@@ -410,7 +434,7 @@ public class ToolDispatcher : IExternalEventHandler
                 GetProjectCatalog.Invalidate();
 
             Services.Log.Info($"tool ✓ {job.Name}");
-            job.Tcs.TrySetResult(result);
+            completedResult = result;
         }
         catch (ToolInputException ex)
         {
@@ -418,20 +442,36 @@ public class ToolDispatcher : IExternalEventHandler
             // the parameter. A stack trace here would only invite a retry of the identical call.
             Services.ScriptJournal.Complete(ok: false, ex.Message);
             Services.Log.Info($"tool ✗ {job.Name} — bad input: {ex.Message}");
-            job.Tcs.TrySetResult(Services.Json.Serialize(new { ok = false, error = ex.Message }));
+            completedResult = Services.Json.Serialize(new { ok = false, error = ex.Message });
         }
         catch (System.OperationCanceledException)
         {
+            Services.ScriptJournal.Complete(ok: false, "Cancelled");
             Services.Log.Info($"tool ✗ {job.Name} — cancelled mid-run");
-            job.Tcs.TrySetCanceled(job.Ct);
+            cancelled = true;
         }
         catch (Exception ex)
         {
             Services.ScriptJournal.Complete(ok: false, ex.Message);
             Services.Log.Error($"tool ✗ {job.Name}", ex);
-            job.Tcs.TrySetException(ex);
+            completedError = ex;
         }
-        finally { ToolContext.Clear(); }
+        finally
+        {
+            // Tools may deliberately activate a family or another document. Follow that
+            // controlled transition; a manual switch cancels the pane's turn instead.
+            try
+            {
+                Services.DocumentSessions.Update(app.ActiveUIDocument?.Document);
+                if (job.Session?.ChannelId is { } id && Services.McpTurnChannel.Find(id) is { } channel)
+                    channel.DocumentKey = Services.DocumentSessions.CurrentDocumentKey;
+            }
+            catch (Exception ex) { Services.Log.Error("Document context update failed", ex); }
+            finally { ToolContext.Clear(); }
+        }
+        if (cancelled) job.Tcs.TrySetCanceled(job.Ct);
+        else if (completedError != null) job.Tcs.TrySetException(completedError);
+        else job.Tcs.TrySetResult(completedResult ?? "");
     }
 
     private static string SafeArgs(IReadOnlyDictionary<string, JsonElement> input)
@@ -490,6 +530,7 @@ public class ToolDispatcher : IExternalEventHandler
                 length_units = units,
                 level_count = allLevels.Count,
                 levels,
+                standards = GetProjectStandards.ContextSummary(doc),
                 project_notes = string.IsNullOrWhiteSpace(projectNotes) ? null : projectNotes
             };
             job.Tcs.TrySetResult(Services.Json.Serialize(info));
@@ -500,13 +541,16 @@ public class ToolDispatcher : IExternalEventHandler
     public string GetName() => "ClaudeRevit.ToolDispatcher";
 
     private abstract record Job;
-    private sealed record BeginTurnJob(string Label, TaskCompletionSource<bool> Tcs) : Job;
+    private sealed record BeginTurnJob(string Label, TaskCompletionSource<bool> Tcs, CancellationToken Ct, string DocumentKey) : Job;
     private sealed record EndTurnJob(TaskCompletionSource<bool> Tcs) : Job;
     private sealed record ToolJob(
         string Name,
         IReadOnlyDictionary<string, JsonElement> Input,
-        TaskCompletionSource<string> Tcs,
-        CancellationToken Ct) : Job;
+        Services.QueuedOperation<string> Operation, string DocumentKey, Services.McpClientState? Session) : Job
+    {
+        public TaskCompletionSource<string> Tcs => Operation.Completion;
+        public CancellationToken Ct => Operation.Token;
+    }
     private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;

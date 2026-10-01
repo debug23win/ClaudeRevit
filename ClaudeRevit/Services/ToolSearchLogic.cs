@@ -22,7 +22,7 @@ public static class ToolSearchLogic
         // Query / inspection
         "get_selection", "query_elements", "filter_elements", "get_element_parameters", "get_type_parameters",
         "get_element_locations", "get_element_bounding_box", "get_levels", "get_model_statistics",
-        "get_project_catalog", "get_project_info", "get_active_view_info", "list_family_types",
+        "get_project_catalog", "get_project_info", "get_project_standards", "get_shared_parameter_catalog", "get_active_view_info", "list_family_types",
         "list_loaded_families", "list_materials", "measure_distance", "analyze_warnings",
         // Core modelling
         "create_wall", "create_wall_type", "create_floor", "create_floor_type", "create_roof",

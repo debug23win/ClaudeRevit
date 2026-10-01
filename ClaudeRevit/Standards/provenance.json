@@ -1,0 +1,22 @@
+{
+  "reference": "BIMStarter/Weandrevit 2020, locally installed source files, read 2026-10-02",
+  "publisher": "https://weandrevit.ru/obnovlenie-shablona-weandrevit-2020-2/",
+  "sources": [
+    {
+      "file": "Weandrevit 2020.txt",
+      "sha256": "8217d3e1fd68b298f3aa74d27e8f232291bbdff7a485f4a5e53c3c12cfb05264",
+      "parameter_count": 299
+    },
+    {
+      "file": "Weandrevit 2020 ENG.txt",
+      "sha256": "85bafed0b68eeada6e1e50917b2ea58db9a5aac9dec53115b0c68587cb554073",
+      "parameter_count": 234
+    }
+  ],
+  "unique_guid_count": 313,
+  "notes": [
+    "GUID and data-type metadata only; project bindings and template edition must be inspected in Revit.",
+    "Group 10 is ADSK parameters imported into the BIMStarter FOP; it is not a complete official ADSK FOP2021 catalog.",
+    "RU/ENG files are distinct snapshots; translations are matched by GUID rather than assumed one-to-one."
+  ]
+}

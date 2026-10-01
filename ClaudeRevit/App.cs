@@ -70,6 +70,8 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetElementBoundingBox());
             ToolRegistry.Instance.Register(new MeasureDistance());
             ToolRegistry.Instance.Register(new GetProjectInfo());
+            ToolRegistry.Instance.Register(new GetProjectStandards());
+            ToolRegistry.Instance.Register(new GetSharedParameterCatalog());
             ToolRegistry.Instance.Register(new ListFamilyTypes());
             ToolRegistry.Instance.Register(new ListMaterials());
             ToolRegistry.Instance.Register(new GetPhases());
@@ -255,6 +257,7 @@ public class App : IExternalApplication
                 catch (Exception ex) { Services.Log.Error("Startup pattern fold failed", ex); }
             });
 
+            DocumentSessions.Initialize(application);
             SelectionService.Initialize(application);
 
             // Experimental: start the MCP server if the user enabled it, so Claude Code / Desktop
@@ -354,6 +357,7 @@ public class App : IExternalApplication
         try { application.DialogBoxShowing -= OnDialogBoxShowing; }
         catch { /* shutting down anyway */ }
         try { McpServer.Stop(); } catch { /* shutting down anyway */ }
+        try { DocumentSessions.Shutdown(application); } catch { }
         // Post-close learning report: summarize the accumulated Dynamo/C# scripts into a
         // developer-facing file so recurring patterns can be promoted to native tools.
         try { ExperienceStore.WriteDiagnosticReport(); }

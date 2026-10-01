@@ -51,9 +51,10 @@ public partial class ChatPaneView : UserControl
         DataContext = this;
         Messages.CollectionChanged += OnMessagesChanged;
 
-        foreach (var m in HistoryStore.LoadUiMessages())
+        foreach (var m in _service.LoadUiMessages())
             Messages.Add(m);
 
+        DocumentSessions.Changed += OnDocumentChanged;
         UsageTracker.Updated += UpdateUsageText;
         UpdateUsageText();
 
@@ -157,6 +158,29 @@ public partial class ChatPaneView : UserControl
 
     private static string Truncate(string s, int max) => TextUtil.Truncate(s, max);
 
+    private void OnDocumentChanged(bool toolTransition)
+    {
+        // Managed family/document transitions remain part of the current task. Manual
+        // switches cancel it; history is switched only after its Revit work has settled.
+        if (_cts != null)
+        {
+            if (!toolTransition) { _cts.Cancel(); StatusText.Text = L("Stopping after document change…", "Остановка после смены документа…"); }
+            return;
+        }
+        SwitchDocumentHistory();
+    }
+    private void SwitchDocumentHistory()
+    {
+        if (_service.WorkspaceIsCurrent) return;
+        _service.SaveHistory(Messages);
+        _service.SwitchWorkspace();
+        Messages.Clear();
+        foreach (var message in _service.LoadUiMessages()) Messages.Add(message);
+        InputBox.Text = "";
+        _pendingImageBase64 = _pendingImageMime = null;
+        AttachButton.Content = "📎";
+    }
+
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.NewItems != null)
@@ -208,7 +232,7 @@ public partial class ChatPaneView : UserControl
 
     private void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_cts != null) _cts.Cancel();
+        if (_cts != null) { StatusText.Text = L("Stopping… waiting for Revit", "Остановка… ожидание Revit"); _cts.Cancel(); }
         else _ = SendAsync();
     }
 
@@ -509,6 +533,7 @@ public partial class ChatPaneView : UserControl
             _service.SaveHistory(Messages);
             _cts?.Dispose();
             _cts = null;
+            SwitchDocumentHistory();
             SendButton.Content = "Send";
             SetAgentControlsEnabled(true);
             InputBox.Focus();

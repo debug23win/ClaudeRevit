@@ -31,6 +31,7 @@ public class ChatService
     // trailing block on the LAST message, AFTER the cache breakpoint, so the whole
     // conversation prefix stays cached even when the selection changes.
     private const string SystemPromptBody =
+        StandardKnowledge.AgentRules + "\n\n" +
         "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
         "TOOLSET IS LAZY-LOADED: to save tokens you start with a CORE toolset only — model inspection, the " +
         "common modelling verbs (walls, floors, roofs, levels, grids, columns, beams, rooms, family " +
@@ -208,13 +209,7 @@ public class ChatService
         if (!ephemeral)
         {
             Current = this;
-            _history.AddRange(HistoryStore.LoadApiHistory());
-            // Restore the Claude Code (subscription) session so the conversation continues after a
-            // Revit restart, matching how the API history persists.
-            try { if (File.Exists(ClaudeCodeSessionFile)) _claudeCodeSessionId = File.ReadAllText(ClaudeCodeSessionFile).Trim(); }
-            catch { /* non-fatal */ }
-            try { if (File.Exists(CodexSessionFile)) _codexSessionId = File.ReadAllText(CodexSessionFile).Trim(); }
-            catch { /* non-fatal */ }
+            SwitchWorkspace();
         }
 
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -265,13 +260,33 @@ public class ChatService
         Log.Info("CLI sessions reset: the next subscription/Codex message starts a new session.");
     }
 
-    private static string ClaudeCodeSessionFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClaudeRevit", "claudecode-session.txt");
-
-    private static string CodexSessionFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClaudeRevit", "codex-session.txt");
+    private ConversationWorkspace? _workspace;
+    private string ClaudeCodeSessionFile => _workspace!.ClaudeSessionPath;
+    private string CodexSessionFile => _workspace!.CodexSessionPath;
+    public bool WorkspaceIsCurrent => ReferenceEquals(_workspace, DocumentSessions.CurrentWorkspace);
+    public List<ChatMessage> LoadUiMessages() => _workspace == null ? new() : HistoryStore.LoadUiMessages(_workspace);
+    public void SwitchWorkspace()
+    {
+        if (_ephemeral || WorkspaceIsCurrent) return;
+        _workspace = DocumentSessions.CurrentWorkspace;
+        _history.Clear();
+        _history.AddRange(HistoryStore.LoadApiHistory(_workspace));
+        _claudeCodeSessionId = ReadSession(ClaudeCodeSessionFile);
+        _codexSessionId = ReadSession(CodexSessionFile);
+        _lastPromptTokens = _history.Sum(t => t.Blocks.Sum(b => b switch
+        {
+            ChatTextBlock x => (long)x.Text.Length,
+            ChatToolUseBlock x => x.InputJson.Length,
+            ChatToolResultBlock x => x.Content.Length,
+            ChatThinkingBlock x => x.Thinking.Length,
+            _ => 0L
+        })) / 4;
+        _execCsharpOk = 0;
+        _promoteNudged = false;
+        _revealedCategories.Clear();
+    }
+    private static string? ReadSession(string path)
+    { try { return File.Exists(path) ? File.ReadAllText(path).Trim() : null; } catch { return null; } }
 
     private void PersistCodexSession()
     {
@@ -285,7 +300,7 @@ public class ChatService
             else
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(CodexSessionFile)!);
-                File.WriteAllText(CodexSessionFile, _codexSessionId);
+                ConversationWorkspace.AtomicWrite(CodexSessionFile, _codexSessionId);
             }
         }
         catch { /* non-fatal */ }
@@ -303,7 +318,7 @@ public class ChatService
             else
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(ClaudeCodeSessionFile)!);
-                File.WriteAllText(ClaudeCodeSessionFile, _claudeCodeSessionId);
+                ConversationWorkspace.AtomicWrite(ClaudeCodeSessionFile, _claudeCodeSessionId);
             }
         }
         catch { /* non-fatal */ }
@@ -326,13 +341,13 @@ public class ChatService
         PersistClaudeCodeSession();
         _codexSessionId = null;
         PersistCodexSession();
-        if (!_ephemeral) HistoryStore.Clear();
+        if (!_ephemeral) HistoryStore.Clear(_workspace!);
     }
 
     public void SaveHistory(IEnumerable<ChatMessage> uiMessages)
     {
         if (_ephemeral) return;
-        HistoryStore.Save(uiMessages, _history);
+        HistoryStore.Save(_workspace!, uiMessages, _history);
     }
 
     // "alt" uses the alternative provider exactly as configured in Settings. "alt:<model-id>"
@@ -443,6 +458,7 @@ public class ChatService
         var sw = System.Diagnostics.Stopwatch.StartNew();
         string? imagePath = null;
         CodexBackend.Result res;
+        var channel = McpTurnChannel.Open(ct, DocumentSessions.CurrentDocumentKey);
         try
         {
             if (!string.IsNullOrEmpty(imageBase64))
@@ -453,12 +469,16 @@ public class ChatService
             }
             res = await CodexBackend.RunAsync(
                 McpServer.DrivingRules + "\n\n" + contextedPrompt,
-                McpServer.ClientWorkDir(), McpServer.Url, SettingsStore.McpToken, _codexSessionId,
+                McpServer.ClientWorkDir(), channel.Url(McpServer.Url), SettingsStore.McpToken, _codexSessionId,
                 onText: Append,
                 onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
                 ct, imagePath: imagePath, model: model, effort: effort, executable: SettingsStore.CodexExe);
         }
-        finally { if (imagePath != null) { try { File.Delete(imagePath); } catch { } } }
+        finally
+        {
+            await channel.CloseAsync();
+            if (imagePath != null) { try { File.Delete(imagePath); } catch { } }
+        }
 
         _codexSessionId = res.SessionId ?? _codexSessionId;
         PersistCodexSession();
@@ -499,7 +519,6 @@ public class ChatService
                     "Settings → MCP and try again. (" + ex.Message + ")");
             }
         }
-        var config = McpServer.WriteClientConfig();
         var workDir = McpServer.ClientWorkDir();
         var exe = SettingsStore.ClaudeCodeExe;
 
@@ -520,12 +539,16 @@ public class ChatService
         }
 
         var toolCount = 0;
-        var res = await ClaudeCodeBackend.RunAsync(
+        var channel = McpTurnChannel.Open(ct, DocumentSessions.CurrentDocumentKey);
+        var config = McpServer.WriteClientConfig(channel.Url(McpServer.Url));
+        ClaudeCodeBackend.Result res;
+        try { res = await ClaudeCodeBackend.RunAsync(
             exe, contextedPrompt, workDir, config, resumeSessionId: _claudeCodeSessionId,
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, model: modelAlias, effort: effort);
+            ct, model: modelAlias, effort: effort); }
+        finally { await channel.CloseAsync(); try { File.Delete(config); } catch { } }
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();

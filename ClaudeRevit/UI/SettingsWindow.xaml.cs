@@ -18,6 +18,7 @@ public partial class SettingsWindow : Window
     // during load must NOT autofill preset defaults (the ctor restores the saved URL/model
     // itself); only a real user pick should.
     private bool _initializing = true;
+    private bool _refreshingSessions;
 
     // Preset → (base URL, default model, typical context in K tokens; 0 = unknown).
     // The defaults are a starting point the user can overwrite — e.g. swap
@@ -67,6 +68,9 @@ public partial class SettingsWindow : Window
         CodexConfigBox.Text = CodexBackend.ConfigSnippet(McpServer.Url);
         McpModelOverrideBox.Text = SettingsStore.McpModelOverride;
         McpWhoText.Text = McpSession.Describe();
+        RefreshMcpClients();
+        McpSession.Changed += OnMcpClientsChanged;
+        Closed += (_, _) => McpSession.Changed -= OnMcpClientsChanged;
         UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
@@ -455,6 +459,21 @@ public partial class SettingsWindow : Window
     // model is selected now, which is the only thing that actually changes the model — a running
     // CLI session is pinned to the one it was started with. The self-reported identity is cleared
     // too, because after a restart it describes a session that no longer exists.
+    private void OnMcpClientsChanged() => Dispatcher.BeginInvoke(new System.Action(RefreshMcpClients));
+    private void RefreshMcpClients()
+    {
+        _refreshingSessions = true;
+        McpClientPicker.ItemsSource = McpSession.All;
+        McpClientPicker.SelectedItem = McpSession.Selected;
+        McpWhoText.Text = McpSession.Describe(_lang == "ru");
+        _refreshingSessions = false;
+    }
+    private void McpClientPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_refreshingSessions && McpClientPicker.SelectedItem is McpClientState state)
+            McpSession.Select(state.Id);
+    }
+
     private void McpResetSession_Click(object sender, RoutedEventArgs e)
     {
         McpSession.ResetIdentity();

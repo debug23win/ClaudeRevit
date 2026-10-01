@@ -13,8 +13,8 @@ using ClaudeRevit.Tools;
 namespace ClaudeRevit.Services;
 
 // EXPERIMENTAL: exposes ClaudeRevit's Revit tools over a local MCP (Model Context Protocol)
-// server, so a user can drive Revit from Claude Code / Claude Desktop — which authenticate with a
-// Claude Pro/Max SUBSCRIPTION — instead of paying per-token API for the in-Revit chat pane. Using
+// server, so a user can drive Revit from Claude Code / Claude Desktop вЂ” which authenticate with a
+// Claude Pro/Max SUBSCRIPTION вЂ” instead of paying per-token API for the in-Revit chat pane. Using
 // a consumer subscription OAuth token directly in a third-party API call is prohibited by
 // Anthropic; routing through the client (Claude Code) over MCP is the sanctioned path, and puts
 // the token cost on the subscription.
@@ -33,7 +33,7 @@ public static class McpServer
     public static bool IsRunning { get { lock (Gate) return _listener?.IsListening == true; } }
     public static string? LastError { get; private set; }
 
-    // Guidance handed to the driving model (Claude Code) via the MCP handshake — it has no access
+    // Guidance handed to the driving model (Claude Code) via the MCP handshake вЂ” it has no access
     // to the in-Revit chat pane's system prompt, so the key rules for working Revit efficiently and
     // correctly go here. Distilled from real field runs.
     // Also handed to the Claude Code CLI with --append-system-prompt on the subscription path: a
@@ -42,60 +42,57 @@ public static class McpServer
     public static string DrivingRules => Instructions;
 
     private const string Instructions =
+        StandardKnowledge.AgentRules + "\n\n" +
         "You are a senior BIM engineer and Revit-API expert driving a LIVE Autodesk Revit model through " +
         "these tools. Work precisely and safely.\n\n" +
-        "WORKFLOW — read before you act. Gather context first: get_project_catalog (levels, family types, " +
+        "WORKFLOW вЂ” read before you act. Gather context first: get_project_catalog (levels, family types, " +
         "view templates and the rebar catalogue in one call), get_active_view_info, get_selection, " +
         "query_elements / filter_elements, get_model_statistics. NEVER invent element IDs, family/type " +
-        "names, or levels — use only values returned by tools. For a non-trivial task, state a 2–4 step " +
+        "names, or levels вЂ” use only values returned by tools. For a non-trivial task, state a 2вЂ“4 step " +
         "plan first, then execute. Work in small steps: prove an operation on ONE element, then scale to " +
-        "the floor/building — don't run a large batch before verifying one.\n\n" +
-        "UNITS — a parameter's NAME SUFFIX decides its unit and always wins over any general rule: " +
+        "the floor/building вЂ” don't run a large batch before verifying one.\n\n" +
+        "UNITS вЂ” a parameter's NAME SUFFIX decides its unit and always wins over any general rule: " +
         "`_mm` is millimetres, `_m2`/`_m3` square/cubic metres, `_deg` degrees, while `_ft` and any " +
-        "unsuffixed spatial value are FEET (Revit's internal unit). spacing_mm=200 means 200 mm — do " +
-        "NOT convert that to feet. Convert only for feet parameters: 1 m ≈ 3.28084 ft, 1 mm ≈ " +
+        "unsuffixed spatial value are FEET (Revit's internal unit). spacing_mm=200 means 200 mm вЂ” do " +
+        "NOT convert that to feet. Convert only for feet parameters: 1 m в‰€ 3.28084 ft, 1 mm в‰€ " +
         "0.00328084 ft. Returned values follow the same rule. Always confirm the target level and " +
         "view; state the conversion you used.\n\n" +
-        "TOOL CHOICE — prefer a dedicated tool when one exists (the full tool index is included below; " +
+        "TOOL CHOICE вЂ” prefer a dedicated tool when one exists (the full tool index is included below; " +
         "native tools cover walls, floors, roofs, levels, grids, doors, columns, framing, rebar & " +
         "reinforcement, steel connections, family authoring, views, sheets, schedules, annotation, " +
         "filters and export). Use filter_elements for \"find all X where Y\" (unit-aware predicates + " +
         "count/sum/avg aggregate) instead of scanning. Use run_batch to repeat one tool over many items " +
         "in a single transaction. execute_csharp / run_dynamo_python are the escape hatch for what no tool " +
-        "covers — only if code execution is enabled (if they aren't offered, it's off); make code " +
+        "covers вЂ” only if code execution is enabled (if they aren't offered, it's off); make code " +
         "idempotent, null-checked, and in one transaction.\n\n" +
-        "EFFICIENCY — the MCP round-trip is the main cost, so batch aggressively; for heavy multi-step " +
+        "EFFICIENCY вЂ” the MCP round-trip is the main cost, so batch aggressively; for heavy multi-step " +
         "work write ONE execute_csharp instead of many tool calls. Creating elements is cheap (~2000/sec) " +
-        "but doc.Regenerate() is SUPER-LINEAR — call it ONCE at the end of a batch, never in a loop.\n\n" +
-        "REVIT API — on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
-        "RequestViewChange inside a transaction — use the set_active_view tool.\n\n" +
-        "SAFETY & ERRORS — over MCP each TOOL CALL is its own undo step (the in-Revit chat pane groups a " +
+        "but doc.Regenerate() is SUPER-LINEAR вЂ” call it ONCE at the end of a batch, never in a loop.\n\n" +
+        "REVIT API вЂ” on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
+        "RequestViewChange inside a transaction вЂ” use the set_active_view tool.\n\n" +
+        "SAFETY & ERRORS вЂ” over MCP each TOOL CALL is its own undo step (the in-Revit chat pane groups a " +
         "whole turn into one, but this path has no turn boundary to group by, and a group held open " +
         "across an idle client would block the user's own edits). So a ten-call sequence takes ten " +
-        "Ctrl+Z to unwind — say so when you propose something broad. Do destructive actions (delete, mass " +
+        "Ctrl+Z to unwind вЂ” say so when you propose something broad. Do destructive actions (delete, mass " +
         "edits, arbitrary code) on the smallest possible set, and confirm intent when the request is " +
         "broad. If a request is ambiguous (missing level, type or units), ask ONE clarifying question " +
         "instead of guessing. If a tool errors, report it verbatim, explain the likely cause, and fix the " +
-        "input — never blindly repeat the same call.\n\n" +
-        "IDENTIFY YOURSELF — call report_driving_model once, first thing, with your specific model " +
+        "input вЂ” never blindly repeat the same call.\n\n" +
+        "IDENTIFY YOURSELF вЂ” call report_driving_model once, first thing, with your specific model " +
         "id. MCP gives this add-in no way to know which model is driving it, so without that call " +
         "the user cannot tell who did the work.\n\n" +
-        "ANSWERS — be concise. After acting, say what changed, which IDs/types were affected, and what to " +
-        "check. Take numbers (areas, volumes, counts) from tools — never estimate.";
+        "ANSWERS вЂ” be concise. After acting, say what changed, which IDs/types were affected, and what to " +
+        "check. Take numbers (areas, volumes, counts) from tools вЂ” never estimate.";
 
     // The URL and header a user pastes into their Claude Code / Desktop MCP config.
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
     public static string AuthHeader => $"Authorization: Bearer {SettingsStore.McpToken}";
 
-    private static string AppDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit");
-
-    // Writes an .mcp.json pointing at this server (url + bearer token) and returns its path — for
+    // Writes an .mcp.json pointing at this server (url + bearer token) and returns its path вЂ” for
     // launching `claude --mcp-config <path>` (in-pane mode / the MCP benchmark).
-    public static string WriteClientConfig()
+    public static string WriteClientConfig(string? url = null)
     {
-        Directory.CreateDirectory(AppDir);
-        var path = Path.Combine(AppDir, "mcp-client.json");
+        var path = Path.Combine(ClientWorkDir(), "mcp-client-" + Guid.NewGuid().ToString("N") + ".json");
         var json = new JsonObject
         {
             ["mcpServers"] = new JsonObject
@@ -103,7 +100,7 @@ public static class McpServer
                 ["clauderevit"] = new JsonObject
                 {
                     ["type"] = "http",
-                    ["url"] = Url,
+                    ["url"] = url ?? Url,
                     ["headers"] = new JsonObject { ["Authorization"] = $"Bearer {SettingsStore.McpToken}" }
                 }
             }
@@ -115,7 +112,7 @@ public static class McpServer
     // A working directory for the `claude` subprocess (no auto-discovery of unrelated project files).
     public static string ClientWorkDir()
     {
-        var dir = Path.Combine(AppDir, "ccwork");
+        var dir = Path.Combine(DocumentSessions.CurrentWorkspace.ClientDirectory, "ccwork");
         Directory.CreateDirectory(dir);
         return dir;
     }
@@ -171,6 +168,7 @@ public static class McpServer
         try { _listener?.Close(); } catch { }
         _listener = null;
         _cts = null;
+        McpSession.Clear();
     }
 
     private static async Task AcceptLoop(HttpListener listener, CancellationToken ct)
@@ -225,34 +223,63 @@ public static class McpServer
                 return;
             }
 
-            // This stateless server has no server-initiated SSE stream or sessions to delete.
+            var channelId = ctx.Request.QueryString["channel"];
+            var channel = channelId == null ? null : McpTurnChannel.Find(channelId);
+            if (channelId != null && (channel == null || channel.Token.IsCancellationRequested))
+            { Write(ctx, 404, "{\"error\":\"turn_closed\"}"); return; }
+            using var channelCall = channel?.EnterCall();
+            using var bodyCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, channel?.Token ?? default);
+            var sessionId = ctx.Request.Headers["Mcp-Session-Id"];
+            var session = sessionId == null ? null : McpSession.Find(sessionId);
+            if (sessionId != null && (session == null || session.ChannelId != channelId))
+            { Write(ctx, 404, "{\"error\":\"session_not_found\"}"); return; }
+            if (ctx.Request.HttpMethod == "DELETE")
+            {
+                if (session == null) { Write(ctx, 400, "{\"error\":\"session_required\"}"); return; }
+                McpSession.Remove(session.Id); Write(ctx, 200, "{}"); return;
+            }
+            // No server-initiated SSE stream; session identity is carried by HTTP headers.
             if (ctx.Request.HttpMethod != "POST" || ctx.Request.Url?.AbsolutePath != "/mcp")
             { ctx.Response.Headers["Allow"] = "POST"; Write(ctx, 405, "{\"error\":\"method_not_allowed\"}"); return; }
 
             string body;
             using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8))
-                body = await reader.ReadToEndAsync();
+                body = await reader.ReadToEndAsync(bodyCancellation.Token);
 
             JsonNode? req;
             try { req = JsonNode.Parse(body); }
             catch { Write(ctx, 400, RpcError(null, -32700, "Parse error")); return; }
 
-            // A JSON-RPC notification (no "id") gets an empty 202 — nothing to return.
-            var idNode = req?["id"];
-            var method = req?["method"]?.GetValue<string>();
+            if (req is not JsonObject rpc || rpc["jsonrpc"]?.GetValue<string>() != "2.0")
+            { Write(ctx, 400, RpcError(null, -32600, "Invalid request")); return; }
+            var idNode = rpc["id"];
+            var method = rpc["method"]?.GetValue<string>();
+            if (method == "initialize" && idNode != null)
+            {
+                session = McpSession.Create(rpc["params"]?["clientInfo"]?["name"]?.GetValue<string>(),
+                    rpc["params"]?["clientInfo"]?["version"]?.GetValue<string>(), channelId);
+                ctx.Response.Headers["Mcp-Session-Id"] = session.Id;
+            }
+            else if (session == null)
+            { Write(ctx, 400, RpcError(idNode, -32000, "Mcp-Session-Id required; initialize this client first.")); return; }
+            session!.Touch();
             if (idNode == null)
             {
-                ctx.Response.StatusCode = 202;
-                ctx.Response.Close();
-                return;
+                if (method == "notifications/cancelled") session.CancelRequest(rpc["params"]?["requestId"]);
+                ctx.Response.StatusCode = 202; ctx.Response.Close(); return;
             }
-
-            var result = await Dispatch(method, req!["params"], ct);
+            using var sessionContext = McpSession.Enter(session);
+            using var request = method == "initialize" ? null : session.BeginRequest(idNode, ct, channel?.Token ?? default);
+            var requestToken = request?.Token ?? ct;
+            var result = await Dispatch(method, rpc["params"], requestToken, channel?.DocumentKey ?? DocumentSessions.CurrentDocumentKey);
+            if (requestToken.IsCancellationRequested) { ctx.Response.StatusCode = 202; ctx.Response.Close(); return; }
             var response = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = idNode.DeepClone() };
             if (result.error != null) response["error"] = result.error;
             else response["result"] = result.value ?? new JsonObject();
             Write(ctx, 200, response.ToJsonString());
         }
+        catch (OperationCanceledException)
+        { try { ctx.Response.StatusCode = 202; ctx.Response.Close(); } catch { } }
         catch (Exception ex)
         {
             Log.Error("MCP request failed", ex);
@@ -261,7 +288,7 @@ public static class McpServer
     }
 
     // The static driving rules PLUS the user's saved memory (project standards) and the proven-script
-    // digest — so a subscription/MCP session gets the same accumulated knowledge the API path injects
+    // digest вЂ” so a subscription/MCP session gets the same accumulated knowledge the API path injects
     // into its system prompt. Instructions are sent once at initialize, so memory saved mid-session
     // appears on the next reconnect.
     private static string BuildInstructions()
@@ -269,20 +296,20 @@ public static class McpServer
         var sb = new StringBuilder(Instructions);
         var memory = MemoryStore.Load();
         if (!string.IsNullOrWhiteSpace(memory))
-            sb.Append("\n\nSAVED MEMORY — user preferences and project standards; apply them:\n")
+            sb.Append("\n\nSAVED MEMORY вЂ” user preferences and project standards; apply them:\n")
               .Append(memory.Trim());
         var experience = ExperienceStore.Digest();
         if (!string.IsNullOrWhiteSpace(experience))
             sb.Append("\n\n").Append(experience!.Trim());
         // Full tool index in the handshake so the driving model knows every tool up front and can
-        // call the right one directly — no discovery round-trips even when the client defers the
+        // call the right one directly вЂ” no discovery round-trips even when the client defers the
         // (180) tool schemas. Generated once, cached, and mirrored to a settings .md for the user.
         sb.Append("\n\n").Append(ToolIndexMarkdown());
         return sb.ToString();
     }
 
     private static string? _toolIndexCache;
-    private static string ToolCatalogPath => Path.Combine(AppDir, "tools-catalog.md");
+    private static string ToolCatalogPath => Path.Combine(DocumentSessions.CurrentWorkspace.DirectoryPath, "tools-catalog.md");
 
     private static string ToolIndexMarkdown()
     {
@@ -295,11 +322,11 @@ public static class McpServer
             if (t.RequiresCodeExecutionOptIn && !allowCode) continue;
             var cat = ClaudeRevit.Tools.ToolCatalog.CategoryOf(t);
             if (!byCat.TryGetValue(cat, out var list)) byCat[cat] = list = new List<string>();
-            list.Add($"- `{t.Name}` — {FirstSentence(t.Description)}");
+            list.Add($"- `{t.Name}` вЂ” {FirstSentence(t.Description)}");
         }
 
         var sb = new StringBuilder();
-        sb.Append("AVAILABLE TOOLS — the full set is listed here so you can call the right tool by its " +
+        sb.Append("AVAILABLE TOOLS вЂ” the full set is listed here so you can call the right tool by its " +
                   "exact name without searching first. Schemas load on first use.\n");
         foreach (var kv in byCat)
         {
@@ -309,7 +336,7 @@ public static class McpServer
         }
         _toolIndexCache = sb.ToString();
 
-        try { Directory.CreateDirectory(AppDir); File.WriteAllText(ToolCatalogPath, _toolIndexCache); }
+        try { Directory.CreateDirectory(Path.GetDirectoryName(ToolCatalogPath)!); File.WriteAllText(ToolCatalogPath, _toolIndexCache); }
         catch { /* the md mirror is a convenience, not required */ }
         return _toolIndexCache;
     }
@@ -321,31 +348,22 @@ public static class McpServer
         var s = desc.Replace('\n', ' ').Trim();
         var dot = s.IndexOf(". ", StringComparison.Ordinal);
         if (dot > 0) s = s.Substring(0, dot);
-        return s.Length > 140 ? s.Substring(0, 140).TrimEnd() + "…" : s;
+        return s.Length > 140 ? s.Substring(0, 140).TrimEnd() + "вЂ¦" : s;
     }
 
-    private static async Task<(JsonNode? value, JsonObject? error)> Dispatch(string? method, JsonNode? prms, CancellationToken ct)
+    private static async Task<(JsonNode? value, JsonObject? error)> Dispatch(string? method, JsonNode? prms, CancellationToken ct, string documentKey)
     {
         switch (method)
         {
             case "initialize":
                 var clientVer = prms?["protocolVersion"]?.GetValue<string>();
-                // Remember who connected: tool schemas are tailored to the client's validator
-                // (see McpSchema).
-                try
-                {
-                    _clientName = prms?["clientInfo"]?["name"]?.GetValue<string>() ?? "";
-                    McpSession.OnConnect(_clientName, prms?["clientInfo"]?["version"]?.GetValue<string>());
-                    Log.Info($"MCP client connected: '{_clientName}' (protocol {clientVer ?? "unset"}); " +
-                             $"schemas: {(NeedsPortableSchemas ? "portable/OpenAI-safe" : "full JSON Schema")}");
-                }
-                catch { _clientName = ""; }
+                Log.Info($"MCP client initialized: '{McpSession.Executing?.ClientName}'");
                 return (new JsonObject
                 {
                     ["protocolVersion"] = clientVer ?? "2025-06-18",
                     ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
                     ["serverInfo"] = new JsonObject { ["name"] = "ClaudeRevit", ["version"] = "1.0" },
-                    // Surfaced to the model by the client — the hard-won rules for driving Revit well,
+                    // Surfaced to the model by the client вЂ” the hard-won rules for driving Revit well,
                     // plus the user's saved standards and proven-script digest (parity with the API path,
                     // whose system prompt carries the same). Built at session start.
                     ["instructions"] = BuildInstructions()
@@ -355,17 +373,17 @@ public static class McpServer
                 return (new JsonObject(), null);
 
             case "tools/list":
-                return (new JsonObject { ["tools"] = BuildToolList() }, null);
+                return (new JsonObject { ["tools"] = BuildToolList(McpSession.Executing?.ClientName) }, null);
 
             case "tools/call":
-                return await CallTool(prms, ct);
+                return await CallTool(prms, ct, documentKey);
 
             default:
                 return (null, ErrObj(-32601, $"Method not found: {method}"));
         }
     }
 
-    private static JsonArray BuildToolList()
+    private static JsonArray BuildToolList(string? clientName)
     {
         var allowCode = SettingsStore.AllowCodeExecution;
         var disabled = SettingsStore.DisabledToolGroups;
@@ -376,7 +394,7 @@ public static class McpServer
 
             // The groups the user switched off in Settings apply here too. They did not apply
             // before, so a user who disabled rebar to save tokens still paid for every rebar
-            // schema on this path — and, worse, the model still had tools the user had said no to.
+            // schema on this path вЂ” and, worse, the model still had tools the user had said no to.
             if (disabled.Count > 0 &&
                 disabled.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase))
                 continue;
@@ -393,7 +411,7 @@ public static class McpServer
                 ["properties"] = props,
                 ["required"] = required
             };
-            if (NeedsPortableSchemas) McpSchema.MakePortable(schema);
+            if (McpSchema.NeedsPortableSchemas(clientName ?? "")) McpSchema.MakePortable(schema);
 
             arr.Add(new JsonObject
             {
@@ -405,13 +423,8 @@ public static class McpServer
         return arr;
     }
 
-    // The MCP client that connected (from initialize's clientInfo.name).
-    private static string _clientName = "";
 
-    private static bool NeedsPortableSchemas => McpSchema.NeedsPortableSchemas(_clientName);
-
-
-    private static async Task<(JsonNode? value, JsonObject? error)> CallTool(JsonNode? prms, CancellationToken ct)
+    private static async Task<(JsonNode? value, JsonObject? error)> CallTool(JsonNode? prms, CancellationToken ct, string documentKey)
     {
         var name = prms?["name"]?.GetValue<string>();
         if (string.IsNullOrEmpty(name)) return (null, ErrObj(-32602, "Missing tool name"));
@@ -424,7 +437,7 @@ public static class McpServer
                 args[kv.Key] = doc.RootElement.Clone();
             }
 
-        // Auto-resolve Revit warning/error dialogs for the span of this call — the MCP client
+        // Auto-resolve Revit warning/error dialogs for the span of this call вЂ” the MCP client
         // (Claude Code) drives unattended, so a modal would otherwise stall the whole session.
         ToolDispatcher.PushSuppress();
         try
@@ -434,12 +447,12 @@ public static class McpServer
             using var toolCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             toolCts.CancelAfter(TimeSpan.FromMinutes(10));
             string text;
-            try { text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, toolCts.Token); }
+            try { text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, toolCts.Token, documentKey); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 throw new TimeoutException(
                     $"'{name}' did not finish within 10 minutes. Revit may be showing a modal dialog " +
-                    "— check the Revit window.");
+                    "вЂ” check the Revit window.");
             }
             // The only way anything from the plugin reaches the model: a client never asks whether
             // the user wanted something, so a pending request rides out on the result of whatever

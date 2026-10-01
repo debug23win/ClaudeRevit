@@ -24,6 +24,7 @@ public class SetParameter : IRevitTool
         {
             ["element_id"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "Target element id." }),
             ["parameter_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Parameter name (case-sensitive)." }),
+            ["parameter_guid"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Shared parameter GUID. Prefer it for BIMStarter/ADSK standards; overrides name. Supply either name or GUID." }),
             ["value"] = JsonSerializer.SerializeToElement(new
             {
                 description = "New value. String for text params (or a type/material/level NAME for ElementId params), " +
@@ -37,7 +38,7 @@ public class SetParameter : IRevitTool
                 }
             })
         },
-        Required = ["element_id", "parameter_name", "value"]
+        Required = ["element_id", "value"]
     };
 
     public bool RequiresTransaction => true;
@@ -51,10 +52,27 @@ public class SetParameter : IRevitTool
         var element = doc.GetElement(id)
             ?? throw new InvalidOperationException($"Element {id.Value} not found.");
 
-        var paramName = input["parameter_name"].GetString()!;
-        var param = element.LookupParameter(paramName)
-            ?? throw new InvalidOperationException(
-                $"Parameter '{paramName}' not found on element {id.Value} ({element.Category?.Name}).");
+        Parameter? param;
+        string paramName;
+        if (input.TryGetValue("parameter_guid", out var guidValue))
+        {
+            if (!Guid.TryParse(guidValue.GetString(), out var guid) || guid == Guid.Empty)
+                throw new InvalidOperationException("parameter_guid is not a valid shared parameter GUID.");
+            param = element.get_Parameter(guid);
+            paramName = param?.Definition.Name ?? guid.ToString();
+        }
+        else
+        {
+            paramName = input.TryGetValue("parameter_name", out var name) ? name.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(paramName))
+                throw new InvalidOperationException("Supply parameter_name or parameter_guid.");
+            var matches = element.GetParameters(paramName);
+            if (matches.Count > 1)
+                throw new InvalidOperationException($"Parameter name '{paramName}' is ambiguous. Inspect get_element_parameters and use parameter_guid.");
+            param = matches.SingleOrDefault();
+        }
+        if (param == null)
+            throw new InvalidOperationException($"Parameter '{paramName}' not found on element {id.Value} ({element.Category?.Name}).");
 
         if (param.IsReadOnly)
             throw new InvalidOperationException($"Parameter '{paramName}' is read-only.");

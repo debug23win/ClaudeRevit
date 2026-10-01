@@ -49,6 +49,29 @@ internal static class Program
                 ChatService.Pending.SetResult();
                 await pending;
                 Check(agent.IsEnabled && model.IsEnabled && effort.IsEnabled, "Selection was not restored after a turn");
+                pane.Messages.Clear();
+                pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project A" });
+                DocumentSessions.Change("b", false);
+                Check(pane.Messages.Count == 0, "Another project's transcript was shown in B");
+                pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project B" });
+                DocumentSessions.Change("a", false);
+                Check(pane.Messages.Single().Text == "Project A", "Returning to A lost its transcript");
+                ChatService.Pending = new();
+                ((TextBox)pane.FindName("InputBox")).Text = "Pending A turn";
+                var cancelled = (Task)send.Invoke(pane, null)!;
+                DocumentSessions.Change("b", false);
+                await cancelled;
+                Check(pane.Messages.Single().Text == "Project B", "Cancelled A turn was saved into B");
+                Check(ChatService.Saved["a"].Any(m => m.Text == "Pending A turn"), "A's cancelled transcript was lost");
+                ChatService.Pending = new();
+                ((TextBox)pane.FindName("InputBox")).Text = "Open family from B";
+                var managed = (Task)send.Invoke(pane, null)!;
+                DocumentSessions.Change("family", true);
+                Check(!managed.IsCompleted, "A managed family transition cancelled its own task");
+                ChatService.Pending.SetResult();
+                await managed;
+                Check(pane.Messages.Count == 0, "Family inherited B's conversation after the task finished");
+                ChatService.Pending = null;
                 if (args.Length > 0)
                 {
                     Directory.CreateDirectory(args[0]);
@@ -68,7 +91,7 @@ internal static class Program
                         encoder.Save(stream);
                     }
                 }
-                Console.WriteLine("Pane checks passed: agent switching, separate saved choices, model/effort changes, typed ID, turn snapshot, busy controls, narrow layout.");
+                Console.WriteLine("Pane checks passed: agent selection, saved choices, busy controls, project history switching, cancellation on manual document change, managed family transition, narrow layout.");
                 app.Shutdown(0);
             }
             catch (Exception error) { Console.Error.WriteLine(error); app.Shutdown(1); }

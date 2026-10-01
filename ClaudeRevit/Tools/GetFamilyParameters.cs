@@ -70,6 +70,8 @@ public class GetFamilyParameters : IRevitTool
             list.Add(new
             {
                 name,
+                is_shared = p.IsShared,
+                shared_guid = p.IsShared ? (Guid?)p.GUID : null,
                 is_instance = p.IsInstance,
                 is_reporting = SafeReporting(p),
                 storage = p.StorageType.ToString(),
