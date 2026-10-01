@@ -62,7 +62,7 @@ public static class CodexBackend
     public static async Task<Result> RunAsync(
         string exe, string prompt, string workDir, string? model,
         Action<string> onText, Action<string> onTool, CancellationToken ct,
-        string? resumeSessionId = null)
+        string? resumeSessionId = null, string? effort = null)
     {
         // Revit's GUI process usually has a narrower PATH than the user's shell, so resolve to a
         // full path first (shared with the Claude Code path).
@@ -100,7 +100,7 @@ public static class CodexBackend
 
         foreach (var level in new[] { CodexCli.Level.Full, CodexCli.Level.NoGitWaiver, CodexCli.Level.Bare })
         {
-            var args = CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, level);
+            var args = CodexCli.BuildArgs(prompt, model, resumeSessionId, lastMsgPath, level, effort);
             var res = await RunOnceAsync(
                 resolved, args, workDir,
                 level == CodexCli.Level.Bare ? null : lastMsgPath,

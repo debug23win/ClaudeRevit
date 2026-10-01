@@ -16,11 +16,12 @@ public class ChatMessage : INotifyPropertyChanged
     // when an alternative provider is selected — so the pane never mislabels a Grok/Gemini
     // reply as "Claude". Set by the chat pane when the model picker changes.
     public static string AssistantLabel = "Claude";
+    public string AssistantName { get; init; } = AssistantLabel;
 
     public string RoleDisplay => Role switch
     {
         "user" => "You",
-        "assistant" => AssistantLabel,
+        "assistant" => AssistantName,
         "tool" => $"🔧 {ToolName}",
         "diag" => "⏱ diagnostics",
         _ => Role

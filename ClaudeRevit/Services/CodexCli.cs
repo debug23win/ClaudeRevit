@@ -28,7 +28,8 @@ internal static class CodexCli
     // repo, and the client work directory (AppData\...\ccwork) never is one. Builds old enough not
     // to know the flag also predate that check, which is why dropping it is a sane first step down.
     public static List<string> BuildArgs(
-        string prompt, string? model, string? resumeSessionId, string lastMsgPath, Level level)
+        string prompt, string? model, string? resumeSessionId, string lastMsgPath, Level level,
+        string? effort = null)
     {
         var args = new List<string> { "exec" };
         if (level == Level.Full) args.Add("--skip-git-repo-check");
@@ -39,6 +40,7 @@ internal static class CodexCli
             args.Add(lastMsgPath);
         }
         if (!string.IsNullOrWhiteSpace(model)) { args.Add("--model"); args.Add(model!); }
+        if (!string.IsNullOrWhiteSpace(effort)) CodexConfiguration.Add(args, "model_reasoning_effort", effort.Trim());
 
         // Continue the conversation rather than starting fresh each message. A captured session id
         // is preferred over `--last`: --last means "the most recent Codex session on this machine",

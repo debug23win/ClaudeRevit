@@ -24,7 +24,7 @@ public static class HistoryStore
             Directory.CreateDirectory(dir);
             var dto = new FileDto(
                 2,
-                uiMessages.Select(m => new UiMessageDto(m.Role, m.ToolName, m.Text, m.IsError)).ToList(),
+                uiMessages.Select(m => new UiMessageDto(m.Role, m.ToolName, m.Text, m.IsError, m.AssistantName)).ToList(),
                 apiHistory.Select(ToDto).ToList());
             // Write beside the file and swap it in, rather than over it. A crash or a full disk
             // halfway through an in-place write leaves a truncated JSON file, and the next start
@@ -46,7 +46,8 @@ public static class HistoryStore
             Role = d.Role,
             ToolName = d.ToolName,
             Text = d.Text,
-            IsError = d.IsError
+            IsError = d.IsError,
+            AssistantName = d.AssistantName ?? "Assistant"
         }).ToList();
     }
 
@@ -163,7 +164,7 @@ public static class HistoryStore
     }
 
     private sealed record FileDto(int Version, List<UiMessageDto> Ui, List<ApiMessageDto> Api);
-    private sealed record UiMessageDto(string Role, string? ToolName, string Text, bool IsError);
+    private sealed record UiMessageDto(string Role, string? ToolName, string Text, bool IsError, string? AssistantName = null);
     private sealed record ApiMessageDto(string Role, List<BlockDto> Blocks);
     private sealed record BlockDto(
         string Type, string? Text, string? Id, string? Name,

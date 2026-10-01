@@ -416,7 +416,7 @@ public class ChatService
     // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
     private async Task SendViaCodexAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
-        string? model, CancellationToken ct)
+        string? model, CancellationToken ct, string? effort = null)
     {
         if (!McpServer.IsRunning)
         {
@@ -448,7 +448,7 @@ public class ChatService
             SettingsStore.CodexExe, contextedPrompt, McpServer.ClientWorkDir(), model,
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, resumeSessionId: _codexSessionId);
+            ct, resumeSessionId: _codexSessionId, effort: effort);
 
         _codexSessionId = res.SessionId ?? _codexSessionId;
         PersistCodexSession();
@@ -495,7 +495,7 @@ public class ChatService
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
         ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
-        string? modelAlias, CancellationToken ct)
+        string? modelAlias, CancellationToken ct, string? effort = null)
     {
         if (!McpServer.IsRunning)
         {
@@ -533,7 +533,7 @@ public class ChatService
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
-            ct, model: modelAlias);
+            ct, model: modelAlias, effort: effort);
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();
@@ -575,12 +575,14 @@ public class ChatService
         string model,
         CancellationToken ct = default,
         string? imageBase64 = null,
-        string? imageMime = null)
+        string? imageMime = null,
+        McpAgentSelection? mcpSelection = null)
     {
         // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
         // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
-        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime), ct);
+        var subscription = SubscriptionMode;
+        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection), ct);
     }
 
     private async Task SendCoreAsync(
@@ -589,36 +591,40 @@ public class ChatService
         Dispatcher ui,
         CancellationToken ct,
         string? imageBase64,
-        string? imageMime)
+        string? imageMime,
+        bool subscription,
+        McpAgentSelection? mcpSelection)
     {
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
         // It runs its OWN agent loop, so bypass the whole Anthropic/alt pipeline (no API key, no tool
         // schemas, no history compaction here) and just stream its output into the pane.
-        if (model == "claudecode" || SubscriptionMode)
+        var agent = McpAgentSelection.Resolve(model, subscription, mcpSelection);
+        if (agent != null)
         {
             var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
             if (string.IsNullOrWhiteSpace(userText)) return;
-            // "claudecode" = the CLI's default subscription model; any other pick maps to --model.
-            // A free-text override in Settings wins, so a model newer than this release can be used.
-            var over = SettingsStore.McpModelOverride;
-            var alias = !string.IsNullOrWhiteSpace(over) ? over.Trim()
-                      : model == "claudecode" ? null : ClaudeCodeBackend.ModelAlias(model);
-            await SendViaClaudeCodeAsync(conversation, userText, ui, alias, ct);
-            return;
-        }
-
-        // The OpenAI counterpart: the local Codex CLI drives the same MCP server. Same shape as
-        // above — Codex runs its own loop, so the API pipeline is bypassed entirely.
-        // "codex" uses whatever model Codex is configured with; "codex:<model-id>" pins one.
-        if (model == "codex" || model.StartsWith("codex:", StringComparison.Ordinal))
-        {
-            var userText = conversation.LastOrDefault(m => m.Role == "user")?.Text ?? "";
-            if (string.IsNullOrWhiteSpace(userText)) return;
-            var codexOver = SettingsStore.McpModelOverride;
-            var codexModel = !string.IsNullOrWhiteSpace(codexOver) ? codexOver.Trim()
-                           : model.Length > 6 ? model.Substring(6) : null;
-            await SendViaCodexAsync(conversation, userText, ui, codexModel, ct);
+            var chosenModel = agent.Model;
+            if (mcpSelection == null)
+            {
+                // Older benchmark calls retain their explicit model tags. Migrate the old shared
+                // override only to its matching provider, never to both agents.
+                chosenModel = McpAgentSelection.MigrateOverride(agent.Agent, SettingsStore.McpModelOverride) ?? chosenModel;
+                if (agent.Agent == "claudecode" && chosenModel == null && model != "claudecode")
+                    chosenModel = ClaudeCodeBackend.ModelAlias(model);
+            }
+            if (agent.Agent == "codex")
+            {
+                if (mcpSelection != null)
+                {
+                    var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), ct);
+                    var validated = CodexModels.Select(models, chosenModel, agent.Effort);
+                    chosenModel = validated.Model;
+                    agent = agent with { Effort = validated.Effort };
+                }
+                await SendViaCodexAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
+            }
+            else await SendViaClaudeCodeAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
             return;
         }
 
