@@ -44,7 +44,8 @@ Saved replies keep their original agent labels when the agent changes.
 ## External Codex app or CLI
 
 Enable the MCP server in Settings and keep Revit running. The release packages
-include `revit-mcp-bridge.ps1`; keep it at a stable path. Register it with Codex:
+include `revit-mcp-bridge.ps1` and `revit-mcp-bridge.cs`; keep both files together
+at a stable path. Register the PowerShell entry point with Codex:
 
 ```powershell
 codex mcp add clauderevit -- powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "C:\path\to\revit-mcp-bridge.ps1"

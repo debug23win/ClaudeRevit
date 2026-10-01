@@ -26,6 +26,8 @@ jobs:
         run: dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release
       - name: Pane checks (isolated WPF, no Revit or account)
         run: dotnet run --project ClaudeRevit.PaneTests -c Release -- pane-qa
+      - name: MCP transport checks (isolated HTTP and stdio clients)
+        run: dotnet run --project ClaudeRevit.McpTests -c Release
       - name: Upload Revit 2027 build
         uses: actions/upload-artifact@v4
         with:

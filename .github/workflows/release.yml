@@ -45,6 +45,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Unit tests failed" }
           dotnet run --project ClaudeRevit.PaneTests -c Release -- pane-qa
           if ($LASTEXITCODE -ne 0) { throw "Pane checks failed" }
+          dotnet run --project ClaudeRevit.McpTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw "MCP transport checks failed" }
 
       # One add-in DLL cannot load into every Revit: 2025/2026 host .NET 8, 2027 hosts
       # .NET 10. Build each supported version against its matching Revit API reference

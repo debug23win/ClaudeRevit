@@ -1,0 +1,5332 @@
+[
+  {
+    "Guid": "2c596d00-617a-4474-adb0-e6b66763695d",
+    "Name": "Арм.РазмерDelta",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4dad6601-cd2c-42e8-bf24-8d2d7e89053f",
+    "Name": "Ш.АбсОтметкаНуля",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "32989501-0d17-4916-8777-da950841c6d7",
+    "Name": "О_Масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Масса (в кг) семейства арматурной сетки, закладной детали",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "30bd3a02-c0c4-47f5-aa01-c55e79e2b62a",
+    "Name": "Пластина3вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "46f17103-1f87-4318-9f51-1111c69e3ef7",
+    "Name": "Вид.ВиденВезде",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Виды",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ec353104-09f1-44f4-85cf-1d638dce02d3",
+    "Name": "Рзм.ОтметкаВерха",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7e6d8905-bc85-4621-8403-f4d460411b89",
+    "Name": "Арм.КоэффициентНахлеста",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5d339c07-ab92-4787-93ef-2ad18822b93b",
+    "Name": "Ш.НомерИзменения",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d8924108-c08b-4f04-bbec-f896c1e7ea54",
+    "Name": "Мрк.Обозначение",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Нормативный документ элемента или ссылка на комплект чертежей",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4c184d08-e3aa-48b4-b6a6-f5b24d8d8627",
+    "Name": "Мсв.МассивДлина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "87ce1509-068e-400f-afab-75df889463c7",
+    "Name": "Мтрл.Название",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Материал",
+    "Description": "Краткое наименование материала",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8aedfc0a-159b-4ba4-9042-ba42536080b8",
+    "Name": "Арм.РазмерГ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр Г для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "750b510b-4034-403d-afa7-436272cffa36",
+    "Name": "Арм_К",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9555380c-63a7-4d4d-ae63-5c2bdb989f13",
+    "Name": "Вид.Подзаголовок",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Виды",
+    "Description": "Подзаголовок вида. Указывается в \"Параметрах проекта\" для \"Видов\", выводится в \"Заголовок видового экрана\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "15fff10c-85b9-4b5e-bba2-27c2c59a27ff",
+    "Name": "Пластина3колво",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "0c960e0e-aed3-4d4c-8e27-09127bfa98cb",
+    "Name": "Орг.НомерЭтажа",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8c01cd0e-d2d9-45e4-a360-ba7c3376ac0e",
+    "Name": "Мсв.МассивВысота",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d3035d0f-b738-4407-a0e5-30787b92fa49",
+    "Name": "АР_ПлощКвартиры",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Площадь квартиры без учёта \"летних\" помещений",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3aa2840f-b18e-4ca0-95bb-9784cc9b532f",
+    "Name": "Мрк.НаименованиеСоставноеПрефикс",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "748a2515-4cc9-4b74-9a69-339a8d65a212",
+    "Name": "Рзм.Длина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр длины элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3e5e3615-7f31-4464-93db-2e53bb3f99e2",
+    "Name": "КМ.ПозицияВедомостьЭлтов",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Номер позиции составного элемента сложного сечения в \"Ведомости элементов\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e4df4815-cf6f-4f51-a00a-8d39207e1996",
+    "Name": "Еdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра Е формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1b3b7d15-c6e4-4c22-b98e-7eaac29accfc",
+    "Name": "Ш.ИмяПроектаР",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b96d2e16-a62e-4a08-be9d-871eacd8c4e2",
+    "Name": "Пластина4вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8b5c1617-97df-4b39-85a9-b8753278dde1",
+    "Name": "Арм.РазмерА",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр А для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "71a30b18-135e-4e21-8952-372bcdfad4ef",
+    "Name": "Орг.ПодтипЭлемента",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a7397d18-200b-4659-b34c-3d8ae1c54317",
+    "Name": "Рзм.УголПоворота",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Угол поворота вложенного элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "66d79918-0298-41e7-a72e-bfb937c9547a",
+    "Name": "Арм.УказанияПоВыполнению",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4d1d1719-6bd9-4357-9378-a1d77871e0fd",
+    "Name": "Арм_В",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "28417d19-c0ca-4f90-b790-cc086cb3551e",
+    "Name": "Арм.КлассБетона",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется для вычисления коэффициента нахлеста погонажной арматуры.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4289cb19-9517-45de-9c02-5a74ebf5c86d",
+    "Name": "О_Единицы измерения",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Указывается для \"Материалов\", выводится при подсчете количества материалов. \"кг\", \"м\" и т.д.",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "182c731b-a5ac-41f0-a6ec-a401066e43b8",
+    "Name": "Мрк.МаркаПодтипа",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Суффикс марки, обозначающий особенности данной марки элемента, например, тип армирования.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9c98831b-9450-412d-b072-7d69b39f4029",
+    "Name": "О_Обозначение",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Нормативный документ или обозначение элемента",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d4a7bf1b-22d2-4d88-8033-ff2e3967ceec",
+    "Name": "Ш.ПримечаниеЛиста",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f178091c-440f-4b65-b83a-a13330ce3e26",
+    "Name": "Арм.НеИспользоватьМеткуОсновы",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bb67f21c-3436-4e0e-ae86-12a7b20567c9",
+    "Name": "Арм_H2",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "45ef1720-9cfe-49a7-b4d7-c67e4f7bd191",
+    "Name": "Орг.ТипВключатьВСпецификацию",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "В спецификацию не включаются элементы, для которых данный параметр отключен",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e8ec3123-30e0-489c-afa8-458d2380bf23",
+    "Name": "Пластина5колво",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "67ffce23-0abc-4393-8366-08c376476f30",
+    "Name": "Рзм.ОтметкаНизаДенЕд",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ed133e24-043d-4ee2-9568-1c1758a58554",
+    "Name": "Жdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "92ae0425-031b-40a9-8904-023f7389963b",
+    "Name": "Мрк.МаркаИзделия",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Марка сборочного изделия, входящего в состав конструкции (например, закладная деталь МН-1)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "cb542c25-233f-4180-8a02-8e0034c7f20a",
+    "Name": "Ш.СтадияПроекта",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5d7cb726-ac59-4f05-a902-8fdffa796d15",
+    "Name": "Мсв.Шаг",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "Шаг элементов в массиве",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4434f526-20f1-4514-a879-abac7ab6a11a",
+    "Name": "ЗД.МатериалСтержней",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8af44328-9c34-490d-a7da-430d456991ba",
+    "Name": "Мсв.КоличествоВысота",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f55ea02a-1d7c-4b19-8df7-9e8b1f4e8977",
+    "Name": "Рзм.КоординатаY",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "178e222b-903b-48f5-8bfc-b624cd67d13c",
+    "Name": "АР_ПлощКвЖилая",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Площадь жилых помещений квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e72df02b-bdcf-464b-81c8-3973d22fc4e3",
+    "Name": "Орг.НезаданныйПараметрДаНет",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Используется для получения пустой строки в спецификации",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "0954f62b-8ce0-4e75-b968-f44653dbb242",
+    "Name": "Арм_О",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "74b1142d-1fae-4be5-b45f-43329c8998c4",
+    "Name": "A",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f713b32d-2db3-418c-85ca-e2acf4392eae",
+    "Name": "Орг.ЗамечаниеКЛисту",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Заполняется при проверке листов. Выводится текстом красного цвета в углу листа. Листы, имеющие примечания, можно вывести в спецификацию и вынести на стартовый вид.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "75d41d2e-d5cd-45f4-bd3d-ff28b6a69547",
+    "Name": "Орг.ДиапазонПозиций",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "290eeb2e-ef2c-4eef-8fb4-dfb8e51efc99",
+    "Name": "Мсв.ШагДлина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1786432f-3c9e-47eb-acaf-c2b4d074d558",
+    "Name": "Емкость ач",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7d7b3933-e869-4f9e-ba11-0d5c91e87821",
+    "Name": "Арм.РазмерД",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр Д для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e1b06433-f527-403c-8986-af9a01e6be7f",
+    "Name": "Орг.КомплектЧертежей",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Шифр комплекта чертежей, в котором разработана данная конструкция",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "64aa0034-0c4d-400a-b048-d40e47637914",
+    "Name": "Арм_Ж",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b62d0a35-0f0f-432d-9d3d-e821093a7d02",
+    "Name": "Рзм.ДлинаБалкиИстинная",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Длина балки для вычисления массы. Используется как Параметр для отчета в семейсте балки",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b6192d35-d37c-4353-a41b-ea3ba67136f4",
+    "Name": "Ш.НомерКниги",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "07060536-d0ed-4237-8c05-afdb856b0de0",
+    "Name": "Ш.СквознойНомерЛиста",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "27814539-ea9c-450e-8fe5-961968ae65d1",
+    "Name": "Арм.ГоризКласс",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3644423a-f49d-422d-809e-e10647234f35",
+    "Name": "Проем_ТекстВысотаРасположения",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7ddfd93a-5a10-4996-a404-3724603e8fde",
+    "Name": "Пластина2материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c207e33d-e695-47ff-807b-9e5e3cc42e8f",
+    "Name": "НаименованиеВложенногоЭлемента",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "93591c3e-613a-4191-b0a6-93c4ca32bdf1",
+    "Name": "Мсв.ШагШирина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ba55593e-d70c-410c-ba60-6e935aa1c169",
+    "Name": "Арм_Д",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2b1c2c3f-123d-4b25-8096-86b8bb920ce1",
+    "Name": "Мрк.НаименованиеСоставноеДлина2",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "cf517041-f04b-4b79-8a5a-0b6da207f0fb",
+    "Name": "Мрк.НомерТипаАрмирования",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b6e73342-b6cd-42c5-86c5-64b04b5b88de",
+    "Name": "Ш.НомерЛиста",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "dc66a342-f44f-48e0-9ac5-3a05305459ea",
+    "Name": "Ш.ШифрПроектаП",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "cb870746-3115-41cb-9549-dd663c2e6e2b",
+    "Name": "Пластина4колво",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "476aa446-b9ab-4f3c-99ea-7d2740b0ed8b",
+    "Name": "Мрк.НаименованиеСоставноеДлина1",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "185a8347-00b4-480e-985d-649557c448af",
+    "Name": "Арм.РазмерБ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр Б для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d8841d49-a483-406a-b7c9-c8d3ceaf81b4",
+    "Name": "Арм_L",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9f5f7e49-616e-436f-9acc-5305f34b6933",
+    "Name": "Рзм.ВысотаБазовогоУровня",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Высота (отметка) уровня, на котором находится элемент",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "83c6264a-5865-49d0-8876-2c150631527f",
+    "Name": "Арм.НомерПодтипаФормы",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e8ce3a4c-1b9f-4cdf-a821-7c0195de5d2e",
+    "Name": "КМ.УсилиеQ",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Для указания нагрузки в \"Ведомости элементов\" КМ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "660d974c-e903-472e-b3cf-0593afd3e8e9",
+    "Name": "Орг.СтатусФайла",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "0 файл в работе, 1 является заданием, 2 передан заказчику",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e272db4c-88dc-4361-a507-1c256757d6d6",
+    "Name": "Рзм.Положение",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "510d0b4e-46b0-44c8-b0c5-f4cf862ea57b",
+    "Name": "Проем_Категория",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1814384e-a4e2-4e98-b47d-32e5b8200374",
+    "Name": "ЗД.МатериалПластины",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "641d3150-35da-4b3f-b513-27bba136fa26",
+    "Name": "Мрк.НаименованиеСоставноеДлина4",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bef64550-0992-4b59-a616-1acaa2e24065",
+    "Name": "Арм_Б",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b2459150-dab4-4db4-97cb-592e92a15fe0",
+    "Name": "Арм.ВертКласс",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2526e650-57a8-479d-8dbd-2be8d6953d11",
+    "Name": "Ш.ПрефиксИмениЛиста",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "21c75351-b7d9-420c-aee9-2c63aeacf0b4",
+    "Name": "Пластина5материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "af973552-3d15-48e3-aad8-121fe0dda34e",
+    "Name": "АР_ПлощКвОбщая",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Общая площадь квартиры с учетом коэффициента площади",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "559a2a53-7ccc-4dfd-8937-3ce279f8b4e1",
+    "Name": "Ш.ШифрПроектаР",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "fa8e7e53-356b-466f-b883-3860f6fe3024",
+    "Name": "ЗД.АнкернаяПластинаТолщина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a1c04654-fee3-403d-a0b6-88f31ccbe285",
+    "Name": "Рзм.ВычислениеДиаметраВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Параметр включен для круглых элементов и выключен для прямоугольных",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c1f70855-7f7b-43ea-873e-1df1604b6648",
+    "Name": "ЗД.КлассСталиПластины",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "215d6c56-3700-4db9-a5f5-53ec85b36daa",
+    "Name": "Орг.ЗонаРасположения",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d19ac356-e8e3-4449-98e3-7404aa3ce694",
+    "Name": "Арм.КодКонструктораФормы",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ba4ed356-94c2-4011-aed3-300dd714323b",
+    "Name": "Арм.РазмерAlpha",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр Alpha (угол) для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "99509457-fdd5-40cf-a4cd-522b20acdd64",
+    "Name": "Арм_Е",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "50fb7158-ba04-4294-95f0-f689e2ce4ac1",
+    "Name": "Орг.Цена",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a1b2ab58-d5e7-45bf-b811-2611101d7d4c",
+    "Name": "Мрк.ОбозначениеИзделия",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Нормативный документ на сборочное изделие (арматурную сетку, закладную деталь)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8fb5875a-787d-474b-897e-a1289a3d6fe0",
+    "Name": "Арм.МинимальнаяДлина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Стержни с длиной менее указанной будут всегда подсчитываться в погонных метрах (даже если отключен Рзм.ПогМетрыВкл)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a41aaf5b-e9e5-42f0-8a27-6f4bf7e9c9b2",
+    "Name": "АР_КолвоКомнат",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Количество жилых комнат в квартире",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a2985e5c-b28e-416a-acf6-7ab7e4ee6d86",
+    "Name": "АР_ИндексКвартиры",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Индекс квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "177d6e5c-d0ce-4460-87f2-e5f68e9365bf",
+    "Name": "ОВ_Высота",
+    "DataType": "HVAC_DUCT_SIZE",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "293f055d-6939-4611-87b7-9a50d0c1f50e",
+    "Name": "Рзм.Толщина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр толщины элемента (пластины, плиты)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5634805d-6a49-4051-ac97-634b571cf149",
+    "Name": "Рзм.ОтметкаНизаПлиты",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e5f1835d-2bba-453e-ab88-e4d84780bcb4",
+    "Name": "О_Объем",
+    "DataType": "VOLUME",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4b17025f-fb65-4c0b-a685-773e13754187",
+    "Name": "Орг.Раздел",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "921e0260-5bcf-4d8d-a494-c37742176556",
+    "Name": "Орг.ЧастьЗдания",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Часть здания, к которой принадлежит элемент.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b10d2260-5080-470d-be69-e136df3b45f6",
+    "Name": "Аdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра А формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "515dc061-93ce-40e4-859a-e29224d80a10",
+    "Name": "Рзм.СмещениеОтУровня",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Смещение элемента от уровня, на котором находится элемент",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "16182862-7e1a-4253-a615-5a9bc4cbc268",
+    "Name": "Арм.ЗащитныйСлой",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "af3d8e62-eead-418a-be27-00ad3f1214f7",
+    "Name": "Мрк.НаименованиеСоставноеРазделитель1",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "31881d64-b1c3-45d2-ab34-baf2ee3e74e4",
+    "Name": "Рзм.ТолщинаПолки",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Толщина полки сварного двутавра",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f2909964-3721-44fd-8ae5-0623181ce5b3",
+    "Name": "Орг.РасчетнаяСейсмичность",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "61e99e64-7cf7-4a26-8239-eb6769f330e0",
+    "Name": "Ш.ПроцентВыполнения",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "00aea264-0896-4ac8-9597-55830f6b69f3",
+    "Name": "Мсв.МассивШирина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "235e1a65-b813-4bc2-9325-d94476f793ef",
+    "Name": "Арм.ГоризШаг",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "18919865-7f2a-4c2f-82c3-25651816455d",
+    "Name": "Орг.ГлавнаяСборка",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Указать \"1\" для \"первого\" изделия в проекте. Далее по данному параметру выполняется подсчет \"на одно изделие\".",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "838bce65-10d8-426d-82c8-4392a81b9226",
+    "Name": "Профиль1масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d979a266-c540-434d-8574-f503ccbb72c1",
+    "Name": "О_МассаПогМетра",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Нормативная масса погонного метра элемента",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "10a0ba66-c1b5-400c-a9db-3ec7f8bccb63",
+    "Name": "Арм.РазмерR",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр радиуса дугообразного участка арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2d2d2567-9ce0-4fc5-8741-9cf6f796f2d8",
+    "Name": "Мрк.ПозАрмДлина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "90e72f67-6809-46c2-a649-a57a02f1415f",
+    "Name": "Рзм.ОтметкаВерхаДенЕд",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "82f1d967-0ffc-4b9f-866e-7e2f476cc952",
+    "Name": "КМ.УсилиеN",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Для указания нагрузки в \"Ведомости элементов\" КМ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2e9d3768-7428-491b-a0a4-ce2c3761ebc2",
+    "Name": "Арм.РазмерDоп",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр диаметра оправки для гнутой арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8e1b6868-383d-458f-9044-17f42abc29d7",
+    "Name": "Ш.КолвоУч1Текст",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3a607468-48bd-4bed-94f7-0adf14bf894e",
+    "Name": "ОВ_Ширина",
+    "DataType": "HVAC_DUCT_SIZE",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "88529a68-7b86-489c-9709-87a1da8a00f8",
+    "Name": "Арм_Л",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e2585a69-8dde-4819-899a-8474e071a8b2",
+    "Name": "Мрк.НаименованиеСоставноеРазделитель2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ceca0b6a-f3ec-470b-98e3-fe54e9c3c156",
+    "Name": "ЗД.КлассСталиСтержня",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3a90436a-91ef-4c31-9b90-3874d8822e55",
+    "Name": "Мсв.ШагВысота",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e756066c-669b-4aae-8bcf-22d1ca77ee26",
+    "Name": "Мрк.НаименованиеСоставноеЧисло1",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9eabf56c-a6cd-4b5c-a9d0-e9223e19ea3f",
+    "Name": "О_Этаж",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Этаж, на котором расположен элемент",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "810c026d-79ed-4f10-b45e-5db312ae43bb",
+    "Name": "Мрк.НаименованиеСоставноеДлина3",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4f7c696d-0dcb-4af6-b8ea-d5573406d7f1",
+    "Name": "Орг.НазваниеСпецификации",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Указать текст, который будет выводиться в Ведомость спецификаций для данного листа. ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "066eab6d-c348-4093-b0ca-1dfe7e78cb6e",
+    "Name": "АР_КоэффПлощади",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Коэффициент площади помещения (для балкона, лоджии и т.п.). Параметр для \"Квартирографии\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9c787d6e-ea73-41dc-948a-c4e6ab43ec03",
+    "Name": "Ш.ИмяЗдания",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "472aae70-4cd7-4b02-8903-0f5ba00791c1",
+    "Name": "Емкость втч",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8a907371-1cea-4b3c-a0ed-36dea03f131c",
+    "Name": "Рзм.ДлинаРезьбы",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Длина резьбы болта",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e1a5be71-fbd6-40c2-9357-d7ecdeb3cc92",
+    "Name": "Орг.ЭлементВторостепенный",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b3369c72-bf06-4164-822d-af9e987d9d76",
+    "Name": "Арм.Группа ВРС",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Группировка по строкам в Ведомости расхода стали",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9042ad72-3cab-4cb5-8110-1d91e06eafc9",
+    "Name": "Орг.УвеличениеСтроки",
+    "DataType": "MULTILINETEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "11e62474-f7dc-46f3-9f0f-31e36acac4b5",
+    "Name": "Ш.ДатаВыпуска",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b59a3474-a5f4-430a-b087-a20f1a4eb57e",
+    "Name": "О_НомерСекции",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Номер секции для многосекционного здания",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "398ea174-e0ef-4619-8db9-0b2c598d5206",
+    "Name": "Рзм.ТолщинаОсновы",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Параметр для отчета. Толщина основы в семействе \"на основе стены/пола\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8a58ad74-0e15-499b-bcaf-35b45cd7fc1f",
+    "Name": "Рзм.ОтметкаНиза",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "dd786476-2792-4c89-8a09-c052ccc84ca3",
+    "Name": "Пластина1масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "865e6b76-644c-41f1-b490-c4e4778890ef",
+    "Name": "Пластина3толщ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "743bc276-bfab-4b75-b258-cd8b97055082",
+    "Name": "Мрк.ПозАрмДиаметр",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8e525277-541f-4758-aae8-ae870f1142bc",
+    "Name": "Мрк.НаименованиеСоставноеЧисло2",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "18fb0579-1649-4f8f-a968-1bbf8217a4e4",
+    "Name": "Ш.ИмяПроектаП",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a3a4b079-785c-444f-a975-8f1cd988e87b",
+    "Name": "Профиль2материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c353cc79-d7c0-47f4-94ab-79d08b734684",
+    "Name": "Арм.ДлинаВыпуска",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "79831c7a-bcc3-4ead-9022-0f8e7020cadf",
+    "Name": "Рзм.ВыводитьДлину",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5c92d37a-f913-423f-95a6-6ce1d27b58e8",
+    "Name": "INGD_Номер этажа",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7243157b-714c-4447-bda3-3196e136280b",
+    "Name": "INGD_Группа конструкции",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "488b897c-746d-44c5-b98e-b4fcab07be07",
+    "Name": "Пластина2колво",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1a7ebe7d-ce19-475d-8e5b-403339832b0a",
+    "Name": "Профиль1материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6ca8be7d-c26e-4287-bef4-a95cbbccfe39",
+    "Name": "Рзм.ОтметкаРасположения",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Высотная отметка элемента, выводится в марку и спецификацию. Вычисляется в зависимости от параметров \"Высота базового уровня\" и \"Смещение от уровня\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c636457f-a004-4516-a09d-03278cd2a71e",
+    "Name": "Пластина3масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "32a47c7f-e91d-4a8e-bf24-927cb679b4d1",
+    "Name": "Арм.КлассЧисло",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Класс арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "451baa80-7503-48d3-8c39-ff293fe0bad9",
+    "Name": "Арм_R",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "556cd080-75e4-43e5-925c-216012a76d18",
+    "Name": "Ш.КолвоУч2Текст",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ca20fc81-0d69-487c-9755-f8043d9d38d6",
+    "Name": "Мрк.ТипКонструкции",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7b011a82-6ead-45ee-a188-7a7721dfb452",
+    "Name": "Орг.ГлавнаяДетальСборки",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Для работы с составными изделиями в КЖ. Определяет главный элементов с борке, по котором будет определяться количество сборок.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "dbe7f282-3606-44cf-ac51-0f274c34c07b",
+    "Name": "О_Материал обозначение",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Нормативный документ на материал. Добавляется для категории \"Материалы\"",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6d783384-4d42-47a3-8e95-c28df086885d",
+    "Name": "Гdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра Г формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7743e986-fcd9-4029-b960-71e522adccab",
+    "Name": "АР_ТипПомещения",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "1 жилое, 2 нежилое, 3 лоджия, 4 балкон, 5 общее",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b1f44b87-72c5-489d-ab95-97baf11dc582",
+    "Name": "Ш.НазваниеЗдания",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "93ddaf87-08af-4bb9-b48f-87994feec729",
+    "Name": "Арм_Г",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "640bb188-9da5-4b4d-adfa-92ff3c84f8c3",
+    "Name": "Принадлежность2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f49bf488-e8a4-4517-ac59-e5ea2093350d",
+    "Name": "Рзм.Радиус",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр радиуса элемента (например, радиуса загиба)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "580fe289-cfc3-4c0a-90c6-e25898dbf1d3",
+    "Name": "Орг.ВиденНаВсехВидахВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Используется как второй оператор в фильтре, скрывающем элемент. Фильтр не сработает, если параметр включен, элемент будет отображаться на всех видах",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ef154a8b-2bc1-40ad-81a7-1328ff28128e",
+    "Name": "Арм.РазмерGamma",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b05b848b-9173-48d5-8815-ce439bac9376",
+    "Name": "Мсв.КолвоНаПогМетрыВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e9abfb8b-cb2f-41f8-8280-983b4cece7f7",
+    "Name": "Пластина2вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4010438d-af8b-401c-b18c-3f51b022f9e9",
+    "Name": "Профиль2масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7026ca8e-32ef-4b70-91d1-ba0e15ab6988",
+    "Name": "Пластина1колво",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e44ced8e-6502-4492-90ed-a9277be479db",
+    "Name": "КМ.ТипЭлемента",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "0 сварное сечение, 1 ферма, 2 - прокатное сечение, 3 прокатное сечение с дополнительными элементами, 4 - вложенное семейство для балки/колонны, 5 - элемент фермы, 6 элемент узла металлоконструкций, 10 узел металлоконструкций",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9fd2ad8f-69f7-4d6e-9261-8d50de85ac9d",
+    "Name": "Арм.НомерФормы",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "46724e90-13af-4478-bda4-e6dc95541041",
+    "Name": "Ш.СуффиксИмениЛиста",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8f2e4f93-9472-4941-a65d-0ac468fd6a5d",
+    "Name": "Рзм.Ширина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр ширины элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8acf5993-d4b4-4e81-a4fd-e81050f83007",
+    "Name": "Пластина1вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b543b893-732a-40a9-9355-a489d3ce3a66",
+    "Name": "Рзм.ТолщинаПерекрытия",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "370b6194-7583-468e-aa4f-a571de52f976",
+    "Name": "КМ.ОбъемНизкойДетализацииВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Включает для балок вспомогательный объем, отображаемый в \"Низком\" уровне детализации (для разрезов КМ)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bdc3ec94-1d14-43b2-8f30-6d150efab751",
+    "Name": "Рзм.ДлинаБалкиАналитическая",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Длина балки по её аналитической оси. Равна стандартному параметру Длина",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "dc574e96-c663-45ee-890f-a43fee4a906e",
+    "Name": "Мсв.КоличествоПозиций",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "Количество строк (составных элементов), которое будет выделено в Ведомости элементов для данного составного сечения",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d473e596-ed81-4abf-b318-9c5cec539c26",
+    "Name": "Арм.РазмерВ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр В для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b2b8079a-ea92-4684-bb1e-43b208dad9ae",
+    "Name": "Арм.ОбъемБетона",
+    "DataType": "VOLUME",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bcbcac9a-58f2-429e-bac0-f9d823ef8043",
+    "Name": "Рзм.КорректировкаДлины",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "495d1e9c-2077-4035-be05-aa18c90edfa5",
+    "Name": "Пластина4материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "78e3b89c-eb68-4600-84a7-c523de162743",
+    "Name": "АР_ТипКвартиры",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Тип квартиры (\"евро\" и т.д.)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "fa80b19d-866f-40e3-85f3-0847d56825e0",
+    "Name": "Арм_М",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "18e3f49d-1315-415f-8359-8f045a7a8938",
+    "Name": "АР_ПлощПроемов",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f916699e-5b23-47bf-9b24-d0301f223d3d",
+    "Name": "КМ.ЗначокПрофиля",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "61a9c19f-cfd5-4529-ae0d-87d8cb4416d3",
+    "Name": "Орг.МассаПогМетра",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Масса погонного метра в килограммах",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a792ada0-6a07-48eb-86b6-8c0389a40419",
+    "Name": "Арм.ВертШаг",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4c70cba0-574b-49cb-b5fd-c0637073e720",
+    "Name": "АР_КатегорияПомещения",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Категория помещения по пожарной опасности в формате \"Г4\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6fe3d0a1-de04-4d1f-838e-05119ed9c37d",
+    "Name": "Пластина2масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f79a3ea2-7966-4ca6-9fb5-4626f8368872",
+    "Name": "Орг.ГруппаВедомостьРасходаБетона",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Группа ведомости расхода бетона",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8b5e61a2-b091-491c-8092-0b01a55d4f44",
+    "Name": "О_Материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Основной материал элемента",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "110767a3-d0f4-441b-b171-a675952f5215",
+    "Name": "О_МассаКг",
+    "DataType": "MASS",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ee3d34a4-e9e1-464a-9b9a-d034b0036a13",
+    "Name": "Арм.ВертДиаметр",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1aa8b1a4-19b8-4541-a8bc-f1df960b53cd",
+    "Name": "Пластина5вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "32ee43a5-ebb0-4ad8-b5f9-53423af783f8",
+    "Name": "Рзм.ПогМетрыИзделияВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c01c67a6-2e59-44a4-a49b-4564f0dbcf17",
+    "Name": "Мсв.КолвоНаПогМетр",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "Количество элементов на погонный метр элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7896dda6-439b-4997-ba83-bb212ece4fa4",
+    "Name": "Пластина2толщ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "cb12e6a6-5776-475a-b2e2-8343d70588a8",
+    "Name": "Мрк.МаркаИзделияВложенного",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ffd5b2a7-3613-4013-ab33-ae18647b7e98",
+    "Name": "Арм.ЭскизФормы",
+    "DataType": "IMAGE",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Растровое условное изображение формы стержня.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "14e630a8-bc4f-4556-9094-647e8f323f08",
+    "Name": "Рзм.Глубина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр глубины (отверстия, приямка)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "08025ba8-00ec-46b5-b00a-3c0ff42ca2d9",
+    "Name": "Ш.Этап проекта",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b73625a9-18cd-4d35-abba-4de2ce4aa3be",
+    "Name": "Мсв.КоличествоДлина",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "de129aa9-dae8-430d-8de8-f7f08388fcaa",
+    "Name": "Рзм.ТолщинаСтенки",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Толщина стенки сварного двутавра или подобного элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "87e71caa-21b2-42c9-bb26-4205c87ce769",
+    "Name": "Дdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра Д формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c2312aaa-9a49-4250-8a3c-7347643bb2d2",
+    "Name": "Ш.Участок проекта",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a4d54aaa-6132-4af4-84ce-8638096c9941",
+    "Name": "Арм_H1",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bc9541ac-e410-4431-a3aa-97c73cc636a5",
+    "Name": "Рзм.КоординатаZ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "68df3fae-3e98-429a-a168-1b6f7a1485b0",
+    "Name": "Орг.ИзделиеТипПодсчета",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Для работы с составными изделиями в КЖ. 1 стандартная арматура, 4 элемент закладной детали, 8 семейство арматурного каркаса, 16 семейство закладной детали",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "980ca0ae-3e75-4c4e-b9fc-d0fe58094f45",
+    "Name": "Пластина1толщ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ee8d35b0-e2d7-47b3-8b8a-adb31eedac30",
+    "Name": "Рзм.ПеременнаяДлина",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3601a2b2-2cdc-4e35-bb35-1de1737c45a8",
+    "Name": "Мрк.НаименованиеСоставноеТекст1",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8d057bb3-6ccd-4655-9165-55526691fe3a",
+    "Name": "О_Количество",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Для единичных элементов указать 1. Для элемента-массива (например массив стержней) - указывается количество. Выводится в спецификацию, заменяется параметр \"Число\"",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b5ef18b4-453e-49bd-b26c-dfb3bd3ca79c",
+    "Name": "Арм_А",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "aaea38b7-2a20-497c-af36-7f1261617260",
+    "Name": "Орг.СпособПодсчетаМассы",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "0 - не подсчитывать, 1 - МассаПогМетра * Длина, 2 - Длина*Ширина*Высота*7865, 3 - масса круглой стали или арматуры&#xD&#xA",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "fc0665b7-63dd-44f2-8805-558177eccfb1",
+    "Name": "Арм.ВыполненаСемейством",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Включен для всей арматуры, выполненной семейством. Отключен для стандартной арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9b679ab7-ea2e-49ce-90ab-0549d5aa36ff",
+    "Name": "Рзм.Диаметр",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр диаметра круглого элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "10e067b9-6393-4b97-b43f-87df55aea89b",
+    "Name": "Пластина4масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8887b9ba-e0ab-4af6-9a9a-329fc9046ffb",
+    "Name": "Рзм.ДлинаИзделия",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "df23d8ba-63f9-4d13-94ea-30de54c1535a",
+    "Name": "Орг.ПодтипЭлементаОпалубка",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f4e10dbb-3a1c-4567-972d-b36679e122ad",
+    "Name": "Бdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра Б формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5535aebb-2220-4b0f-ac74-4e06a89b677e",
+    "Name": "Мрк.ТипАрмирования",
+    "DataType": "FAMILYTYPE",
+    "DataCategory": "-2009030",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "04b660bc-fb71-43ac-91b2-3f938e7ad0db",
+    "Name": "Арм.РазмерЕ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Параметр Е для ведомости деталей. Используется в семействах арматуры, при необходимости - в форме арматуры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "751d12bd-001a-4dbf-9de9-a955f3f34b70",
+    "Name": "Арм.ОкруглениеДлины",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "67196bbe-5d51-4d4d-983d-4788bcc9f557",
+    "Name": "Ш.ОтметкаНуляПроекта",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6927adbe-28a2-4ed8-af17-1a842901e8a8",
+    "Name": "ЗД.АнкерныеПластиныВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3f1997bf-44b2-4ca2-8ffa-35daa7aadb45",
+    "Name": "Мрк.ПозАрматурыПМ",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "b02810c0-0794-4b4c-be80-ecf19d28c96e",
+    "Name": "Пластина1материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "dce379c0-5e32-4695-b16a-d76ef0100172",
+    "Name": "Арм.ПрефиксФормы",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "84e2dbc0-2cb9-4c61-8739-0d8ca8ff30eb",
+    "Name": "Профиль1вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "77f8edc0-929c-4865-9d51-2055cc6d78bf",
+    "Name": "Пластина5толщ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2f9abac5-9608-4bb6-b509-d75b738777cf",
+    "Name": "Арм.ЭскизВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется для включения стержня в ведомость деталей",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "94f4b9c6-e264-4d9d-96f2-7fc0dde5e14b",
+    "Name": "Ш.КолвоУч4Текст",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d6888dc7-7a03-40c3-9ac2-ab300c4e2c0a",
+    "Name": "Рзм.ДиаметрИзделия",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Диаметр круглого составного элемента",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f1314dc8-abb2-477c-bfb6-b096760b90c1",
+    "Name": "КМ.ГруппаКонструкций",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "1 балки, 2 колонны, 3 связи, 4 фермы, 5 фахверк и тд",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "713f05ca-21a6-4531-954f-8c173deccfe4",
+    "Name": "Арм.РазмерBeta",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8bba29ca-bedb-4ade-b820-85c1798bc6f5",
+    "Name": "КМ.УсилиеM",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Для указания нагрузки в \"Ведомости элементов\" КМ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "794aa0cb-ad8b-4d12-b2c0-577b12f09147",
+    "Name": "Назначение уровня",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "Управление видимостью уровня в зависимости от принадлежности его к номеру строения",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "10973dcd-c6d6-4401-adcf-6fb5e13118f2",
+    "Name": "Пластина3материал",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "174944cd-7195-4b2b-9c01-ad489b1da64c",
+    "Name": "Ш.КолвоУч3Текст",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "aa7ed8cd-ae58-47d3-8812-11c8eb4c7d1f",
+    "Name": "Орг.ГруппаВида",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e6e0f5cd-3e26-485b-9342-23882b20eb43",
+    "Name": "О_Наименование",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Наименование элемента. Заменяет Мрк.Наименование",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "56585fce-4685-4056-b3dd-cdf6bca936c9",
+    "Name": "Арм.КоэффЗапасаДляПогМетров",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "cb7addce-59df-42b0-b23d-e9254f9a228b",
+    "Name": "Профиль2имя",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "97991dcf-b619-4ba6-ba5b-72a5144686e2",
+    "Name": "Мрк.НомерМарки",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "098420cf-d8fe-4c71-939b-fc441b9ffcae",
+    "Name": "Арм_И",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "f75569cf-532f-4abf-833c-69152bcb19d7",
+    "Name": "Проем_ВклВСпецификацию",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "afdebad1-9e95-4411-8fb4-1bd612eccacb",
+    "Name": "Мрк.ОбозначениеМатериала",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Текстовое обозначение материала металлопроката, например \"С245 ГОСТ 27772-88\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "0a80a6d4-9571-4df6-9677-03211e72047a",
+    "Name": "W",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9e4e68d8-4ba8-4973-8749-c5503470183c",
+    "Name": "КМ.ПодрезкаШирина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "8234c5d9-5559-497e-9ece-18216271905c",
+    "Name": "Мсв.КоличествоШирина",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1b68c3da-54a4-4845-bd23-a3b5508259bd",
+    "Name": "КМ.ПодрезкаДлина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "737df5da-0a88-43cb-94be-fb38179a57a5",
+    "Name": "Орг.МножительКоличества",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Используется в случае, когда элемент размещается в единственном экземпляра, а общее количество подсчитывается без моделирования.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ea936fdb-ad81-48e5-97d9-d5d4a2ece334",
+    "Name": "Мрк.Наименование",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "10fb72de-237e-4b9c-915b-8849b8907695",
+    "Name": "АР_НомерКвартиры",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Номер квартиры. ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6c6db2df-e250-4496-8d1b-a46e4c220b5f",
+    "Name": "О_Позиция",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "Позиция элемента в спецификации. Заменяет встроенный параметр Маркировка",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ecaa2ee0-fac1-4b5a-9fd4-164086d62fd2",
+    "Name": "Профиль1имя",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "69890ae1-d66e-4fe9-aced-024c27719f53",
+    "Name": "АР_НомерПомещенияКвартиры",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "АР",
+    "Description": "Номер помещения квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "844a01e2-19fc-4dc5-baa0-a4bda30ef1f6",
+    "Name": "Рзм.ПогМетрыВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Параметр включен для элементов, длина которых должна вычисляться в погонных метрах, выключен для штучных элементов",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "452c53e2-ea49-417b-a19d-dd91e268d093",
+    "Name": "Орг.ИдентификаторОсновы",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "da753fe3-ecfa-465b-9a2c-02f55d0c2ff1",
+    "Name": "Рзм.Высота",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Стандартный параметр высоты (сечения, элемента и т.д.)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e7a37be3-cc1d-48c1-99f7-e7a748f2f960",
+    "Name": "Орг.МножительВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "68e483e3-4c06-494b-979e-4958d44d6f71",
+    "Name": "Орг.НомерЛистаЭлемента",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Номер листа, на котором разработан элемент или конструкция",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "bad14be7-6495-4147-a121-d11ece8907b0",
+    "Name": "Мрк.НаименованиеСоставноеТекст3",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "6b5e79e7-aa4b-4459-b89b-5f65059fb920",
+    "Name": "Рзм.ТолщинаПлиты",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Параметр для отчета. Толщина перекрытия в семействе \"На основе пола\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1ae3d7e8-1270-4bd2-9144-10192a604b4a",
+    "Name": "Орг.ГлавноеВложенноеИзделие",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "699d63e9-41fa-4cac-95b6-e5d6db0a3263",
+    "Name": "Мрк.НаименованиеСоставноеЧисло3",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "25b6c2e9-3212-4e48-a187-201a777929e6",
+    "Name": "Пластина5масса",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a2243bea-9a39-4269-bc07-c323ffc6f513",
+    "Name": "Рзм.КоординатаX",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3af62dec-67c7-44a4-a678-7b3bf4b7d6a0",
+    "Name": "КМ.ЭскизСечения",
+    "DataType": "IMAGE",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Растровое условное изображение составного сечения металлоконструкции",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "1e273bec-8d8b-426c-bbd2-cea2ac71142b",
+    "Name": "Арм.ГоризДиаметр",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "48fbbced-b848-4a55-9f48-154f582579f1",
+    "Name": "Мрк.НаименованиеСоставноеСуффикс",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "a741d0ef-64f4-4d23-a58c-73745c1efd4a",
+    "Name": "Мрк.МаркаИзделияРодительского",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "04a3edef-d1f7-49c5-8bb8-204773faef30",
+    "Name": "Мсв.ДоборныйВкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Массивы и количество",
+    "Description": "Добавлять в конце массива элемент с доборным шагом",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "356b1df0-d24b-4764-adf7-f346b0be2af9",
+    "Name": "Арм_Н",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Параметры гнутой арматуры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "706480f0-26bf-4902-b349-6501395eda8c",
+    "Name": "Напряжение",
+    "DataType": "ELECTRICAL_POTENTIAL",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c43fa9f2-df70-412d-aa0b-2c6106d5d7c0",
+    "Name": "Орг.НаименованиеПрофиля",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Параметры для КМ",
+    "Description": "Например - \"Двутавры горячекатанные по СТО АСЧМ 20-93\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "c7d12ef3-0f17-4e28-b47f-a977ec1a8192",
+    "Name": "Ш.ОписаниеИзменения",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Штамп и информация о проекте",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "41f591f5-4ea5-4682-b866-1dd8a2704678",
+    "Name": "Орг.ДиапазонПозиций2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2865b3f5-d7b6-4b34-a996-b7bfe677de7c",
+    "Name": "Орг.ПроцентВыполнения",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Указывается вручную на листе. По данному параметру можно отслеживать прогресс выполнения проекта",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "2181def5-6b65-4635-b0e1-83f9d70c9f3d",
+    "Name": "Вdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Арматура",
+    "Description": "Используется как замена стандартного параметра В формы арматуры, в случае если данный параметр не требуется выводить в ведомость",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "09675ef6-7f49-454f-acf0-145efd093ae2",
+    "Name": "Профиль2вкл",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "448bfef6-8e2d-42d2-8c9e-5c1d50e62f1d",
+    "Name": "Орг.Стадия_раздел_код",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Экспортированные параметры",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3e8a07f7-fc58-4c4b-8b94-f1138d543cdb",
+    "Name": "Орг.Уровень",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Организация проекта",
+    "Description": "Уровень или этап возведения конструкции",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "ad8426f8-7756-48fd-a729-a14b7ac0a47d",
+    "Name": "ЗД.АнкернаяПластинаШирина",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Закладные детали",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "7f68f2f8-5f13-485a-98fc-3243cee30f63",
+    "Name": "Мрк.МаркаСтадииП",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Марка конструкции, используемая в стадии П. Указывается \"по типу\".",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "9e7310f9-6100-41d4-aba0-df76a5b7f32b",
+    "Name": "Мрк.НаименованиеИзделия",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "\"Каркас\", \"Сетка\", \"Закладная деталь\" и т.д.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "d52166f9-0c7e-479e-a0ee-b07877f2e87a",
+    "Name": "Рзм.ТолщинаСтены",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Размеры",
+    "Description": "Параметр для отчета. Толщина перекрытия в семействе \"На основе стены\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "e6e4bdf9-cec1-4b4d-8a08-89aa2f668931",
+    "Name": "Мрк.НаименованиеСоставноеТекст2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Составная маркировка",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "3d2206fb-fefa-46b2-9257-086848069939",
+    "Name": "Пластина4толщ",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Условные узлы",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "5d369dfb-17a2-4ae2-a1a1-bdfc33ba7405",
+    "Name": "Мрк.МаркаКонструкции",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Маркировка",
+    "Description": "Марка конструкции, включающей в себя изделия и элементы (например стена Стм-1)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "86d9bdff-680f-499d-b4fe-3c15bd427464",
+    "Name": "О_Материал тип подсчета",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Параметры из стандарта ADSK",
+    "Description": "1-подсчет длины, 2-подсчет площади, 3-подсчет объема, 4-подсчет массы",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020.txt"
+  },
+  {
+    "Guid": "4dad6601-cd2c-42e8-bf24-8d2d7e89053f",
+    "Name": "Mng.ZeroLevelAbsElevation",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "32989501-0d17-4916-8777-da950841c6d7",
+    "Name": "Cmn_Weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "Масса (в кг) семейства арматурной сетки, закладной детали",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "30bd3a02-c0c4-47f5-aa01-c55e79e2b62a",
+    "Name": "Plate3on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ec353104-09f1-44f4-85cf-1d638dce02d3",
+    "Name": "Dim.TopElevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7e6d8905-bc85-4621-8403-f4d460411b89",
+    "Name": "Rbr.OverlapCoeff",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "5d339c07-ab92-4787-93ef-2ad18822b93b",
+    "Name": "Sch.RevisionNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "87ce1509-068e-400f-afab-75df889463c7",
+    "Name": "Mrk.MaterialTitle",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "Material short title",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "750b510b-4034-403d-afa7-436272cffa36",
+    "Name": "Rbr_K",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9555380c-63a7-4d4d-ae63-5c2bdb989f13",
+    "Name": "View.Subtitle",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Views",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "15fff10c-85b9-4b5e-bba2-27c2c59a27ff",
+    "Name": "Plate3count",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "0c960e0e-aed3-4d4c-8e27-09127bfa98cb",
+    "Name": "Mng.FloorNumber",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d3035d0f-b738-4407-a0e5-30787b92fa49",
+    "Name": "Arch_FlatArea",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Площадь квартиры без учёта \"летних\" помещений",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3aa2840f-b18e-4ca0-95bb-9784cc9b532f",
+    "Name": "Mrk.CombinedMarkPrefix",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "748a2515-4cc9-4b74-9a69-339a8d65a212",
+    "Name": "Dim.Length",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3e5e3615-7f31-4464-93db-2e53bb3f99e2",
+    "Name": "Mtl.ScheduleElementNumber",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "Number of profile subelement in the Elements Schedule",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e4df4815-cf6f-4f51-a00a-8d39207e1996",
+    "Name": "Fdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b96d2e16-a62e-4a08-be9d-871eacd8c4e2",
+    "Name": "Plate4on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "71a30b18-135e-4e21-8952-372bcdfad4ef",
+    "Name": "Mng.ElementSubtype",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a7397d18-200b-4659-b34c-3d8ae1c54317",
+    "Name": "Dim.RotationAngle",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "66d79918-0298-41e7-a72e-bfb937c9547a",
+    "Name": "Rbr.Instruction",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "4d1d1719-6bd9-4357-9378-a1d77871e0fd",
+    "Name": "Rbr_C",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "28417d19-c0ca-4f90-b790-cc086cb3551e",
+    "Name": "Rbr.ConcreteClass",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "Используется для вычисления коэффициента нахлеста погонажной арматуры.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "4289cb19-9517-45de-9c02-5a74ebf5c86d",
+    "Name": "Cmn_Units",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8268301b-d444-41d7-9281-bdbe7f304a08",
+    "Name": "Rbr.AdditionalIntervalVertical",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "182c731b-a5ac-41f0-a6ec-a401066e43b8",
+    "Name": "Mrk.SubtypeMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "Суффикс марки, обозначающий особенности данной марки элемента, например, тип армирования.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9c98831b-9450-412d-b072-7d69b39f4029",
+    "Name": "Cmn_Document",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d4a7bf1b-22d2-4d88-8033-ff2e3967ceec",
+    "Name": "Sch.SheetDescription",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f178091c-440f-4b65-b83a-a13330ce3e26",
+    "Name": "Rbr.DontUseHostMark",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bb67f21c-3436-4e0e-ae86-12a7b20567c9",
+    "Name": "Rbr_H2",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e8ec3123-30e0-489c-afa8-458d2380bf23",
+    "Name": "Plate5count",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "67ffce23-0abc-4393-8366-08c376476f30",
+    "Name": "Dim.BottomElevAsCurrency",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ed133e24-043d-4ee2-9568-1c1758a58554",
+    "Name": "Gdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "92ae0425-031b-40a9-8904-023f7389963b",
+    "Name": "Mrk.ProductMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "Mark for rebar frame or embedded detail",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "cb542c25-233f-4180-8a02-8e0034c7f20a",
+    "Name": "Sch.ProjectStage",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "5d7cb726-ac59-4f05-a902-8fdffa796d15",
+    "Name": "Arr.Interval",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Arrays",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f55ea02a-1d7c-4b19-8df7-9e8b1f4e8977",
+    "Name": "Dim.CoordinateY",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "178e222b-903b-48f5-8bfc-b624cd67d13c",
+    "Name": "Arch_FlatLivingArea",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Площадь жилых помещений квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "85aa552b-4a1c-43a3-9ef3-861e853e3b66",
+    "Name": "Mng.GridBlockName",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e72df02b-bdcf-464b-81c8-3973d22fc4e3",
+    "Name": "Mng.UnsetCheckboxParameter",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "For empty cells in schedules",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f713b32d-2db3-418c-85ca-e2acf4392eae",
+    "Name": "Sch.SheetNote",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "75d41d2e-d5cd-45f4-bd3d-ff28b6a69547",
+    "Name": "Mrk.PositionsRange",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b5675d33-fade-46b1-921b-0cab8eec101e",
+    "Name": "Mtrl.Code",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Material",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e1b06433-f527-403c-8986-af9a01e6be7f",
+    "Name": "Mng.SheetComplect",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "64aa0034-0c4d-400a-b048-d40e47637914",
+    "Name": "Rbr_G",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b62d0a35-0f0f-432d-9d3d-e821093a7d02",
+    "Name": "Dim.BeamTrueLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "07060536-d0ed-4237-8c05-afdb856b0de0",
+    "Name": "Sch.EndToEndNumber",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "27814539-ea9c-450e-8fe5-961968ae65d1",
+    "Name": "RbrWall.HorizontalClass",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3644423a-f49d-422d-809e-e10647234f35",
+    "Name": "Dim.ElevPointText",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7ddfd93a-5a10-4996-a404-3724603e8fde",
+    "Name": "Plate2material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ba55593e-d70c-410c-ba60-6e935aa1c169",
+    "Name": "Rbr_E",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "2b1c2c3f-123d-4b25-8096-86b8bb920ce1",
+    "Name": "Mrk.CombinedMarkLength2",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "cf517041-f04b-4b79-8a5a-0b6da207f0fb",
+    "Name": "Mrk.ReinforcementTypeNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "cb870746-3115-41cb-9549-dd663c2e6e2b",
+    "Name": "Plate3count",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "476aa446-b9ab-4f3c-99ea-7d2740b0ed8b",
+    "Name": "Mrk.CombinedMarkLength1",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d8841d49-a483-406a-b7c9-c8d3ceaf81b4",
+    "Name": "Rbr_L",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9f5f7e49-616e-436f-9acc-5305f34b6933",
+    "Name": "Dim.BaseLevelElevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Height (elevation) of element's base level",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "83c6264a-5865-49d0-8876-2c150631527f",
+    "Name": "Rbr.FormSubtypeNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e8ce3a4c-1b9f-4cdf-a821-7c0195de5d2e",
+    "Name": "Mtl.Qforce",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e272db4c-88dc-4361-a507-1c256757d6d6",
+    "Name": "Dim.Position",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "641d3150-35da-4b3f-b513-27bba136fa26",
+    "Name": "Mrk.CombinedMarkLength4",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bef64550-0992-4b59-a616-1acaa2e24065",
+    "Name": "Rbr_B",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b2459150-dab4-4db4-97cb-592e92a15fe0",
+    "Name": "RbrWall.VerticalClass",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "21c75351-b7d9-420c-aee9-2c63aeacf0b4",
+    "Name": "Plate5material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "af973552-3d15-48e3-aad8-121fe0dda34e",
+    "Name": "Arch_FlatAreaSum",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Общая площадь квартиры с учетом коэффициента площади",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a1c04654-fee3-403d-a0b6-88f31ccbe285",
+    "Name": "Dim.DetailIsRound",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Parameter is on for Rounded element and off for Rectangular",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "215d6c56-3700-4db9-a5f5-53ec85b36daa",
+    "Name": "Mng.PlacementZone",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ba4ed356-94c2-4011-aed3-300dd714323b",
+    "Name": "Rbr.DimensionAlpha",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "99509457-fdd5-40cf-a4cd-522b20acdd64",
+    "Name": "Rbr_F",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f59a6e58-2d28-4e37-9e85-f5565939c6f1",
+    "Name": "Mrk.ColumnLocationMarker",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a1b2ab58-d5e7-45bf-b811-2611101d7d4c",
+    "Name": "Mrk.ProductDocument",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "Нормативный документ на сборочное изделие (арматурную сетку, закладную деталь)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8fb5875a-787d-474b-897e-a1289a3d6fe0",
+    "Name": "Rbr.MinimumLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "Стержни с длиной менее указанной будут всегда подсчитываться в погонных метрах (даже если отключен Рзм.ПогМетрыВкл)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a41aaf5b-e9e5-42f0-8a27-6f4bf7e9c9b2",
+    "Name": "Arch_FlatRoomsCount",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Количество жилых комнат в квартире",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a2985e5c-b28e-416a-acf6-7ab7e4ee6d86",
+    "Name": "Arch_FlatIndex",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Индекс квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "293f055d-6939-4611-87b7-9a50d0c1f50e",
+    "Name": "Dim.Thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "5634805d-6a49-4051-ac97-634b571cf149",
+    "Name": "Dim.SlabBottomElevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e5f1835d-2bba-453e-ab88-e4d84780bcb4",
+    "Name": "Cmn_Volume",
+    "DataType": "VOLUME",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "402e665e-0c94-45ee-b568-d633fea4999a",
+    "Name": "Rbr.HalfIntervalHeightTop",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "4b17025f-fb65-4c0b-a685-773e13754187",
+    "Name": "Mng.Discipline",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "921e0260-5bcf-4d8d-a494-c37742176556",
+    "Name": "Mng.BuildingPart",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b10d2260-5080-470d-be69-e136df3b45f6",
+    "Name": "Adef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "515dc061-93ce-40e4-859a-e29224d80a10",
+    "Name": "Dim.OffsetFromLevel",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "16182862-7e1a-4253-a615-5a9bc4cbc268",
+    "Name": "Rbr.CoverDistance",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "af3d8e62-eead-418a-be27-00ad3f1214f7",
+    "Name": "Mrk.CombinedMarkSeparator1",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "61e99e64-7cf7-4a26-8239-eb6769f330e0",
+    "Name": "Sch.PercentComplete",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "235e1a65-b813-4bc2-9325-d94476f793ef",
+    "Name": "RbrWall.HorizontalInterval",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "838bce65-10d8-426d-82c8-4392a81b9226",
+    "Name": "Profile1weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d979a266-c540-434d-8574-f503ccbb72c1",
+    "Name": "Cmn_WeightPerMeter",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "10a0ba66-c1b5-400c-a9db-3ec7f8bccb63",
+    "Name": "Rbr.DimensionR",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "90e72f67-6809-46c2-a649-a57a02f1415f",
+    "Name": "Dim.TopElevAsCurrency",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "82f1d967-0ffc-4b9f-866e-7e2f476cc952",
+    "Name": "Mtl.Nforce",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "2e9d3768-7428-491b-a0a4-ce2c3761ebc2",
+    "Name": "Rbr.DimensionBendDiameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8e1b6868-383d-458f-9044-17f42abc29d7",
+    "Name": "Sch.RevisionsCount1",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e2585a69-8dde-4819-899a-8474e071a8b2",
+    "Name": "Mrk.CombinedMarkSeparator2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e756066c-669b-4aae-8bcf-22d1ca77ee26",
+    "Name": "Mrk.CombinedMarkNumber1",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9eabf56c-a6cd-4b5c-a9d0-e9223e19ea3f",
+    "Name": "Cmn_Floor",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "810c026d-79ed-4f10-b45e-5db312ae43bb",
+    "Name": "Mrk.CombinedMarkLength3",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "066eab6d-c348-4093-b0ca-1dfe7e78cb6e",
+    "Name": "Arch_RoomAreaCoeff",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Коэффициент площади помещения (для балкона, лоджии и т.п.). Параметр для \"Квартирографии\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6b55616e-dc8a-405d-bb7f-47c49d68e9d3",
+    "Name": "Rbr.HalfIntervalHeightBottom",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9c787d6e-ea73-41dc-948a-c4e6ab43ec03",
+    "Name": "Sch.ProjectName",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e1a5be71-fbd6-40c2-9357-d7ecdeb3cc92",
+    "Name": "Mng.ElementIsSecondary",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b3369c72-bf06-4164-822d-af9e987d9d76",
+    "Name": "Rbr.ScheduleGroup",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "Separate rows in the rebar schedule",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "11e62474-f7dc-46f3-9f0f-31e36acac4b5",
+    "Name": "Sch.Date",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b59a3474-a5f4-430a-b087-a20f1a4eb57e",
+    "Name": "Cmn_SectionNumber",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "398ea174-e0ef-4619-8db9-0b2c598d5206",
+    "Name": "Dim.HostThickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8a58ad74-0e15-499b-bcaf-35b45cd7fc1f",
+    "Name": "Dim.BottomElevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "dd786476-2792-4c89-8a09-c052ccc84ca3",
+    "Name": "Plate1weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "865e6b76-644c-41f1-b490-c4e4778890ef",
+    "Name": "Plate3thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "743bc276-bfab-4b75-b258-cd8b97055082",
+    "Name": "Mrk.CombinedMarkDiameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8e525277-541f-4758-aae8-ae870f1142bc",
+    "Name": "Mrk.CombinedMarkNumber2",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a3a4b079-785c-444f-a975-8f1cd988e87b",
+    "Name": "Profile2material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "c353cc79-d7c0-47f4-94ab-79d08b734684",
+    "Name": "RbrWall.FreeLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "79831c7a-bcc3-4ead-9022-0f8e7020cadf",
+    "Name": "Dim.ShowLength",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "488b897c-746d-44c5-b98e-b4fcab07be07",
+    "Name": "Plate2count",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "1a7ebe7d-ce19-475d-8e5b-403339832b0a",
+    "Name": "Profile1material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6ca8be7d-c26e-4287-bef4-a95cbbccfe39",
+    "Name": "Dim.Elevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Elevation of element from the projet zero level",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "c636457f-a004-4516-a09d-03278cd2a71e",
+    "Name": "Plate2weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "32a47c7f-e91d-4a8e-bf24-927cb679b4d1",
+    "Name": "Rbr.ProfileCode",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "451baa80-7503-48d3-8c39-ff293fe0bad9",
+    "Name": "Rbr_R",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "556cd080-75e4-43e5-925c-216012a76d18",
+    "Name": "Sch.RevisionsCount2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ca20fc81-0d69-487c-9755-f8043d9d38d6",
+    "Name": "Mrk.ConstructionType",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7b011a82-6ead-45ee-a188-7a7721dfb452",
+    "Name": "Mng.AssemblyMainDetail",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "Determine main element in an assembly or a complex family",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "dbe7f282-3606-44cf-ac51-0f274c34c07b",
+    "Name": "Cmn_MaterialDocument",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7f68a083-6ff6-4414-8125-82b0af1fb3d5",
+    "Name": "Mrk.CombinedMarkSeparator3",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6d783384-4d42-47a3-8e95-c28df086885d",
+    "Name": "Ddef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7743e986-fcd9-4029-b960-71e522adccab",
+    "Name": "Arch_RoomType",
+    "DataType": "CURRENCY",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "1 жилое, 2 нежилое, 3 лоджия, 4 балкон, 5 общее",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b1f44b87-72c5-489d-ab95-97baf11dc582",
+    "Name": "Sch.BuildingName",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "93ddaf87-08af-4bb9-b48f-87994feec729",
+    "Name": "Rbr_D",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f49bf488-e8a4-4517-ac59-e5ea2093350d",
+    "Name": "Dim.Radius",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b05b848b-9173-48d5-8815-ce439bac9376",
+    "Name": "Arr.CountPerMeterOn",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Arrays",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e9abfb8b-cb2f-41f8-8280-983b4cece7f7",
+    "Name": "Plate2on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "4010438d-af8b-401c-b18c-3f51b022f9e9",
+    "Name": "Profile2weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7026ca8e-32ef-4b70-91d1-ba0e15ab6988",
+    "Name": "Plate1count",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e44ced8e-6502-4492-90ed-a9277be479db",
+    "Name": "Mtl.TypeOfElement",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d8c9648f-47e4-473c-a3f7-e89c51d3588d",
+    "Name": "Cmn.BuildingSection",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "Параметр назначения секции элементу в модели",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9fd2ad8f-69f7-4d6e-9261-8d50de85ac9d",
+    "Name": "Rbr.FormNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8f2e4f93-9472-4941-a65d-0ac468fd6a5d",
+    "Name": "Dim.Width",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8acf5993-d4b4-4e81-a4fd-e81050f83007",
+    "Name": "Plate1on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b543b893-732a-40a9-9355-a489d3ce3a66",
+    "Name": "Dim.SlabHeight",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bdc3ec94-1d14-43b2-8f30-6d150efab751",
+    "Name": "Dim.BeamAnalyticalLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Equals to the builtin Length parameter",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b2b8079a-ea92-4684-bb1e-43b208dad9ae",
+    "Name": "Rbr.ConcreteVolume",
+    "DataType": "VOLUME",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bcbcac9a-58f2-429e-bac0-f9d823ef8043",
+    "Name": "Dim.LengthCorrection",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "495d1e9c-2077-4035-be05-aa18c90edfa5",
+    "Name": "Plate4material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "78e3b89c-eb68-4600-84a7-c523de162743",
+    "Name": "Arch_FlatType",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Тип квартиры (\"евро\" и т.д.)",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "18e3f49d-1315-415f-8359-8f045a7a8938",
+    "Name": "Arch_OpeningsArea",
+    "DataType": "AREA",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f916699e-5b23-47bf-9b24-d0301f223d3d",
+    "Name": "Mtl.ProfileSymbol",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "61a9c19f-cfd5-4529-ae0d-87d8cb4416d3",
+    "Name": "Mng.WeightPerMeter",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a792ada0-6a07-48eb-86b6-8c0389a40419",
+    "Name": "RbrWall.VerticalInterval",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "4c70cba0-574b-49cb-b5fd-c0637073e720",
+    "Name": "Arch_RoomCategory",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Категория помещения по пожарной опасности в формате \"Г4\"",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6fe3d0a1-de04-4d1f-838e-05119ed9c37d",
+    "Name": "Plate2weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f79a3ea2-7966-4ca6-9fb5-4626f8368872",
+    "Name": "Mng.ConcreteGroup",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "Invisible parameter for separating concrete elements in the material schedule",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8b5e61a2-b091-491c-8092-0b01a55d4f44",
+    "Name": "Cmn_Material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "110767a3-d0f4-441b-b171-a675952f5215",
+    "Name": "Cmn_WeightKg",
+    "DataType": "MASS",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ee3d34a4-e9e1-464a-9b9a-d034b0036a13",
+    "Name": "RbrWall.VerticalDiameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "1aa8b1a4-19b8-4541-a8bc-f1df960b53cd",
+    "Name": "Plate5on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "32ee43a5-ebb0-4ad8-b5f9-53423af783f8",
+    "Name": "Dim.ProductSummaryLengthOn",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "c01c67a6-2e59-44a4-a49b-4564f0dbcf17",
+    "Name": "Arr.CountPerMeter",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Arrays",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "7896dda6-439b-4997-ba83-bb212ece4fa4",
+    "Name": "Plate2thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "cb12e6a6-5776-475a-b2e2-8343d70588a8",
+    "Name": "Mrk.NestedProductMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ffd5b2a7-3613-4013-ab33-ae18647b7e98",
+    "Name": "Rbr.FormSketch",
+    "DataType": "IMAGE",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "Растровое условное изображение формы стержня.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "de129aa9-dae8-430d-8de8-f7f08388fcaa",
+    "Name": "Dim.BeamWallThickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Thickness of wall in I-beam",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "87e71caa-21b2-42c9-bb26-4205c87ce769",
+    "Name": "Edef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a4d54aaa-6132-4af4-84ce-8638096c9941",
+    "Name": "Rbr_H1",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bc9541ac-e410-4431-a3aa-97c73cc636a5",
+    "Name": "Dim.Zcoordinate",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "68df3fae-3e98-429a-a168-1b6f7a1485b0",
+    "Name": "Mng.DetailCalculateType",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "For concrete details. 1 rebar bar, 4 element of embedded detail, 8 rebar frame, 16 embedded detail",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "980ca0ae-3e75-4c4e-b9fc-d0fe58094f45",
+    "Name": "Plate1thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ee8d35b0-e2d7-47b3-8b8a-adb31eedac30",
+    "Name": "Dim.VariableLength",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3601a2b2-2cdc-4e35-bb35-1de1737c45a8",
+    "Name": "Mrk.CombinedMarkText1",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8d057bb3-6ccd-4655-9165-55526691fe3a",
+    "Name": "Cmn_Count",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b5ef18b4-453e-49bd-b26c-dfb3bd3ca79c",
+    "Name": "Rbr_A",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Bended rebars",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "553025b7-2b47-40f8-b26c-0f99ddba9d55",
+    "Name": "Mng.GridName2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "aaea38b7-2a20-497c-af36-7f1261617260",
+    "Name": "Mng.WeightCalculationMethod",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "fc0665b7-63dd-44f2-8805-558177eccfb1",
+    "Name": "Rbr.IsFamily",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "Parameter On for IFC-rebar and Off for standard rebars ",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9b679ab7-ea2e-49ce-90ab-0549d5aa36ff",
+    "Name": "Dim.Diameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "10e067b9-6393-4b97-b43f-87df55aea89b",
+    "Name": "Plate4weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8887b9ba-e0ab-4af6-9a9a-329fc9046ffb",
+    "Name": "Dim.ProductLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "df23d8ba-63f9-4d13-94ea-30de54c1535a",
+    "Name": "Mng.ConcreteSubtype",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f4e10dbb-3a1c-4567-972d-b36679e122ad",
+    "Name": "Bdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "5535aebb-2220-4b0f-ac74-4e06a89b677e",
+    "Name": "Mrk.ReinforcementTypeMark",
+    "DataType": "FAMILYTYPE",
+    "DataCategory": "-2009030",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "751d12bd-001a-4dbf-9de9-a955f3f34b70",
+    "Name": "Rbr.LengthAccuracy",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3f1997bf-44b2-4ca2-8ffa-35daa7aadb45",
+    "Name": "Mrk.CombinedMarkSumLength",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "b02810c0-0794-4b4c-be80-ecf19d28c96e",
+    "Name": "Plate1material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "dce379c0-5e32-4695-b16a-d76ef0100172",
+    "Name": "Rbr.FormPrefix",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "84e2dbc0-2cb9-4c61-8739-0d8ca8ff30eb",
+    "Name": "Profile1on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "77f8edc0-929c-4865-9d51-2055cc6d78bf",
+    "Name": "Plate5thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ed2791c3-5be5-4e60-bb23-43d6e1e21a36",
+    "Name": "Rbr.AdditionalIntervalHorizontal",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "2f9abac5-9608-4bb6-b509-d75b738777cf",
+    "Name": "Rbr.IsBended",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "94f4b9c6-e264-4d9d-96f2-7fc0dde5e14b",
+    "Name": "Sch.RevisionsCount4",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "d6888dc7-7a03-40c3-9ac2-ab300c4e2c0a",
+    "Name": "Dim.ProductDiameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "f1314dc8-abb2-477c-bfb6-b096760b90c1",
+    "Name": "Mtl.GroupOfConstructions",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "1 beams, 2 columns etc.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "713f05ca-21a6-4531-954f-8c173deccfe4",
+    "Name": "Rbr.DimensionBeta",
+    "DataType": "ANGLE",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "8bba29ca-bedb-4ade-b820-85c1798bc6f5",
+    "Name": "Mtl.Mforce",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "10973dcd-c6d6-4401-adcf-6fb5e13118f2",
+    "Name": "Plate3material",
+    "DataType": "MATERIAL",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "174944cd-7195-4b2b-9c01-ad489b1da64c",
+    "Name": "Sch.RevisionsCount3",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "048c9fcd-b9b1-45ca-9a56-27b5232a9403",
+    "Name": "Rbr.ReinforcementTypeMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Exported Parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "aa7ed8cd-ae58-47d3-8812-11c8eb4c7d1f",
+    "Name": "Mng.ViewGroup",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e6e0f5cd-3e26-485b-9342-23882b20eb43",
+    "Name": "Cmn_Name",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "cb7addce-59df-42b0-b23d-e9254f9a228b",
+    "Name": "Profle2name",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "97991dcf-b619-4ba6-ba5b-72a5144686e2",
+    "Name": "Mrk.MarkNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "afdebad1-9e95-4411-8fb4-1bd612eccacb",
+    "Name": "Mrk.MaterialDocument",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9e4e68d8-4ba8-4973-8749-c5503470183c",
+    "Name": "Mtl.CutWidth",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "1b68c3da-54a4-4845-bd23-a3b5508259bd",
+    "Name": "Mtl.CutLength",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "737df5da-0a88-43cb-94be-fb38179a57a5",
+    "Name": "Mng.CountMultiplier",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "10fb72de-237e-4b9c-915b-8849b8907695",
+    "Name": "Arch_FlatNumber",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Номер квартиры.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6c6db2df-e250-4496-8d1b-a46e4c220b5f",
+    "Name": "Cmn_Position",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "ecaa2ee0-fac1-4b5a-9fd4-164086d62fd2",
+    "Name": "Profile1name",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "69890ae1-d66e-4fe9-aced-024c27719f53",
+    "Name": "Arch_RoomNumberInFlat",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "Номер помещения квартиры",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "844a01e2-19fc-4dc5-baa0-a4bda30ef1f6",
+    "Name": "Dim.SummaryLengthOn",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "Parameter is for for elements calculated as one position with summary length",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "da753fe3-ecfa-465b-9a2c-02f55d0c2ff1",
+    "Name": "Dim.Height",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e7a37be3-cc1d-48c1-99f7-e7a748f2f960",
+    "Name": "Mng.UseMultiplier",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "bad14be7-6495-4147-a121-d11ece8907b0",
+    "Name": "Mrk.CombinedMarkText3",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9d4b86e7-c5ba-49b6-bc64-4d16f7ae6ff7",
+    "Name": "Mtrl.ConcreteFrostResistance",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Material",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "1ae3d7e8-1270-4bd2-9144-10192a604b4a",
+    "Name": "Mng.IsMainNestedDetail",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "699d63e9-41fa-4cac-95b6-e5d6db0a3263",
+    "Name": "Mrk.CombinedMarkNumber3",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "25b6c2e9-3212-4e48-a187-201a777929e6",
+    "Name": "Plate5weight",
+    "DataType": "NUMBER",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a2243bea-9a39-4269-bc07-c323ffc6f513",
+    "Name": "Dim.Xcoordinate",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Dimensions",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a72d13ec-146c-4589-9888-907edb0f0af3",
+    "Name": "Mtrl.ConcreteWaterResistance",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Material",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3af62dec-67c7-44a4-a678-7b3bf4b7d6a0",
+    "Name": "Mtl.ProfileSketch",
+    "DataType": "IMAGE",
+    "DataCategory": "",
+    "Group": "Metal",
+    "Description": "Raster image for complect metal profile",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "1e273bec-8d8b-426c-bbd2-cea2ac71142b",
+    "Name": "RbrWall.HorizontalDiameter",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Exported parameters",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "48fbbced-b848-4a55-9f48-154f582579f1",
+    "Name": "Mrk.CombinedMarkSuffix",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "a741d0ef-64f4-4d23-a58c-73745c1efd4a",
+    "Name": "Mrk.ParentProductMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "04a3edef-d1f7-49c5-8bb8-204773faef30",
+    "Name": "Arr.AdditionalElementOn",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Arrays",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "6df20ef2-2cfe-47ab-a101-975306a5bc1d",
+    "Name": "Arch_FloorTopElevation",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Architecture",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "c43fa9f2-df70-412d-aa0b-2c6106d5d7c0",
+    "Name": "Mrk.ProfileFullName",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "c7d12ef3-0f17-4e28-b47f-a977ec1a8192",
+    "Name": "Sch.RevisionDescription",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Sheets and project info",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "41f591f5-4ea5-4682-b866-1dd8a2704678",
+    "Name": "Mrk.PositionsRange2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "2865b3f5-d7b6-4b34-a996-b7bfe677de7c",
+    "Name": "Mng.PercentOfCompleteness",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "2181def5-6b65-4635-b0e1-83f9d70c9f3d",
+    "Name": "Cdef",
+    "DataType": "REINFORCEMENT_LENGTH",
+    "DataCategory": "",
+    "Group": "Rebar",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "09675ef6-7f49-454f-acf0-145efd093ae2",
+    "Name": "Profile2on",
+    "DataType": "YESNO",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3e8a07f7-fc58-4c4b-8b94-f1138d543cdb",
+    "Name": "Mng.LevelNumber",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "Manage",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "9e7310f9-6100-41d4-aba0-df76a5b7f32b",
+    "Name": "Mrk.ProductName",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "\"Rebar frame\", \"Embedded detail\" etc.",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "e6e4bdf9-cec1-4b4d-8a08-89aa2f668931",
+    "Name": "Mrk.CombinedMarkText2",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Combined marks",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "3d2206fb-fefa-46b2-9257-086848069939",
+    "Name": "Plate4thickness",
+    "DataType": "LENGTH",
+    "DataCategory": "",
+    "Group": "Generic steel joints",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "5d369dfb-17a2-4ae2-a1a1-bdfc33ba7405",
+    "Name": "Mrk.ConstructionMark",
+    "DataType": "TEXT",
+    "DataCategory": "",
+    "Group": "Tags",
+    "Description": "",
+    "Profile": "BIMStarter2020",
+    "Source": "Weandrevit 2020 ENG.txt"
+  },
+  {
+    "Guid": "86d9bdff-680f-499d-b4fe-3c15bd427464",
+    "Name": "Cmn_MaterialCalculationType",
+    "DataType": "INTEGER",
+    "DataCategory": "",
+    "Group": "ADSK template",
+    "Description": "1-as length, 2-as area, 3-as volume, 4-as weight, 0-as pieces",
+    "Profile": "BIMStarter2020-ADSK-imports",
+    "Source": "Weandrevit 2020 ENG.txt"
+  }
+]

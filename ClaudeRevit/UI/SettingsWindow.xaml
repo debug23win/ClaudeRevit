@@ -225,6 +225,9 @@
 
                         <TextBlock x:Name="McpWhoLabel" Margin="0,14,0,0" FontWeight="SemiBold"
                                    Text="Currently driving Revit" />
+                        <ComboBox x:Name="McpClientPicker" Margin="0,4,0,0" Height="26"
+                                  DisplayMemberPath="DisplayName" SelectionChanged="McpClientPicker_SelectionChanged"
+                                  ToolTip="Choose the client for identity and model requests" />
                         <TextBlock x:Name="McpWhoText" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
                         <TextBlock x:Name="McpWhoNote" Margin="0,4,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
                                    Text="The client name comes from the MCP handshake. MCP carries no field for the model, so the model is asked to report itself — that half is its own claim and can be wrong or missing." />

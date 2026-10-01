@@ -56,6 +56,7 @@
        files stay normal Compile items too; embedding is additive. Logical name is
        toolsrc/<file>.cs so it can be found by the tool's class name. -->
   <ItemGroup>
+    <EmbeddedResource Include="Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <EmbeddedResource Include="Tools\**\*.cs">
       <LogicalName>toolsrc/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
@@ -87,6 +88,7 @@
       <ReleaseFiles Include="@(ReferenceCopyLocalPaths)" />
       <ReleaseFiles Include="$(ProjectDir)ClaudeRevit.addin" />
       <ReleaseFiles Include="$(ProjectDir)..\scripts\revit-mcp-bridge.ps1" />
+      <ReleaseFiles Include="$(ProjectDir)..\scripts\revit-mcp-bridge.cs" />
     </ItemGroup>
     <MakeDir Directories="$(ReleaseDir)" />
     <Copy SourceFiles="@(ReleaseFiles)" DestinationFolder="$(ReleaseDir)" />

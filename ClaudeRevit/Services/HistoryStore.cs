@@ -12,15 +12,11 @@ namespace ClaudeRevit.Services;
 // context — element IDs, tool results, decisions — across Revit restarts.
 public static class HistoryStore
 {
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClaudeRevit", "conversation.json");
-
-    public static void Save(IEnumerable<ChatMessage> uiMessages, IEnumerable<ApiTurn> apiHistory)
+    public static void Save(ConversationWorkspace workspace, IEnumerable<ChatMessage> uiMessages, IEnumerable<ApiTurn> apiHistory)
     {
         try
         {
-            var dir = Path.GetDirectoryName(FilePath)!;
+            var dir = Path.GetDirectoryName(workspace.HistoryPath)!;
             Directory.CreateDirectory(dir);
             var dto = new FileDto(
                 2,
@@ -30,16 +26,14 @@ public static class HistoryStore
             // halfway through an in-place write leaves a truncated JSON file, and the next start
             // reads that as "no history" — losing the entire conversation, not just the last turn.
             // The swap is atomic, so the reader sees either the old file or the new one.
-            var tmp = FilePath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(dto));
-            File.Move(tmp, FilePath, overwrite: true);
+            ConversationWorkspace.AtomicWrite(workspace.HistoryPath, JsonSerializer.Serialize(dto));
         }
         catch { /* best-effort */ }
     }
 
-    public static List<ChatMessage> LoadUiMessages()
+    public static List<ChatMessage> LoadUiMessages(ConversationWorkspace workspace)
     {
-        var dto = LoadFile();
+        var dto = LoadFile(workspace);
         if (dto == null) return new();
         return dto.Ui.Select(d => new ChatMessage
         {
@@ -51,9 +45,9 @@ public static class HistoryStore
         }).ToList();
     }
 
-    public static List<ApiTurn> LoadApiHistory()
+    public static List<ApiTurn> LoadApiHistory(ConversationWorkspace workspace)
     {
-        var dto = LoadFile();
+        var dto = LoadFile(workspace);
         if (dto == null || dto.Api.Count == 0) return new();
         try
         {
@@ -65,9 +59,9 @@ public static class HistoryStore
         }
     }
 
-    public static void Clear()
+    public static void Clear(ConversationWorkspace workspace)
     {
-        try { if (File.Exists(FilePath)) File.Delete(FilePath); }
+        try { if (File.Exists(workspace.HistoryPath)) File.Delete(workspace.HistoryPath); }
         catch { }
     }
 
@@ -143,12 +137,12 @@ public static class HistoryStore
         })).ToList()
     };
 
-    private static FileDto? LoadFile()
+    private static FileDto? LoadFile(ConversationWorkspace workspace)
     {
         try
         {
-            if (!File.Exists(FilePath)) return null;
-            var json = File.ReadAllText(FilePath);
+            if (!File.Exists(workspace.HistoryPath)) return null;
+            var json = File.ReadAllText(workspace.HistoryPath);
 
             // v1 files were a bare array of UI messages — keep the transcript,
             // start the API history fresh

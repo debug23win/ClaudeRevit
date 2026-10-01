@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="StandardKnowledge.cs" />
+    <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="SharedParameterCatalog.cs" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
+    <Compile Include="..\ClaudeRevit\Services\McpServer.cs" Link="McpServer.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="McpSchema.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpSession.cs" Link="McpSession.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpClientState.cs" Link="McpClientState.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpTurnChannel.cs" Link="McpTurnChannel.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ConversationWorkspace.cs" Link="ConversationWorkspace.cs" />
+  </ItemGroup>
+</Project>

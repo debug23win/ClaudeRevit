@@ -69,16 +69,16 @@ public class GetElementParameters : IRevitTool
                 .Select(p => new
                 {
                     name = p.Definition?.Name ?? "",
+                    parameter_id = p.Id.Value,
+                    shared_guid = p.IsShared ? (Guid?)p.GUID : null,
+                    spec = p.Definition?.GetDataType().TypeId,
                     value = FormatParameter(p),
                     storage = p.StorageType.ToString(),
                     read_only = p.IsReadOnly
                 })
-                // Revit exposes the same display name more than once (built-in + shared) — collapse
-                // the noise to one entry per name. Optionally keep only parameters that actually
-                // carry a value.
+                // Same-name parameters with different identities must remain visible: selecting
+                // the first one could silently write a built-in instead of a template's GUID.
                 .Where(p => !relevantOnly || (p.value.Length > 0 && p.value != "(none)"))
-                .GroupBy(p => p.name)
-                .Select(g => g.First())
                 .ToList();
 
             return new
