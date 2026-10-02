@@ -44,10 +44,10 @@ public class AdvancedBimTests
     [Fact]
     public void ProbeSummaryRetainsTotalsBeyondSampleAndFieldsAtTheEnd()
     {
-        var raw = System.Text.Json.JsonSerializer.Serialize(new { walls = 100, wall_lengths_m = Enumerable.Repeat(10.0, 100), rebar = 42 });
+        var raw = System.Text.Json.JsonSerializer.Serialize(new { walls = 300, wall_lengths_m = Enumerable.Repeat(10.0, 300), rebar = 42 });
         using var doc = System.Text.Json.JsonDocument.Parse(BenchmarkGrading.SummarizeProbe(raw));
         Assert.Equal(42, doc.RootElement.GetProperty("rebar").GetInt32());
-        Assert.Equal(1000, doc.RootElement.GetProperty("wall_lengths_m").GetProperty("total").GetDouble());
+        Assert.Equal(3000, doc.RootElement.GetProperty("wall_lengths_m").GetProperty("total").GetDouble());
         Assert.True(doc.RootElement.GetProperty("wall_lengths_m").GetProperty("sample_truncated").GetBoolean());
         Assert.Throws<InvalidOperationException>(() => BenchmarkGrading.SummarizeProbe("{\"probe_error\":\"offline\"}"));
     }

@@ -8,18 +8,32 @@ internal static class Program
     {
         Console.InputEncoding = new System.Text.UTF8Encoding(false);
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
-        if (args.Length > 0 && args[0] is "auth" or "login" or "app-server" or "exec" or "-p") return await Fake(args);
+        if (args.Length > 0 && args[0] is "auth" or "login" or "app-server" or "exec" or "-p" or "--version") return await Fake(args);
         if (args.Length > 0 && args[0] == "--live") return await Live(args);
         var root = Path.Combine(Path.GetTempPath(), "clauderevit-cli-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var exe = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "codex.exe" : "codex");
-        var names = new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "OPENAI_API_KEY", "CODEX_API_KEY", "CLAUDEREVIT_TEST_MODE", "CLAUDEREVIT_TEST_AUTH" };
+        var names = new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "OPENAI_API_KEY", "CODEX_API_KEY", "CLAUDEREVIT_TEST_MODE", "CLAUDEREVIT_TEST_AUTH", "PATH" };
         var saved = names.ToDictionary(n => n, Environment.GetEnvironmentVariable);
         try
         {
             foreach (var key in names.Take(8)) Environment.SetEnvironmentVariable(key, "dummy-test-value");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             var ct = timeout.Token;
+            if (OperatingSystem.IsWindows())
+            {
+                var oldDir = Path.Combine(root, "old"); var newDir = Path.Combine(root, "new");
+                foreach (var dir in new[] { oldDir, newDir })
+                {
+                    Directory.CreateDirectory(dir);
+                    foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "codex.*")) File.Copy(file, Path.Combine(dir, Path.GetFileName(file)));
+                }
+                // Deliberately put the older binary first; both have valid app-host payloads.
+                Environment.SetEnvironmentVariable("PATH", oldDir + Path.PathSeparator + newDir + Path.PathSeparator + saved["PATH"]);
+                Check(CodexBackend.ResolveExecutable() == Path.Combine(newDir, "codex.exe"), "Automatic CLI discovery picked older PATH binary");
+                Check(CodexBackend.ResolveExecutable(Path.Combine(oldDir, "codex.exe")) == Path.Combine(oldDir, "codex.exe"), "Explicit CLI path was not pinned");
+                Environment.SetEnvironmentVariable("PATH", saved["PATH"]);
+            }
             var catalog = await CodexModelCatalog.ReadAsync(exe, root, ct);
             Check(catalog.Count == 2, "Model discovery failed");
             foreach (var model in new[] { "gpt-test-a", "gpt-test-b" })
@@ -68,6 +82,8 @@ internal static class Program
     { try { await run(); } catch (InvalidOperationException) { return; } throw new Exception(message); }
     private static async Task<int> Fake(string[] args)
     {
+        if (args[0] == "--version")
+        { Console.WriteLine("codex-cli " + (new DirectoryInfo(AppContext.BaseDirectory).Name == "new" ? "9.999.2" : "9.999.1")); return 0; }
         if (args[0] == "auth")
         {
             Check(new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY" }.All(k => Environment.GetEnvironmentVariable(k) == null), "Claude received API/cloud credentials");

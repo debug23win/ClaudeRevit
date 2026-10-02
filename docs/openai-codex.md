@@ -30,8 +30,10 @@ full model ID. Its CLI receives `--model` and `--effort`. Supported reasoning
 levels depend on the installed Claude Code version and model; a rejected choice
 returns the CLI error. Choosing a model preserves that agent's existing session.
 
-Codex finds the native CLI in PATH or the desktop app installation; an explicit
-path in Settings takes precedence. It checks ChatGPT login without reading or
+Codex checks native CLIs in PATH and desktop app installations and chooses the
+highest actual `codex --version`, rather than stopping at an older PATH entry.
+The version probe is bounded and cached until the file changes. An explicit
+path in Settings takes precedence and remains pinned. It checks ChatGPT login without reading or
 copying credentials. The Revit MCP connection is configured for that process
 automatically. The MCP token is passed only in the child's environment. The
 process uses a read-only filesystem sandbox, shell access is disabled, and
@@ -71,7 +73,11 @@ an isolated in-memory backend and checks switching, independent saved choices,
 typed IDs, busy controls and narrow layouts. It does not connect to Revit or an
 account. The release workflow runs both suites and builds Revit 2025/2026/2027.
 
-The installed Codex CLI 0.159.2 returned eight models in a catalog probe. No
+The installed Codex CLI 0.159.2 returned eight models in a catalog probe, with
+`gpt-6.1-sol` as the default. The older PATH CLI 0.154.0 did not expose it.
+Automatic discovery now selects 0.159.2; if you explicitly pinned an old CLI path,
+clear it or select the updated executable before refreshing models. The account's
+actual catalog remains authoritative; the plugin does not invent model availability. No
 inference turn was run. Live modeling and real OpenAI API calls were not
 revalidated for this release.
 

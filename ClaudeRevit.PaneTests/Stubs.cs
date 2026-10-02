@@ -78,15 +78,17 @@ namespace ClaudeRevit.Services
     {
         public string TaskId { get; set; } = ""; public string Model { get; set; } = ""; public string Title { get; set; } = "";
         public string Verdict { get; set; } = "?"; public string Time { get; set; } = "0s"; public long Tokens { get; set; }
+        public int? Quality { get; set; } public double? Speed { get; set; } public double? Score { get; set; } public double Seconds { get; set; }
     }
     public static class BenchmarkRunner
     {
         public static BenchmarkExecution? Execution, Judge;
         public static TaskCompletionSource Pending = new();
         public static Action<string>? Status;
+        public static Action<BenchmarkResult>? Result;
         public static Task RunAsync(BenchmarkExecution execution, IReadOnlyList<BenchmarkTask> tasks, BenchmarkExecution judge, string runStamp,
             bool resetBetweenTasks, int maxRoundsPerTask, int maxSecondsPerTask, Action<string> onStatus, Action<BenchmarkResult> onResult, CancellationToken ct)
-        { Execution = execution; Judge = judge; Status = onStatus; return Pending.Task.WaitAsync(ct); }
+        { Execution = execution; Judge = judge; Status = onStatus; Result = onResult; return Pending.Task.WaitAsync(ct); }
     }
     public static class Log { public static void Error(string message, Exception ex) => Console.Error.WriteLine(message + ": " + ex.Message); }
 }
