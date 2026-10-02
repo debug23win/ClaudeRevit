@@ -24,6 +24,9 @@ public class StandardParameterTests
         Assert.Equal("Арматура", d.Group);
         Assert.Equal("Масса в кг", d.Description);
         Assert.Equal(Guid.Parse(A), d.Guid);
+        Assert.True(d.Visible);
+        Assert.True(d.UserModifiable);
+        Assert.Null(d.HideWhenNoValue);
         Assert.Empty(parsed.Warnings);
     }
 
@@ -89,11 +92,24 @@ public class StandardParameterTests
     [Fact]
     public void BundledReferenceContainsActualRuEngAliasesAndOriginalMassType()
     {
-        Assert.Equal(533, StandardKnowledge.Definitions.Count);
-        Assert.Equal(313, StandardKnowledge.Definitions.Select(d => d.Guid).Distinct().Count());
-        var aliases = StandardKnowledge.Definitions.Where(d => d.Guid == Guid.Parse("32989501-0d17-4916-8777-da950841c6d7")).ToList();
+        var bimstarter = StandardKnowledge.Definitions.Where(d => d.Profile.StartsWith("BIMStarter")).ToList();
+        Assert.Equal(533, bimstarter.Count);
+        Assert.Equal(313, bimstarter.Select(d => d.Guid).Distinct().Count());
+        var aliases = bimstarter.Where(d => d.Guid == Guid.Parse("32989501-0d17-4916-8777-da950841c6d7")).ToList();
         Assert.Contains(aliases, d => d.Name == "О_Масса" && d.DataType == "NUMBER");
         Assert.Contains(aliases, d => d.Name == "Cmn_Weight" && d.DataType == "NUMBER");
         Assert.All(aliases, d => Assert.Equal("BIMStarter2020-ADSK-imports", d.Profile));
+    }
+    [Fact]
+    public void AdskEditionsPreserveGuidsAndOriginalSpecs()
+    {
+        var editions = StandardKnowledge.Definitions.Where(d => d.Profile.StartsWith("ADSK-")).ToList();
+        Assert.Equal(264, editions.Count(d => d.Profile == "ADSK-2019"));
+        Assert.Equal(323, editions.Count(d => d.Profile == "ADSK-2021"));
+        Assert.Equal(323, editions.Select(d => d.Guid).Distinct().Count());
+        Assert.All(editions.GroupBy(d => d.Guid), g => Assert.Single(g.Select(d => d.DataType).Distinct()));
+        Assert.Equal(1120, StandardKnowledge.Definitions.Count);
+        Assert.Contains(editions, d => d.RecommendedGroup != null);
+        Assert.All(editions, d => Assert.NotNull(d.Visible));
     }
 }

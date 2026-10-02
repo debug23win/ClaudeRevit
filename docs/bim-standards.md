@@ -1,6 +1,6 @@
 # BIMStarter, ADSK and complex family authoring
 
-## Available in v3.6
+## Available in v3.7
 
 The pane sends a small, current standards summary with every prompt. Both API and MCP
 agents receive guidance to inspect the live template before changing its parameters
@@ -75,9 +75,14 @@ These dependencies make geometry-only reproduction insufficient.
 The developer's manual explains that the 2.0 template package contains FOP2019,
 FOP2021 and ADSK-ФОП.xlsx. Common project definitions come from mandatory, optional
 and title-block groups; categories and instance/type scope are part of the binding.
-The complete official TXT/XLSX and actual ADSK RTE were not available for direct
-inspection in this session. Their GUIDs are not fabricated or copied from an unverified
-mirror. Configure the actual FOP in Revit or pass its path to the catalog tool.
+The user supplied `ФОП2019.txt`, `ФОП2021.txt`, `ADSK-ФОП.xlsx` and RU/KZ Revit
+2019 template manuals. Their reference metadata is now embedded: 264 GUIDs in 2019,
+323 in 2021, 323 unique across the two ADSK editions. The workbook identifies
+2019_2022-02-14 and 2021_2024-05-13 snapshots and recommends parameter groups
+for 501 definition rows. Hashes are in [ADSK provenance](../ClaudeRevit/Standards/adsk-provenance.json).
+These files are ADSK snapshots, not a verified BIM-Standart v2.0 edition. No ADSK RTE
+was supplied, so live template bindings/layout have not been extracted. To create a
+shared definition, configure the original TXT or pass its local path; the JSON is a reference.
 [FOP manual](https://manual2021.bim2b.ru/1-obshhaya-instrukcziya-po-rabote-s-shablonam/1-1-nachalo-raboty/rabota-s-fajlom-obshhih-parametrov/).
 
 ADSK_ names are reported as hints, not a verified standard edition. An exact GUID
@@ -107,33 +112,19 @@ behavior have therefore not been verified.
 | [Two-sided embedded part](https://www.bim-starter.com/family?guid=20e5fe4c-5635-4cc4-ae52-39ee422d9795) | Workplane-based family, nested bar and plate, used inside pylons | Preserve host/reference planes, shared-component identity and product accounting. |
 | [Rectangular vertical stirrup](https://bim-starter.com/family?guid=d99ef20f-fb83-47b1-a24e-cb06fd6f1cdb) | Card explicitly describes nested IFC reinforcement and bend variants | Verify its actual Revit class; a reinforcement category does not imply a native Rebar object. |
 
-## Next implementation priorities
+## Implemented authoring workflows
 
-These are proposed additions, not claims that v3.6 already creates every complex family.
+v3.7 implements `analyze_family_structure`, `flex_family`, `open_family_editor`,
+`create_family_form`, `combine_family_forms`, `add_shared_family_parameter` and
+`place_nested_family_instance`. Native reinforcement adds `create_rebar_geometry`,
+`get_rebar_constraints`, `set_rebar_constraint`, `create_rebar_coupler` and
+`create_rebar_schedule_images`. [Tool contracts, examples and limitations](advanced-bim.md).
 
-1. **Family inspection and flex validation.** Open/edit/create family documents; inventory
-   nested shared families, formulas, reference planes, labelled dimensions, visibility,
-   materials and host behavior. Flex all types plus minimum/maximum dimensions and each
-   option, regenerate, capture failures and restore the original type/values. Save a
-   new RFA only after the checks pass. This gives a measurable acceptance criterion.
-2. **Structured parametric authoring.** Add extrusion, blend, sweep, swept blend, revolve,
-   void/cut and nested-instance creation, plus reference alignment and parameter
-   association. Shared parameter creation must use a verified external definition's GUID,
-   not recreate its display name. Support a declarative dependency graph and a single
-   rollback boundary. Start with a reinforced column/embedded part before a pylon with
-   openings. Autodesk exposes these forms in the [family creation API](https://blog.autodesk.io/revit-family-creation-api-labs/).
-3. **Native complex reinforcement.** Multi-segment planar bars, closed stirrups, explicit
-   hooks/terminations, all layout modes, varying bars, free-form curves, constraints,
-   couplers and host/cover validation. Keep this workflow distinct from nested IFC
-   geometry. Inspect lengths, spacing, bar counts, cover and quantities after creation.
-   [Autodesk reinforcement API](https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API/files/Revit_API_Developers_Guide/Discipline_Specific_Functionality/Structural_Engineering/Structural_Model_Elements/Reinforcement/Revit_API_Revit_API_Developers_Guide_Discipline_Specific_Functionality_Structural_Engineering_Structural_Model_Elements_Reinforcement_Rebar_html.html).
-4. **Template compatibility audit.** Check a new family's GUIDs, specs, nested shared
-   components and binding scope against the target project; compare tag output and
-   schedule totals before/after. Report missing parameters and incompatible identities
-   before loading the family into a production model.
+The ADSK 2019 manual also distinguishes flat/spatial cage accounting, embedded/IFC
+families, and schedules “Арматура на жб” versus “Арматура на 1 жб”. The embedded
+`get_standard_workflows` reference includes these differences. Do not apply
+BIMStarter's Орг.* counting scheme to ADSK automatically. [Samolet EIR comparison](samolet-eir.md).
 
-Current dedicated family tools cover parameters/formulas/associations, reference planes,
-labelled dimensions and arrays. Current rebar creation covers straight or existing
-shape-driven bars, number/spacing layouts, area/path reinforcement and batches of
-straight bars. Arbitrary C# remains an opt-in escape hatch; it does not replace a
-validated family authoring workflow.
+These tools compile against supported Revit APIs. Real family geometry, constraint
+behavior, plugin dialogs and modelling benchmarks still require validation inside a
+running Revit 2025–2027; only Revit 2020 was available during development.

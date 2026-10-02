@@ -34,6 +34,8 @@ public static class CodexBackend
                 if (File.Exists(path)) return path;
             }
         }
+        var installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "OpenAI", "Codex", "bin", "codex.exe");
+        if (File.Exists(installed)) return installed;
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
         if (Directory.Exists(root))
         {
@@ -157,5 +159,42 @@ public static class CodexBackend
                     onTool(item.TryGetProperty("tool", out var tool) ? tool.GetString() ?? "Revit" : "Revit");
             }
         }
+    }
+
+    // A judge has no MCP connection or shell/web tools. It cannot change the model
+    // it is grading, and uses the explicitly selected subscription model/effort.
+    public static async Task<string> CompleteAsync(string prompt, string workDir, CancellationToken ct,
+        string? model = null, string? effort = null, string? executable = null)
+    {
+        var exe = ResolveExecutable(executable) ?? throw new InvalidOperationException("Codex CLI not found.");
+        Directory.CreateDirectory(workDir);
+        using (var login = Start(exe, new[] { "login", "status" }, workDir))
+        {
+            using var killLogin = ct.Register(() => { try { login.Kill(true); } catch { } });
+            var stdout = login.StandardOutput.ReadToEndAsync(ct);
+            var stderr = login.StandardError.ReadToEndAsync(ct);
+            await login.WaitForExitAsync(ct);
+            var status = await stdout + await stderr;
+            if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The benchmark judge requires Codex signed in with ChatGPT.");
+        }
+        var models = await CodexModelCatalog.ReadAsync(exe, workDir, ct);
+        var choice = CodexModels.Select(models, model, effort);
+        var args = new List<string> { "exec", "--json", "--ignore-user-config", "--skip-git-repo-check", "--sandbox", "read-only",
+            "-c", "features.shell_tool=false", "-c", "features.multi_agent=false", "-c", "web_search=\"disabled\"", "--model", choice.Model };
+        if (choice.Effort != null) CodexConfiguration.Add(args, "model_reasoning_effort", choice.Effort);
+        args.Add("-");
+        using var process = Start(exe, args, workDir);
+        using var cancel = ct.Register(() => { try { process.Kill(true); } catch { } });
+        var errors = process.StandardError.ReadToEndAsync(ct);
+        var result = new Result();
+        await process.StandardInput.WriteAsync(prompt.AsMemory(), ct);
+        process.StandardInput.Close();
+        while (await process.StandardOutput.ReadLineAsync(ct) is { } line) ParseLine(line, result, _ => { }, _ => { });
+        await process.WaitForExitAsync(ct);
+        var error = await errors;
+        if (process.ExitCode != 0 || !result.Completed || result.Error != null)
+            throw new InvalidOperationException(result.Error ?? (error.Length > 0 ? TextUtil.Truncate(error, 1000) : "Codex judge did not finish."));
+        return result.Text;
     }
 }

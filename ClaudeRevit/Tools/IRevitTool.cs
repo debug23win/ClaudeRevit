@@ -28,6 +28,10 @@ public interface IRevitTool
     // transactions themselves) — the dispatcher must still invalidate caches after them.
     bool MutatesWithoutTransaction => false;
 
+    // Family inspection/editing, document activation and committed rollback previews
+    // require a document outside the pane's long-lived transaction group.
+    bool RequiresNoTurnGroup => false;
+
     // Whether this tool can change the PROJECT CATALOG: the families, types and materials the
     // model can choose from. Rebuilding that catalog is around a dozen full collector passes over
     // the document on Revit's UI thread, and it used to be thrown away after ANY transactional

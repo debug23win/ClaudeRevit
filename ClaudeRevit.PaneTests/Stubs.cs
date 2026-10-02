@@ -74,13 +74,26 @@ namespace ClaudeRevit.Services
         public static Task<Result> CheckAsync() => Task.FromResult(new Result(false, null, null));
     }
     public static class TextUtil { public static string Truncate(string text, int limit) => text.Length > limit ? text[..limit] : text; }
+    public sealed class BenchmarkResult
+    {
+        public string TaskId { get; set; } = ""; public string Model { get; set; } = ""; public string Title { get; set; } = "";
+        public string Verdict { get; set; } = "?"; public string Time { get; set; } = "0s"; public long Tokens { get; set; }
+    }
+    public static class BenchmarkRunner
+    {
+        public static BenchmarkExecution? Execution, Judge;
+        public static TaskCompletionSource Pending = new();
+        public static Action<string>? Status;
+        public static Task RunAsync(BenchmarkExecution execution, IReadOnlyList<BenchmarkTask> tasks, BenchmarkExecution judge, string runStamp,
+            bool resetBetweenTasks, int maxRoundsPerTask, int maxSecondsPerTask, Action<string> onStatus, Action<BenchmarkResult> onResult, CancellationToken ct)
+        { Execution = execution; Judge = judge; Status = onStatus; return Pending.Task.WaitAsync(ct); }
+    }
     public static class Log { public static void Error(string message, Exception ex) => Console.Error.WriteLine(message + ": " + ex.Message); }
 }
 namespace ClaudeRevit.Tools { public static class DynamicToolLoader { public static void LoadAll() { } } }
 namespace ClaudeRevit.UI
 {
     public class SettingsWindow : Window { }
-    public class BenchmarkWindow : Window { }
     public class RunToolWindow : Window { }
     public static class PlainTextProp
     {

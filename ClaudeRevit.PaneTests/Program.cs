@@ -92,6 +92,7 @@ internal static class Program
                     }
                 }
                 Console.WriteLine("Pane checks passed: agent selection, saved choices, busy controls, project history switching, cancellation on manual document change, managed family transition, narrow layout.");
+                await CheckBenchmark(args.FirstOrDefault());
                 app.Shutdown(0);
             }
             catch (Exception error) { Console.Error.WriteLine(error); app.Shutdown(1); }
@@ -99,4 +100,54 @@ internal static class Program
         app.Run();
     }
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    private static async Task CheckBenchmark(string? output)
+    {
+        var window = new BenchmarkWindow();
+        window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        await System.Windows.Threading.Dispatcher.Yield();
+        ComboBox Box(string name) => (ComboBox)window.FindName(name);
+        var backend = Box("BackendBox"); var judgeBackend = Box("JudgeBackendBox");
+        Check(((ComboBoxItem)backend.SelectedItem).Tag.Equals("codex") && ((ComboBoxItem)judgeBackend.SelectedItem).Tag.Equals("codex"), "Benchmark did not default to subscriptions");
+        var models = Box("ModelBox"); var judge = Box("JudgeBox"); var effort = Box("EffortBox"); var judgeEffort = Box("JudgeEffortBox");
+        models.SelectedIndex = 1; effort.SelectedItem = "low"; judge.SelectedIndex = 0; judgeEffort.SelectedItem = "high";
+        ((Button)window.FindName("RunButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(BenchmarkRunner.Execution == new BenchmarkExecution("codex", "gpt-other", "low"), "Benchmark did not pass selected modeller model/effort");
+        Check(BenchmarkRunner.Judge == new BenchmarkExecution("codex", "gpt-test", "high"), "Benchmark did not pass independent judge model/effort");
+        Check(!backend.IsEnabled && !judge.IsEnabled && !effort.IsEnabled, "Benchmark choices remain enabled while running");
+        await Task.Run(() => BenchmarkRunner.Status!("background progress"));
+        await System.Windows.Threading.Dispatcher.Yield();
+        Check(((TextBlock)window.FindName("NowText")).Text.StartsWith("background progress"), "Background benchmark status was not marshalled to the UI");
+        BenchmarkRunner.Pending.SetResult(); await System.Windows.Threading.Dispatcher.Yield();
+        Check(backend.IsEnabled && (string)judgeEffort.SelectedItem == "high", "Benchmark altered effort after run");
+        backend.SelectedIndex = 1; judgeBackend.SelectedIndex = 1;
+        await System.Windows.Threading.Dispatcher.Yield();
+        models.Text = "custom-claude-version"; judge.SelectedIndex = 1; judgeEffort.SelectedItem = "medium";
+        BenchmarkRunner.Pending = new();
+        ((Button)window.FindName("RunButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(BenchmarkRunner.Execution?.Model == "custom-claude-version" && BenchmarkRunner.Execution.Backend == "claudecode", "Typed benchmark model was ignored");
+        ((Button)window.FindName("CancelButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await System.Windows.Threading.Dispatcher.Yield();
+        Check(backend.IsEnabled, "Benchmark stop did not restore controls");
+        backend.SelectedIndex = 2; judgeBackend.SelectedIndex = 2; await System.Windows.Threading.Dispatcher.Yield();
+        Check(!effort.IsEnabled && !judgeEffort.IsEnabled, "API model retained subscription effort controls");
+        if (output != null)
+        {
+            window.ShowActivated = false; window.Opacity = 0; window.Left = -20000; window.Top = -20000;
+            window.WindowStartupLocation = WindowStartupLocation.Manual; window.Show();
+            backend.SelectedIndex = 0; judgeBackend.SelectedIndex = 0; await System.Windows.Threading.Dispatcher.Yield();
+            foreach (var width in new[] { 780, 960 })
+            {
+                window.Width = width; window.Height = 700;
+                var content = (FrameworkElement)window.Content;
+                content.Measure(new Size(width, 660)); content.Arrange(new Rect(0, 0, width, 660)); content.UpdateLayout();
+                var bitmap = new RenderTargetBitmap(width, 660, 96, 96, PixelFormats.Pbgra32);
+                var background = new DrawingVisual(); using (var dc = background.RenderOpen()) dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, 660));
+                bitmap.Render(background); bitmap.Render(content);
+                var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var stream = File.Create(Path.Combine(output, $"benchmark-{width}.png")); encoder.Save(stream);
+            }
+        }
+        window.Close();
+        Console.WriteLine("Benchmark UI checks passed: default subscriptions, independent modeller/judge choices, custom models, busy/stop controls, effort preservation, API separation and layout.");
+    }
 }

@@ -1,0 +1,347 @@
+{
+  "sources": [
+    {
+      "profile": "Samolet",
+      "title": "Информационные_требования_заказчика_ИТЗ_v5_0.pdf",
+      "sha256": "ffd5041dd3655eda90a4928cd1c2caf36fdaed22cc3e0460a4e380238b6d9157",
+      "pages": 64
+    },
+    {
+      "profile": "ADSK",
+      "title": "adsk_ru_opisanieshablonov_r2019_v1.2.pdf / adsk_kz_opisanieshablonov_r2019_v1.0.pdf",
+      "delivery": "User supplied archives; reference manuals, not RTE"
+    },
+    {
+      "profile": "BIMStarter",
+      "repository": "https://github.com/Tereami/BimStarter",
+      "commit": "8447492db5292307b4bcf19919b1d6605e734a43"
+    }
+  ],
+  "limitations": [
+    "No customer UPM (appendix 1), project PIM (appendix 2), naming masks (appendix 3) or Samolet FOP were supplied.",
+    "Uploaded FOP snapshots are ADSK 2019/2021, not verified BIM-Standart v2.0.",
+    "Source PDFs/RFA/RTE are not redistributed. All text here is our analysis.",
+    "Native API compilation does not confirm modelling behavior in a running supported Revit."
+  ],
+  "rules": [
+    {
+      "profile": "BIMStarter",
+      "rule": "identity",
+      "page": null,
+      "topic": "ФОП и шаблон",
+      "stage": "all",
+      "guidance": "Сверить живые GUID, спецификации и привязки с каталогом BIMStarter 2020 RU/ENG. Версия Revit после обновления файла не определяет редакцию стандарта. Для добавления общего параметра нужен настоящий TXT, а не совпадающее имя.",
+      "tools": [
+        "get_project_standards",
+        "get_shared_parameter_catalog",
+        "add_shared_family_parameter"
+      ]
+    },
+    {
+      "profile": "BIMStarter",
+      "rule": "products",
+      "page": null,
+      "topic": "Изделия и вложенность",
+      "stage": "all",
+      "guidance": "Проверить поля, фильтры и подсчет в действующей спецификации. В известной схеме 2020 главный элемент один на изделие; тип подсчета 1 для каркасов, 4 для закладных; одинаковая марка изделия с дефисом. Сборка Revit сама не задает эту схему. Передать параметры изделия общим вложенным компонентам по проверенным GUID.",
+      "tools": [
+        "analyze_family_structure",
+        "get_project_standards",
+        "bimstarter_model_tools"
+      ]
+    },
+    {
+      "profile": "BIMStarter",
+      "rule": "family-flex",
+      "page": null,
+      "topic": "Сложное семейство",
+      "stage": "all",
+      "guidance": "Разобрать дерево, общие вложения, типы, формулы, связи параметров, формы и импорты. Создавать нативные параметрические формы, задавать управляющие размеры и проверять минимальный/номинальный/максимальный варианты. Проверка flex откатывает каждый случай; успешная регенерация не доказывает правильность конструкции.",
+      "tools": [
+        "analyze_family_structure",
+        "create_family_form",
+        "place_nested_family_instance",
+        "flex_family"
+      ]
+    },
+    {
+      "profile": "BIMStarter",
+      "rule": "plugin-tools",
+      "page": null,
+      "topic": "Команды плагина",
+      "stage": "all",
+      "guidance": "Каталог содержит все внешние команды исходного снимка и степень покрытия. Независимые нативные операции не являются переносом всего плагина. Для команды с диалогом проверить установленную кнопку, поставить команду в очередь и дождаться завершения пользователем. posted=true не означает успех операции.",
+      "tools": [
+        "get_bimstarter_tools",
+        "run_bimstarter_command",
+        "bimstarter_model_tools"
+      ]
+    },
+    {
+      "profile": "BIMStarter",
+      "rule": "native-rebar",
+      "page": null,
+      "topic": "Нативное армирование",
+      "stage": "all",
+      "guidance": "Отличать вложенные IFC-семейства от Rebar. Для реальной арматуры строить shape-driven контуры с линиями/дугами либо явные free-form стержни, задавать раскладку, проверять доступные ограничения и соединители. Free-form без собственного сервера обновления не обещает автоматическую перестройку от изменения основы.",
+      "tools": [
+        "create_rebar_geometry",
+        "get_rebar_constraints",
+        "set_rebar_constraint",
+        "create_rebar_coupler",
+        "get_rebar_in_host"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "identity",
+      "page": null,
+      "topic": "Редакции ФОП",
+      "stage": "all",
+      "guidance": "Проверенные пользовательские снимки: ФОП2019 — 264 GUID, ФОП2021 — 323 GUID. XLSX обозначает снимки 2019_2022-02-14 и 2021_2024-05-13. Это не подтвержденный BIM-Standart v2.0. Искать по профилю и GUID; проверять исходный тип NUMBER/LENGTH/etc, тип/экземпляр и категории в живом документе.",
+      "tools": [
+        "get_shared_parameter_catalog",
+        "get_project_standards"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "view-organization",
+      "page": 20,
+      "topic": "Диспетчер видов",
+      "stage": "all",
+      "guidance": "Описание шаблонов RU Revit 2019 v1.2, разделы 1.1.9–1.1.13: диспетчер может группировать виды и спецификации по ADSK_Назначение вида; шаблон может заполнять и блокировать значение. Сначала прочитать живой параметр и настройки шаблона, затем переиспользовать подходящие определения. Страница указана по печатной нумерации руководства; схемы альтернативные, а не обязательные одновременно.",
+      "tools": [
+        "get_project_standards",
+        "list_view_templates",
+        "apply_view_template",
+        "set_parameter"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "template-scope",
+      "page": null,
+      "topic": "Старые шаблоны",
+      "stage": "all",
+      "guidance": "Из архивов получены описания RU/KZ Revit 2019 и ФОП, а не файлы RTE. Нельзя утверждать, что внутреннее содержимое конкретного шаблона 2020/2022 исследовано. После обновления шаблона в поддерживаемом Revit проверять привязки, категории, спецификации, единицы и предупреждения; обратного сохранения в старый Revit нет.",
+      "tools": [
+        "get_project_standards",
+        "analyze_warnings"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "3.2.1–3.2.2",
+      "page": 17,
+      "topic": "Исходные данные",
+      "stage": "all",
+      "guidance": "Использовать шаблоны и ФОП Заказчика для нужного раздела; их перечень фиксируется в ПИМ. ADSK или BIMStarter не заменяют ФОП Самолёт. Без проектного ФОП имена в EIR — подсказки, GUID не установлены.",
+      "tools": [
+        "get_project_standards",
+        "get_shared_parameter_catalog"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "3.3.1–3.3.7",
+      "page": 18,
+      "topic": "Семейства",
+      "stage": "all",
+      "guidance": "Переиспользовать библиотеку Заказчика, создавать аналоги по УПМ, именованию и ЕСПИМ. Сохранять простую достаточную детализацию, метрические значения, чистое компактное семейство. Размеры реального изделия проверять на нескольких вариантах.",
+      "tools": [
+        "analyze_family_structure",
+        "flex_family",
+        "create_family_form",
+        "save_document"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "3.3.8–3.3.9",
+      "page": 18,
+      "topic": "Вложенные семейства",
+      "stage": "all",
+      "guidance": "Проверять импортированную геометрию и 2D-подложки во всем дереве вложений, включая скрытые компоненты. Новые Generic Annotation получают префикс ASML_. Ограничение глубины анализа требует отдельного обхода оставшихся узлов.",
+      "tools": [
+        "analyze_family_structure",
+        "flex_family"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "4.1.2–4.1.6",
+      "page": 18,
+      "topic": "Структура проекта",
+      "stage": "all",
+      "guidance": "Нужны рабочие наборы по проектным маскам имен. Проверить дубли семейств и параметров; не удалять автоматически кандидаты. Импорт САПР запрещен; связанный DWG допустим только для схем, узлов и деталей, остальные подложки PDF.",
+      "tools": [
+        "validate_project_standard",
+        "list_worksets",
+        "assign_worksets",
+        "delete_elements_checked"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "6.3.2–6.3.7",
+      "page": 37,
+      "topic": "КР геометрия",
+      "stage": "all",
+      "guidance": "Не проводить несущую вертикаль через несколько этажей и горизонталь через деформационный шов. Отдельные физические детали — отдельные элементы. Проверить стыки и Room Bounding; балка вырезает объем колонны/пилона.",
+      "tools": [
+        "get_intersecting_elements",
+        "bimstarter_model_tools",
+        "get_element_parameters"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "6.3.8–6.3.11",
+      "page": 37,
+      "topic": "КР инструменты",
+      "stage": "PD/RD",
+      "guidance": "Для КР не использовать Parts и Paint. Аналитическая модель допустима на ПД для расчета; на РД отключена. Не добавлять уровни ради аналитических смещений. Новая проверка только сообщает найденные нарушения.",
+      "tools": [
+        "validate_project_standard"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "6.3.12 table 6.3.1(a)",
+      "page": 37,
+      "topic": "Повторения арматуры",
+      "stage": "all",
+      "guidance": "Для типовых этажей применяются СМ_Этаж и Орг.КоличествоЭтажей; изменившиеся элементы армируются отдельно с собственным числом повторений. Для повторяющихся конструкций учитывать Орг.МножительКоличества с Орг.МножительВкл. Проверять обязательные привязки и точную формулу количества по УПМ/живой спецификации, не перемножать повторно уже учтенные количества.",
+      "tools": [
+        "get_project_standards",
+        "get_shared_parameter_catalog",
+        "bimstarter_model_tools",
+        "get_material_quantities"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "6.3.12 table 6.3.1(a)",
+      "page": 38,
+      "topic": "Погонная арматура и зоны",
+      "stage": "all",
+      "guidance": "Погонную арматуру создавать непрерывными полными участками для корректного учета нахлестов. Для арматуры плит заполнить Раздел/ОргЗонаРасположения по реальному расположению. У Path Reinforcement Раздел должен смыслово соответствовать Грань; одинаковые строковые значения не гарантированы. Шпильки и поддерживающие каркасы могут считаться через параметры по УПМ.",
+      "tools": [
+        "create_rebar_geometry",
+        "create_path_reinforcement",
+        "validate_project_standard",
+        "get_project_standards"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "6.3.12 table 6.3.1(b–h)",
+      "page": 38,
+      "topic": "КР категории",
+      "stage": "all",
+      "guidance": "Обычные балки — Structural Framing, высокие балки могут быть Walls; капители — отдельные плиты на полную толщину под основной без вырезания ее объема. KR запрещает системные Stairs/Ramp, Parts, Steel tools и ряд способов отверстий. Копинг/соединители доступны в общем ClaudeRevit, но нельзя применять запрещенный инструмент в данном проектном профиле.",
+      "tools": [
+        "get_standard_workflows",
+        "validate_project_standard",
+        "bimstarter_model_tools"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "7.1",
+      "page": 46,
+      "topic": "Именование",
+      "stage": "all",
+      "guidance": "Следовать приложению 3: общий→частный, разделитель подчеркивание, коды в верхнем регистре, размер в имени согласован с параметрами. Приложение с точными масками отсутствует. Текст содержит неоднозначность про Unicode при кириллических примерах; не вводить запрет всей кириллицы или придуманную ASCII-маску.",
+      "tools": [
+        "get_project_standards",
+        "analyze_family_structure",
+        "rename_element"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "9.1.10–9.1.13",
+      "page": 47,
+      "topic": "Размеры и графика",
+      "stage": "all",
+      "guidance": "Не подменять числовые значения размеров. Для постоянного скрытия использовать фильтры/рабочие наборы/шаблоны, для графики фильтры/шаблоны. color_elements_by_parameter с индивидуальными overrides подходит лишь для временного preview/диагностики; итоговое оформление реализовать параметрическими фильтрами и шаблоном.",
+      "tools": [
+        "get_dimension_references",
+        "create_dimension_from_references",
+        "create_view_filter",
+        "apply_filter_to_view",
+        "validate_project_standard"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "9.4.1–9.4.5",
+      "page": 48,
+      "topic": "Ведомости КР",
+      "stage": "all",
+      "guidance": "В общих данных нужен расход на комплект. Бетон и сталь группируются по блокам и конструкциям; материалы по блокам/материалам. У бетона в имени характеристики B/F/W/заполнитель; бетон не дублируется в ведомости остальных материалов. Пагинация material quantities возвращает итог лишь текущей страницы; собрать все страницы и проверить множители отдельно.",
+      "tools": [
+        "get_project_standards",
+        "get_material_quantities",
+        "create_schedule",
+        "add_schedule_field"
+      ]
+    },
+    {
+      "profile": "Samolet",
+      "rule": "13",
+      "page": 58,
+      "topic": "IFC и экспертиза",
+      "stage": "all",
+      "guidance": "Для сценария экспертизы проверить согласованный IFC 2x3 Coordination View 2.0 или IFC4 Reference View, классификацию КСИ и проектные наборы атрибутов. Ограничение 500 MB относится к файлам данного сценария. Результат нельзя подтвердить только по исходной RVT: нужна проверка фактического экспорта и проектных приложений.",
+      "tools": [
+        "get_project_standards",
+        "get_standard_workflows"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "3.1.3.7–3.1.3.9",
+      "page": 145,
+      "topic": "Закладные и IFC",
+      "stage": "all",
+      "guidance": "Руководство RU 2019 v1.2, печатные стр.145–148: IFC арматура — загружаемые семейства, даже когда категория Несущая арматура. Для попадания закладной/IFC детали в спецификации проверить ADSK_Категория основы и ADSK_Метка основы; наследование от хоста не гарантируется. У деталей закладных в описанной схеме комментарий типа и префикс дз_. Современные native Rebar constraints не применяются к таким FamilyInstance.",
+      "tools": [
+        "analyze_family_structure",
+        "get_element_hosts",
+        "bimstarter_model_tools",
+        "get_project_standards"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "3.1.3.8",
+      "page": 147,
+      "topic": "Каркасы и подсчет",
+      "stage": "all",
+      "guidance": "В описанной редакции плоский каркас группируют из стержней, обозначают ADSK_Марка изделия и выделяют ровно одну ADSK_Главная деталь изделия. Для пространственного каркаса отдельно ADSK_Марка конструкции, ADSK_Пространственный каркас и одна ADSK_Главная деталь конструкции. Типы к_/мп_к_/мп_ участвуют в фильтрации; погонный подсчет выбирает главный элемент по метражу. Сборка нужна для отдельных видов/спецификаций, а не вместо параметрической схемы. Не переносить автоматически схему BIMStarter Орг.*.",
+      "tools": [
+        "get_project_standards",
+        "get_shared_parameter_catalog",
+        "create_group",
+        "create_assembly",
+        "bimstarter_model_tools"
+      ]
+    },
+    {
+      "profile": "ADSK",
+      "rule": "3.3.2",
+      "page": 163,
+      "topic": "Спецификации КЖ",
+      "stage": "all",
+      "guidance": "Различать Арматура на жб (все основы с одной маркой) и Арматура на 1 жб (одна основа из одинаково маркированных). Фильтр Расч_Метка основы, объединенные столбцы и главный элемент определяют подсчет. Описанные исходные коэффициенты арматуры 1.1 и закладных 1.0 — настройки конкретного шаблона, не нормативный расчет нахлестов; сверять действующую формулу. На стр.166 описана красная индикация ошибочной единицы м.п./шт. Не подменять этот бизнес-подсчет простым sum геометрии.",
+      "tools": [
+        "get_project_standards",
+        "get_material_quantities",
+        "get_shared_parameter_catalog"
+      ]
+    }
+  ]
+}

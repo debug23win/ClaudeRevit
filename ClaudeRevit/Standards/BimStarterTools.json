@@ -1,0 +1,871 @@
+{
+  "repository": "https://github.com/Tereami/BimStarter",
+  "commit": "8447492db5292307b4bcf19919b1d6605e734a43",
+  "author": "Aleksandr Zuev",
+  "license_url": "https://github.com/Tereami/BimStarter/blob/master/LICENSE.MD",
+  "commands": [
+    {
+      "id": "AboutBimstarter.CommandAbout",
+      "title": "О программе",
+      "source": "AboutBimstarter/CommandAbout.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "ArchParametrisation.CmdArchParametrisation",
+      "title": "АР параметризатор",
+      "source": "ArchParametrisation/CmdArchParametrisation.cs",
+      "ribbon": true,
+      "native_tools": [
+        "derive_parameters",
+        "get_element_hosts"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandAutoCut",
+      "title": "Авто вырезание",
+      "source": "AutoJoin/CommandAutoCut.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "cut",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandAutoJoin",
+      "title": "Авто сое- динение",
+      "source": "AutoJoin/CommandAutoJoin.cs",
+      "ribbon": true,
+      "native_tools": [
+        "auto_join_geometry"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandBatchUnjoin",
+      "title": "Авторазделение",
+      "source": "AutoJoin/CommandBatchUnjoin.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "unjoin",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandBeamDisallowJoin",
+      "title": "CommandBeamDisallowJoin",
+      "source": "AutoJoin/CommandBeamDisallowJoin.cs",
+      "ribbon": false,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "beam_end_joins",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandCreateCope",
+      "title": "Врезка",
+      "source": "AutoJoin/CommandCreateCope.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "cope",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "AutoJoinCut.CommandJoinByOrder",
+      "title": "Задать приоритет",
+      "source": "AutoJoin/CommandJoinByOrder.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "join_order",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "Autonumber.Command",
+      "title": "Autonumber",
+      "source": "Autonumber/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "autonumber_elements"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "BatchPrintYay.CommandBatchPrint",
+      "title": "Печать",
+      "source": "BatchPrintYay/CommandBatchPrint.cs",
+      "ribbon": true,
+      "native_tools": [
+        "batch_export_sheets",
+        "export_pdf"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "BatchPrintYay.CommandRefreshSchedules",
+      "title": "Обновить спец-и",
+      "source": "BatchPrintYay/CommandRefreshSchedules.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "refresh_schedules",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ClearUnusedGUIDs.AvailableButtonInFamily",
+      "title": "AvailableButtonInFamily",
+      "source": "ClearUnusedGUIDs/AvailableButtonInFamily.cs",
+      "ribbon": false,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ClearUnusedGUIDs.CommandAddParameters",
+      "title": "Добавить параметр",
+      "source": "ClearUnusedGUIDs/CommandAddParameters.cs",
+      "ribbon": true,
+      "native_tools": [
+        "add_shared_family_parameter"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ClearUnusedGUIDs.CommandAddParamsByAnalog",
+      "title": "Добавить по аналогу",
+      "source": "ClearUnusedGUIDs/CommandAddParamsByAnalog.cs",
+      "ribbon": true,
+      "native_tools": [
+        "analyze_family_structure",
+        "get_shared_parameter_catalog",
+        "add_shared_family_parameter"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ClearUnusedGUIDs.CommandClear",
+      "title": "Очистить GUID",
+      "source": "ClearUnusedGUIDs/CommandClear.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_project_standards",
+        "delete_elements_checked"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "SchedulesTools.CommandCollapseRebarSchedule",
+      "title": "Свернуть ВРС",
+      "source": "CollapseRebarSchedule/CommandCollapseRebarSchedule.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_schedule",
+        "get_project_standards"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "SchedulesTools.CommandCollapseSettings",
+      "title": "Настройка ВРС",
+      "source": "CollapseRebarSchedule/CommandCollapseSettings.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "SchedulesTools.CommandCreateTable",
+      "title": "Ведомость спецификаций",
+      "source": "CollapseRebarSchedule/CommandCreateTable.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_schedule",
+        "add_schedule_field",
+        "create_text_note",
+        "create_detail_line"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "SchedulesTools.CommandRevisionClouds",
+      "title": "Ревизии",
+      "source": "CollapseRebarSchedule/CommandRevisionClouds.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_revision",
+        "create_revision_cloud"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ColumnsParametrisation.Command",
+      "title": "Autonumber",
+      "source": "ColumnsParametrisation/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "derive_parameters",
+        "autonumber_elements"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "DrawingsGenerator.Command",
+      "title": "Autonumber",
+      "source": "DrawingsGenerator/Command.cs",
+      "ribbon": false,
+      "native_tools": [
+        "generate_sheet_set",
+        "create_section",
+        "create_schedule"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "FixSlowFile.Command",
+      "title": "Autonumber",
+      "source": "FixSlowFile/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "diagnose_model",
+        "clean_model",
+        "delete_elements_checked"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "GroupedAssembly.Command",
+      "title": "Autonumber",
+      "source": "GroupedAssembly/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_assembly",
+        "create_group",
+        "generate_sheet_set"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "IngradParametrisation.Command",
+      "title": "Autonumber",
+      "source": "IngradParametrisation/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "derive_parameters",
+        "get_project_standards"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "LinkWriter.CommandWriteLink",
+      "title": "Записать в связь",
+      "source": "LinkWriter/CommandWriteLink.cs",
+      "ribbon": true,
+      "native_tools": [
+        "query_linked_elements",
+        "set_parameter"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ParameterWriter.Command",
+      "title": "Autonumber",
+      "source": "ParameterWriter/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools",
+        "derive_parameters"
+      ],
+      "native_operation": "copy_parameters",
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ParameterWriter.CommandPropertiesCopy",
+      "title": "Супер-кисточка",
+      "source": "ParameterWriter/CommandPropertiesCopy.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools",
+        "derive_parameters"
+      ],
+      "native_operation": "copy_parameters",
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "ParameterWriter.CommandWriteView",
+      "title": "Заполнить по виду",
+      "source": "ParameterWriter/CommandWriteView.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools",
+        "derive_parameters"
+      ],
+      "native_operation": "copy_parameters",
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PartsParametrisation.Command",
+      "title": "Autonumber",
+      "source": "PartsParametrisation/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "derive_parameters",
+        "get_element_hosts"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PilesCoords.PileCutCommand",
+      "title": "Срубка",
+      "source": "PilesCoords/PileCutCommand.cs",
+      "ribbon": true,
+      "native_tools": [
+        "autonumber_elements",
+        "derive_parameters",
+        "export_element_coordinates"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PilesCoords.PilesCalculateRangeCommand",
+      "title": "Диапазоны",
+      "source": "PilesCoords/PilesCalculateRangeCommand.cs",
+      "ribbon": true,
+      "native_tools": [
+        "autonumber_elements",
+        "derive_parameters",
+        "export_element_coordinates"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PilesCoords.PilesElevationCommand",
+      "title": "Отметки",
+      "source": "PilesCoords/PilesElevationCommand.cs",
+      "ribbon": true,
+      "native_tools": [
+        "autonumber_elements",
+        "derive_parameters",
+        "export_element_coordinates"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PilesCoords.PilesNumberingCommand",
+      "title": "Номера свай",
+      "source": "PilesCoords/PilesNumberingCommand.cs",
+      "ribbon": true,
+      "native_tools": [
+        "autonumber_elements",
+        "derive_parameters",
+        "export_element_coordinates"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "PilesCoords.SettingsCommand",
+      "title": "Настройки",
+      "source": "PilesCoords/SettingsCommand.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ProjectStageCalculation.Command",
+      "title": "Autonumber",
+      "source": "ProjectStageCalculation/Command.cs",
+      "ribbon": false,
+      "native_tools": [
+        "get_project_standards",
+        "derive_parameters"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RebarParametrisation.Command",
+      "title": "Autonumber",
+      "source": "RebarParametrisation/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "propagate_host_parameters",
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RebarSketch.CommandCreatePictures",
+      "title": "Вед-ть эскизов",
+      "source": "RebarSketch/CommandCreatePictures.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_rebar_shape_sketch",
+        "create_rebar_schedule_images"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RebarSketch.CommandFormGenerator",
+      "title": "Конструктор форм",
+      "source": "RebarSketch/CommandFormGenerator.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_rebar_shape_sketch",
+        "create_family_form"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RebarTools.CommandAreaMark",
+      "title": "Марка",
+      "source": "RebarTools/CommandAreaMark.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_rebar_in_host",
+        "tag_elements",
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "propagate_host_parameters",
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RebarTools.CommandExplode",
+      "title": "Взорвать",
+      "source": "RebarTools/CommandExplode.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "explode_rebar_set",
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "RebarTools.CommandRebarPresentation",
+      "title": "Скрыть",
+      "source": "RebarTools/CommandRebarPresentation.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "rebar_display",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "RebarTools.CommandRebarVisibility",
+      "title": "Графика стержней",
+      "source": "RebarTools/CommandRebarVisibility.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "rebar_display",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-SA repository license; check file header"
+    },
+    {
+      "id": "RevitAreaReinforcement.CommandCreateAreaRebar",
+      "title": "Стены",
+      "source": "RevitAreaReinforcement/CommandCreateAreaRebar.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_area_reinforcement",
+        "create_rebar_geometry"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitAreaReinforcement.CommandCreateFloorRebar",
+      "title": "Плиты",
+      "source": "RevitAreaReinforcement/CommandCreateFloorRebar.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_area_reinforcement",
+        "create_path_reinforcement",
+        "create_rebar_geometry"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitAreaReinforcement.CommandRestoreRebarArea",
+      "title": "Ремонт",
+      "source": "RevitAreaReinforcement/CommandRestoreRebarArea.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_rebar_in_host",
+        "create_area_reinforcement"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitElementsElevation.Command",
+      "title": "Autonumber",
+      "source": "RevitElementsElevation/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "derive_parameters",
+        "export_element_coordinates"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitElementsElevation.CommandConfig",
+      "title": "Настройки",
+      "source": "RevitElementsElevation/CommandConfig.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitGraphicsOverride.Command",
+      "title": "Autonumber",
+      "source": "RevitGraphicsOverride/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "set_color_override",
+        "color_elements_by_parameter",
+        "reset_view_overrides"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitPlatesWeight.Command",
+      "title": "Autonumber",
+      "source": "RevitPlatesWeight/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "calculate_weight",
+        "get_material_quantities"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitViewFilters.CommandBatchDelete",
+      "title": "Удалить фильтры",
+      "source": "RevitViewFilters/CommandBatchDelete.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "remove_view_filters",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitViewFilters.CommandCreate",
+      "title": "Создать фильтры",
+      "source": "RevitViewFilters/CommandCreate.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_view_filter",
+        "apply_filter_to_view"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitViewFilters.CommandViewColoring",
+      "title": "Раскрасить",
+      "source": "RevitViewFilters/CommandViewColoring.cs",
+      "ribbon": true,
+      "native_tools": [
+        "color_elements_by_parameter",
+        "create_view_filter",
+        "apply_filter_to_view"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitViewFilters.CommandWallHatch",
+      "title": "Высота стен",
+      "source": "RevitViewFilters/CommandWallHatch.cs",
+      "ribbon": true,
+      "native_tools": [
+        "create_view_filter",
+        "apply_filter_to_view",
+        "set_color_override"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RevitWorksets.Command",
+      "title": "Autonumber",
+      "source": "RevitWorksets/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "list_worksets",
+        "assign_worksets"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RibbonBimStarter.CommandCheckFamilies",
+      "title": "Проверить",
+      "source": "RibbonBimStarter/CommandCheckFamilies.cs",
+      "ribbon": true,
+      "native_tools": [
+        "audit_bimstarter_families",
+        "analyze_family_structure",
+        "flex_family"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RibbonBimStarter.CommandFamilySettings",
+      "title": "CommandFamilySettings",
+      "source": "RibbonBimStarter/CommandFamilySettings.cs",
+      "ribbon": false,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RibbonBimStarter.CommandShowFamilyInfo",
+      "title": "Карточка семейства",
+      "source": "RibbonBimStarter/CommandShowFamilyInfo.cs",
+      "ribbon": true,
+      "native_tools": [
+        "audit_bimstarter_families",
+        "analyze_family_structure"
+      ],
+      "native_operation": null,
+      "coverage": "partial_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RibbonBimStarter.CommandShowPane",
+      "title": "Библиотека семейств",
+      "source": "RibbonBimStarter/CommandShowPane.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "RibbonBimStarter.CommandUploadFamily",
+      "title": "Загрузить в базу",
+      "source": "RibbonBimStarter/CommandUploadFamily.cs",
+      "ribbon": true,
+      "native_tools": [],
+      "native_operation": null,
+      "coverage": "interactive_plugin",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "SelectHost.Command",
+      "title": "Autonumber",
+      "source": "SelectHost/Command.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_element_hosts"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ViewsSheetsTools.CommandOpenSheets",
+      "title": "Открыть листы",
+      "source": "ViewsSheetsTools/CommandOpenSheets.cs",
+      "ribbon": true,
+      "native_tools": [
+        "query_elements",
+        "set_active_view"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ViewsSheetsTools.CommandSetNumber",
+      "title": "Задать номер",
+      "source": "ViewsSheetsTools/CommandSetNumber.cs",
+      "ribbon": true,
+      "native_tools": [
+        "get_sheet_views",
+        "set_parameter"
+      ],
+      "native_operation": null,
+      "coverage": "native_workflow",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    },
+    {
+      "id": "ViewsSheetsTools.CommandViewTemplate",
+      "title": "Копир-ть шаблоны",
+      "source": "ViewsSheetsTools/CommandViewTemplate.cs",
+      "ribbon": true,
+      "native_tools": [
+        "bimstarter_model_tools"
+      ],
+      "native_operation": "apply_view_template",
+      "coverage": "native",
+      "interactive_ui": true,
+      "source_license": "CC BY-NC-SA header"
+    }
+  ],
+  "notes": [
+    "Command inventory and native workflow mappings, not copied plugin implementation.",
+    "native_workflow/partial_workflow are compositions and are not identical copies of the plugin UI logic.",
+    "Cloud family updates/uploads, settings dialogs and special schedule collapse remain interactive plugin workflows."
+  ]
+}

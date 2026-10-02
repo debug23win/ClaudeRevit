@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
     <!-- Run on a newer runtime if 8.0 isn't installed (CI/dev may ship only .NET 10). -->
@@ -13,7 +14,10 @@
   <ItemGroup>
     <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="src\SharedParameterCatalog.cs" />
     <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="src\StandardKnowledge.cs" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\Workflows.json" LogicalName="ClaudeRevit.Standards.Workflows.json" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarterTools.json" LogicalName="ClaudeRevit.Standards.BimStarterTools.json" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -39,6 +43,13 @@
     <Compile Include="..\ClaudeRevit\Services\CodexCli.cs" Link="src\CodexCli.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="src\McpAgentSelection.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexModels.cs" Link="src\CodexModels.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexModelCatalog.cs" Link="src\CodexModelCatalog.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkExecution.cs" Link="src\BenchmarkExecution.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkCleanup.cs" Link="src\BenchmarkCleanup.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkGrading.cs" Link="src\BenchmarkGrading.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BimStarterKnowledge.cs" Link="src\BimStarterKnowledge.cs" />
+    <Compile Include="..\ClaudeRevit\Services\StandardWorkflows.cs" Link="src\StandardWorkflows.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ParameterColors.cs" Link="src\ParameterColors.cs" />
     <Compile Include="..\ClaudeRevit\Services\ConversationWorkspace.cs" Link="src\ConversationWorkspace.cs" />
     <Compile Include="..\ClaudeRevit\Services\HistoryStore.cs" Link="src\HistoryStore.cs" />
     <Compile Include="..\ClaudeRevit\Services\QueuedOperation.cs" Link="src\QueuedOperation.cs" />

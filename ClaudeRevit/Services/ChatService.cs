@@ -247,6 +247,7 @@ public class ChatService
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
     // NOT apply here — Claude Code runs its own loop with the one chosen model.
     public bool SubscriptionMode;
+    public string? LastRunError { get; private set; }
 
     // Start the next CLI message as a NEW session instead of resuming the stored one.
     //
@@ -378,6 +379,15 @@ public class ChatService
     // fixed model can grade results independently of the model under test. No history, no tools.
     public async Task<string> RawCompleteAsync(string modelTag, string systemPrompt, string userText, CancellationToken ct = default)
     {
+        if (IsAlt(modelTag))
+        {
+            if (!OpenAIBackend.IsConfigured) throw new InvalidOperationException("Configure the alternative API provider before selecting it as benchmark judge.");
+            var turn = await new OpenAIBackend().StreamTurnAsync(systemPrompt,
+                new[] { new ApiTurn { Blocks = new() { new ChatTextBlock(userText) } } }, "",
+                new System.Text.Json.Nodes.JsonArray(), _ => Task.CompletedTask, ct, AltModelOverride(modelTag));
+            if (turn.Blocks.OfType<ChatToolUseBlock>().Any()) throw new InvalidOperationException("The no-tools API judge attempted a tool call.");
+            return string.Join("\n", turn.Blocks.OfType<ChatTextBlock>().Select(b => b.Text));
+        }
         var client = GetClient();
         var parameters = new MessageCreateParams
         {
@@ -491,6 +501,7 @@ public class ChatService
 
         if (!string.IsNullOrEmpty(res.Error))
         {
+            LastRunError = res.Error;
             Append((bubble == null ? "" : "\n\n") + "⚠ " + res.Error);
             return;
         }
@@ -557,8 +568,11 @@ public class ChatService
             modelAlias != null ? "claude-code:" + modelAlias : "claude-code",
             res.NumTurns, res.InputTokens, res.OutputTokens, 0, res.DurationMs / 1000.0);
 
+        if (res.IsError && string.IsNullOrEmpty(res.Error)) res.Error = res.Text.Length > 0 ? res.Text : "Claude Code reported an error.";
+
         if (!string.IsNullOrEmpty(res.Error))
         {
+            LastRunError = res.Error;
             Append((bubble == null ? "" : "\n\n") + "⚠ " + res.Error);
             return;
         }
@@ -596,6 +610,7 @@ public class ChatService
         // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
         // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
+        LastRunError = null;
         var subscription = SubscriptionMode;
         return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection), ct);
     }

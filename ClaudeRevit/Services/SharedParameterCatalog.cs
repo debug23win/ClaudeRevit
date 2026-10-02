@@ -10,7 +10,13 @@ namespace ClaudeRevit.Services;
 // Revit's tab-separated FOP format predates ForgeTypeId. Preserve the source's
 // data-type token; a NUMBER called "mass" must not become a MASS parameter.
 public sealed record SharedParameterDefinition(Guid Guid, string Name, string DataType,
-    string DataCategory, string Group, string Description, string Profile, string Source);
+    string DataCategory, string Group, string Description, string Profile, string Source)
+{
+    public string? RecommendedGroup { get; init; }
+    public bool? Visible { get; init; }
+    public bool? UserModifiable { get; init; }
+    public bool? HideWhenNoValue { get; init; }
+}
 
 public sealed record SharedParameterCatalog(string Source, string Sha256,
     IReadOnlyList<SharedParameterDefinition> Definitions, IReadOnlyList<string> Warnings)
@@ -69,9 +75,11 @@ public sealed record SharedParameterCatalog(string Source, string Sha256,
             if (!seen.Add(guid))
             { warnings.Add($"Line {line}: duplicate GUID {guid}; first definition retained."); continue; }
             var groupId = Cell(cells, "GROUP");
+            bool? Flag(string column) => Cell(cells, column) switch { "1" => true, "0" => false, _ => null };
             definitions.Add(new(guid, Cell(cells, "NAME"), Cell(cells, "DATATYPE"),
                 Cell(cells, "DATACATEGORY"), groups.GetValueOrDefault(groupId, groupId),
-                Cell(cells, "DESCRIPTION"), profile, source));
+                Cell(cells, "DESCRIPTION"), profile, source)
+            { Visible = Flag("VISIBLE"), UserModifiable = Flag("USERMODIFIABLE"), HideWhenNoValue = Flag("HIDEWHENNOVALUE") });
         }
         foreach (var duplicate in definitions.GroupBy(d => d.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
             warnings.Add($"Name '{duplicate.Key}' has multiple GUIDs; resolve it by GUID.");

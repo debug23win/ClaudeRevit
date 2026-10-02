@@ -28,6 +28,8 @@ jobs:
         run: dotnet run --project ClaudeRevit.PaneTests -c Release -- pane-qa
       - name: MCP transport checks (isolated HTTP and stdio clients)
         run: dotnet run --project ClaudeRevit.McpTests -c Release
+      - name: Subscription CLI checks (isolated fake processes, no account)
+        run: dotnet run --project ClaudeRevit.CliTests -c Release
       - name: Upload Revit 2027 build
         uses: actions/upload-artifact@v4
         with:

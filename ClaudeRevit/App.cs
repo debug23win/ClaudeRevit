@@ -61,6 +61,12 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new RotateElements());
             ToolRegistry.Instance.Register(new CopyElements());
             ToolRegistry.Instance.Register(new DeleteElements());
+            ToolRegistry.Instance.Register(new DeleteElementsChecked());
+            ToolRegistry.Instance.Register(new GetMaterialQuantities());
+            ToolRegistry.Instance.Register(new CreateBeamSystem());
+            ToolRegistry.Instance.Register(new ColorElementsByParameter());
+            ToolRegistry.Instance.Register(new GetDimensionReferences());
+            ToolRegistry.Instance.Register(new CreateDimensionFromReferences());
             ToolRegistry.Instance.Register(new SetParameter());
             ToolRegistry.Instance.Register(new SetColorOverride());
             ToolRegistry.Instance.Register(new TagElements());
@@ -183,6 +189,24 @@ public class App : IExternalApplication
             // Family Editor suite: parametric family authoring (parameters, formulas,
             // associations, arrays) that previously had to go through execute_csharp.
             ToolRegistry.Instance.Register(new GetFamilyParameters());
+            ToolRegistry.Instance.Register(new AnalyzeFamilyStructure());
+            ToolRegistry.Instance.Register(new FlexFamily());
+            ToolRegistry.Instance.Register(new CreateFamilyForm());
+            ToolRegistry.Instance.Register(new CombineFamilyForms());
+            ToolRegistry.Instance.Register(new OpenFamilyEditor());
+            ToolRegistry.Instance.Register(new AddSharedFamilyParameter());
+            ToolRegistry.Instance.Register(new PlaceNestedFamilyInstance());
+            ToolRegistry.Instance.Register(new CreateRebarGeometry());
+            ToolRegistry.Instance.Register(new GetRebarConstraints());
+            ToolRegistry.Instance.Register(new SetRebarConstraint());
+            ToolRegistry.Instance.Register(new CreateRebarCoupler());
+            ToolRegistry.Instance.Register(new BimStarterModelTools());
+            ToolRegistry.Instance.Register(new GetBimStarterTools());
+            ToolRegistry.Instance.Register(new RunBimStarterCommand());
+            ToolRegistry.Instance.Register(new AuditBimStarterFamilies());
+            ToolRegistry.Instance.Register(new CreateRebarScheduleImages());
+            ToolRegistry.Instance.Register(new GetStandardWorkflows());
+            ToolRegistry.Instance.Register(new ValidateProjectStandard());
             ToolRegistry.Instance.Register(new AddFamilyParameter());
             ToolRegistry.Instance.Register(new RemoveFamilyParameter());
             ToolRegistry.Instance.Register(new SetFamilyParameterFormula());
