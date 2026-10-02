@@ -106,7 +106,7 @@ public partial class BenchmarkWindow : Window
 
     private void RenderStatus() => NowText.Text = $"{_status}  ·  {_phase.Elapsed.TotalSeconds:0}s";
 
-    // The task subset to run — pick fewer to save tokens; you rarely need all 19 every time.
+    // Select the same task suite and seed document for comparable runs.
     private System.Collections.Generic.IReadOnlyList<BenchmarkTask> SelectedTasks()
     {
         var tag = (TaskSetBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
@@ -116,11 +116,12 @@ public partial class BenchmarkWindow : Window
             "composite" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("L")).ToList(),
             "domain" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("R") || t.Id.StartsWith("S")).ToList(),
             "docs" => BenchmarkTasks.All.Where(t => t.Id.StartsWith("D")).ToList(),
+            "family" => BenchmarkTasks.All.Where(t => t.FamilyDocument).ToList(),
             // The discriminators: multi-step chains where a wrong intermediate result only shows at
             // the end, plus the domain tasks.
             "hard" => BenchmarkTasks.All.Where(t => t.Id is "L3" or "L4"
                         || t.Id.StartsWith("R") || t.Id.StartsWith("S")
-                        || t.Id.StartsWith("D")).ToList(),
+                        || t.Id.StartsWith("D") || t.FamilyDocument || t.Id == "L5").ToList(),
             _ => BenchmarkTasks.All
         };
     }
@@ -150,7 +151,8 @@ public partial class BenchmarkWindow : Window
 
         // Stamp passed in (Date.Now is fine in app code) so every row of one run shares a run id.
         var stamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        var passes = 0; long tokens = 0; double seconds = 0; var graded = 0;
+        var passes = 0; long tokens = 0; double seconds = 0; var graded = 0; var skipped = 0;
+        double qualitySum = 0, speedSum = 0, scoreSum = 0;
 
         var maxSeconds = maxMinutes > 0 ? maxMinutes * 60 : 0;
 
@@ -166,13 +168,15 @@ public partial class BenchmarkWindow : Window
                 {
                     _results.Add(r);
                     tokens += r.Tokens;
-                    if (double.TryParse(r.Time.TrimEnd('s'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s)) seconds += s;
-                    if (r.Verdict != "?") graded++;
+                    seconds += r.Seconds;
+                    if (r.Score != null) { graded++; qualitySum += r.Quality ?? 0; speedSum += r.Speed ?? 0; scoreSum += r.Score.Value; }
+                    if (r.Verdict == "—") skipped++;
                     if (r.Verdict == "✓") passes++;
                     SummaryText.Text =
                         $"{_results.Count}/{tasks.Count} tasks · " +
-                        $"{passes} passed{(graded < _results.Count ? $" ({_results.Count - graded} ungraded)" : "")} · " +
-                        $"{tokens:N0} tokens · {seconds:0.0}s total";
+                        $"{passes}/{graded} passed · {skipped} skipped · {_results.Count - graded - skipped} ungraded · " +
+                        (graded > 0 ? $"Quality {qualitySum / graded:0.0} · Speed {speedSum / graded:0.0} · Total {scoreSum / graded:0.0}/100 · " : "") +
+                        $"{tokens:N0} tokens · {seconds:0.0}s";
                 },
                 ct: _cts.Token);
 

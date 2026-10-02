@@ -117,6 +117,13 @@ internal static class Program
         await Task.Run(() => BenchmarkRunner.Status!("background progress"));
         await System.Windows.Threading.Dispatcher.Yield();
         Check(((TextBlock)window.FindName("NowText")).Text.StartsWith("background progress"), "Background benchmark status was not marshalled to the UI");
+        BenchmarkRunner.Result!(new BenchmarkResult { Verdict = "✓", Quality = 90, Speed = 50, Score = 81, Seconds = 120 });
+        BenchmarkRunner.Result!(new BenchmarkResult { Verdict = "—" });
+        BenchmarkRunner.Result!(new BenchmarkResult { Verdict = "?" });
+        Check(((TextBlock)window.FindName("SummaryText")).Text.Contains("Total 81") &&
+              ((TextBlock)window.FindName("SummaryText")).Text.Contains("1 skipped · 1 ungraded"), "Scores averaged skipped/ungraded tasks or were not displayed");
+        var grid = (DataGrid)window.FindName("ResultsGrid");
+        Check(new[] { "Quality", "Speed", "Total /100" }.All(h => grid.Columns.Any(c => (string)c.Header == h)), "Benchmark score columns missing");
         BenchmarkRunner.Pending.SetResult(); await System.Windows.Threading.Dispatcher.Yield();
         Check(backend.IsEnabled && (string)judgeEffort.SelectedItem == "high", "Benchmark altered effort after run");
         backend.SelectedIndex = 1; judgeBackend.SelectedIndex = 1;

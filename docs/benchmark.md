@@ -1,0 +1,107 @@
+# Benchmark: tasks and points
+
+Open 📊 in the Revit pane. **Codex subscription** is the default for modelling
+and judging. Choose their models and reasoning efforts independently. Refresh
+reads the real account catalog. API billing requires an explicit backend choice.
+
+## Points
+
+Each graded task has three numbers, all out of 100:
+
+- **Quality Q**: independent judge evaluating actual before/after Revit evidence,
+  accuracy, completeness, native editability and successful family flex scenarios.
+- **Speed S**: `100 × min(1, reference_seconds / actual_seconds)`.
+- **Total**: `Q × (0.8 + 0.2 × S / 100)`.
+
+For example, quality 90 and speed 50 give **81 points**. Quality 0 always gives
+0 total regardless of speed. Faster times cannot raise the total above quality.
+Times at/below the reference get the same maximum speed bonus; this avoids
+rewarding tiny timing differences. Each task has a fixed reference (basics 30 s,
+ordinary tasks 120 s, new complex tasks 300–480 s). These are provisional
+comparison references, not measured/calibrated production performance targets.
+Changing a cancellation limit does not change the reference or formula.
+
+Timing includes the modeller and its tool calls, including CLI/model setup. It
+excludes the independent probes, judge and reset. Default limits are 60 tool
+rounds/calls and 15 minutes per task; 0 disables that limit. A budget cutoff is
+marked in the reason; actual partial results can still receive quality credit.
+
+The summary shows mean quality, speed and total over **graded tasks only**, with
+separate passed, skipped and ungraded counts. Judge failure is **?**, not a
+measured zero. Wrong document/missing seed is **—** and receives no points.
+Compare the same completed task set, judge/effort, seed file, limits and hardware;
+a mean over a different subset is not an equivalent comparison.
+
+Results append to `%APPDATA%\ClaudeRevit\benchmark_results.jsonl`. Each row
+stores backend/model/effort, independent judge choices, actual models, verdict,
+quality/speed/total, reference time, formula version, modelling seconds, rounds,
+tokens and reason. `score` is the total in v3.7.1; older records used it for
+quality. Use `scoring_version=quality-speed-v1` to distinguish new records.
+
+## Documents and reset
+
+Run project tasks in a disposable **RVT**. Run F1–F5 in an already open ordinary
+**RFA**. Conceptual mass/adaptive templates may not support the requested ordinary
+forms. The runner checks document kind and prerequisites before starting a model
+turn; All tasks is 29 tasks, with incompatible tasks skipped.
+
+Leave **Roll back model changes after each task** enabled. A temporary native
+transaction group contains each task's changes and is rolled back after collecting
+evidence, including on cancellation. This restores existing model edits/deletions,
+added types and family parameters, not just new instances. Exported files and
+other external side effects are not rolled back. Do not save, switch documents,
+or manually edit during a run. Document change stops grading and only rolls back
+the original document's temporary group. With reset disabled, changes remain and
+tasks can contaminate one another; use a fresh document for each comparison.
+
+F2 requires loaded editable unhosted child families with a driving **instance
+length parameter** that supports association. F3 requires an existing assembly
+with at least two child levels. Use your licensed local families as fixtures;
+no downloaded commercial library is redistributed. Geometry/form tasks can run
+in a blank suitable RFA. For project reinforcement tasks, provide concrete
+structural host types and suitable rebar/hook types, or allow the model to load
+them using its tools. Missing resources reduce achievable quality.
+
+## Complex tasks added in v3.7.1
+
+| ID | What it tests | Reference |
+|---|---|---:|
+| L5 | 10-storey, 120-column frame; selectively retype 30 columns | 480 s |
+| R3 | Eight longitudinal bars and three stirrup spacing zones | 360 s |
+| R4 | Slab opening, top/bottom mesh, trimming and U bars | 480 s |
+| R5 | Curved beam, curved native bars, denser end zones | 480 s |
+| D6 | Rebar schedule with fields, grouping and checked quantities | 300 s |
+| F1 | Constrained solid, formula and six independent size/aspect tests | 360 s |
+| F2 | Four nested children, driving associations and three parent sizes | 480 s |
+| F3 | Recursive nesting audit, shared/host properties and all-type flex | 360 s |
+| F4 | Native solid/void cut, formula and four size/aspect variants | 480 s |
+| F5 | Native revolve, sweep, blend and swept blend; all-type flex | 480 s |
+
+The original B0–B6, L1–L4, R1–R2, S1 and D1–D5 remain available. Use a task
+group to run fewer scenarios.
+
+## Evidence and verification limits
+
+The judge gets element IDs and before/after changes, coordinates, host links,
+rebar diameters/quantities/layout/centerlines, openings, schedule fields/body
+rows, sheet viewports and annotation view IDs. Family tests independently call
+`analyze_family_structure` and `flex_family` after modelling, so the modeller's
+reported checks alone cannot establish success. Flex commits/regenerates each
+scenario and rolls it back, reporting solids, volumes, bounds, values and failures.
+
+Element snapshots are bounded to 2000 per class. Changed snapshots are retained
+before sampling; judge samples are capped to 200 items, schedule rows to 200 and
+columns to 30. Truncation/unavailable evidence is explicit and cannot justify
+full credit. A solid's bounding box alone does not prove its shape, every rebar
+position or absence of clashes. Sampled centerlines and quantity evidence are
+useful checks, not a complete engineering compliance audit. The grader is a
+model and can vary; keep it fixed and review its cited reasons.
+
+152 pure tests and isolated real-WPF/MCP/CLI checks cover scoring, filtering
+evidence, independent flex dispatch, prerequisites, cancellation/reset ordering,
+document changes, displayed averages and version-based CLI selection. Builds
+target the matching Revit APIs for 2025–2027. The new geometry scenarios and
+native transaction-group reset still require execution validation inside Revit.
+`test_revit_connection` now contains a separate unsaved native fixture checking
+instance/type collection and nested group rollback; it does not modify the user
+document. Compilation and isolated tests do not establish live native success.

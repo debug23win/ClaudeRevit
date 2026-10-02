@@ -14,7 +14,8 @@ public class CreateBeam : IRevitTool
     public string Name => "create_beam";
 
     public string Description =>
-        "Creates a straight structural beam between two plan-coordinate points (in feet) on a named reference level. " +
+        "Creates a native straight or curved structural beam. Use legacy plan endpoints in feet on a named level, " +
+        "or curve_mm: one line/three-point arc segment with absolute XYZ coordinates in millimetres. " +
         "If type_name is omitted, the first available structural framing type is used.";
 
     public InputSchema InputSchema => new()
@@ -26,9 +27,10 @@ public class CreateBeam : IRevitTool
             ["end_x"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Beam end X (feet)." }),
             ["end_y"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Beam end Y (feet)." }),
             ["level_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Reference level name." }),
-            ["type_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional beam type name." })
+            ["type_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional beam type name." }),
+            ["curve_mm"] = NativeToolUtil.Any("Optional native path: [{start_mm:[x,y,z],end_mm:[x,y,z],mid_mm:[x,y,z]}]. mid_mm makes an arc. Exactly one line/arc; do not combine with legacy endpoint fields.")
         },
-        Required = ["start_x", "start_y", "end_x", "end_y", "level_name"]
+        Required = ["level_name"]
     };
 
     public bool RequiresTransaction => true;
@@ -38,20 +40,28 @@ public class CreateBeam : IRevitTool
         var doc = app.ActiveUIDocument?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sx = input["start_x"].GetDouble();
-        var sy = input["start_y"].GetDouble();
-        var ex = input["end_x"].GetDouble();
-        var ey = input["end_y"].GetDouble();
         var levelName = input["level_name"].GetString()!;
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
             ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
 
-        var start = new XYZ(sx, sy, level.Elevation);
-        var end = new XYZ(ex, ey, level.Elevation);
-        if (start.IsAlmostEqualTo(end))
-            throw new InvalidOperationException("Beam has zero length.");
+        Curve path;
+        if (input.TryGetValue("curve_mm", out var curve))
+        {
+            if (new[] { "start_x", "start_y", "end_x", "end_y" }.Any(input.ContainsKey))
+                throw new ToolInputException("Use curve_mm or legacy endpoints, not both.");
+            var curves = NativeCurveInput.Read(curve, false);
+            if (curves.Count != 1) throw new ToolInputException("A native beam needs exactly one line or arc segment.");
+            path = curves[0];
+        }
+        else
+        {
+            double Coordinate(string key) => input.TryGetValue(key, out var v) && v.TryGetDouble(out var d) && double.IsFinite(d)
+                ? d : throw new ToolInputException("Supply finite " + key + " in feet, or curve_mm.");
+            path = Line.CreateBound(new XYZ(Coordinate("start_x"), Coordinate("start_y"), level.Elevation),
+                new XYZ(Coordinate("end_x"), Coordinate("end_y"), level.Elevation));
+        }
 
         FamilySymbol symbol;
         if (input.TryGetValue("type_name", out var tn) && tn.ValueKind == JsonValueKind.String)
@@ -80,8 +90,7 @@ public class CreateBeam : IRevitTool
         // regenerations of a model that had nothing new to activate after the first.
         if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
-        var line = Line.CreateBound(start, end);
-        var instance = doc.Create.NewFamilyInstance(line, symbol, level, StructuralType.Beam);
+        var instance = doc.Create.NewFamilyInstance(path, symbol, level, StructuralType.Beam);
 
         return Services.Json.Serialize(new
         {
@@ -90,7 +99,8 @@ public class CreateBeam : IRevitTool
             family = symbol.FamilyName,
             type_name = symbol.Name,
             level = level.Name,
-            length_ft = line.Length
+            curve_kind = path.GetType().Name,
+            length_ft = path.Length
         });
     }
 }

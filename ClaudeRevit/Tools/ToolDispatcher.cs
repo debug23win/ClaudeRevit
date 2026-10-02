@@ -29,6 +29,7 @@ public class ToolDispatcher : IExternalEventHandler
     private ExternalEvent _event = null!;
     private readonly ConcurrentQueue<Job> _queue = new();
     private TransactionGroup? _activeGroup;
+    private TransactionGroup? _benchmarkGroup;
     private string _turnLabel = "Claude";
 
     // Dialog/failure suppression. Revit shows modal warning dialogs (and task dialogs) on
@@ -101,9 +102,7 @@ public class ToolDispatcher : IExternalEventHandler
         return tcs.Task;
     }
 
-    // Snapshot of every non-type element id in the active document. Used by the benchmark to
-    // reset the model to a baseline between tasks (delete whatever a task added), so each task
-    // starts from the same clean state and can't contaminate the next.
+    // Both instances and types need a native filter before enumeration.
     public Task<List<long>> AllElementIdsAsync(CancellationToken ct = default)
     {
         var tcs = new TaskCompletionSource<List<long>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -127,6 +126,16 @@ public class ToolDispatcher : IExternalEventHandler
         return tcs.Task;
     }
 
+    public Task BenchmarkScopeAsync(bool begin, string documentKey, CancellationToken ct)
+    {
+        // Begin cannot be abandoned after starting a group. Cancellation is checked on the
+        // Revit thread, and the caller always awaits its disposition before its finally block.
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _queue.Enqueue(new BenchmarkScopeJob(begin, documentKey, ct, tcs));
+        _event.Raise();
+        return tcs.Task;
+    }
+
     public void Execute(UIApplication app)
     {
         while (_queue.TryDequeue(out var job))
@@ -140,6 +149,7 @@ public class ToolDispatcher : IExternalEventHandler
                 case FocusElementJob f when !f.Tcs.Task.IsCompleted: HandleFocusElement(app, f); break;
                 case AllIdsJob a when !a.Tcs.Task.IsCompleted: HandleAllIds(app, a); break;
                 case ProbeJob p when !p.Tcs.Task.IsCompleted: HandleProbe(app, p); break;
+                case BenchmarkScopeJob b: HandleBenchmarkScope(app, b); break;
             }
         }
     }
@@ -237,7 +247,9 @@ public class ToolDispatcher : IExternalEventHandler
                 materials = CountClass(typeof(Material)),
                 generic_models = CountCat(BuiltInCategory.OST_GenericModel)
             };
-            job.Tcs.TrySetResult(Services.Json.Serialize(probe));
+            var values = JsonSerializer.Deserialize<Dictionary<string, object?>>(Services.Json.Serialize(probe))!;
+            BenchmarkModelProbe.Append(doc, values);
+            job.Tcs.TrySetResult(Services.Json.Serialize(values));
         }
         catch (Exception ex) { job.Tcs.TrySetResult(Services.Json.Serialize(new { probe_error = ex.Message })); }
     }
@@ -248,11 +260,42 @@ public class ToolDispatcher : IExternalEventHandler
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) { job.Tcs.TrySetResult(new List<long>()); return; }
-            var ids = new FilteredElementCollector(doc)
-                .ToElementIds().Select(id => id.Value).ToList();
+            var ids = BenchmarkModelProbe.AllElementIds(doc);
             job.Tcs.TrySetResult(ids);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
+    }
+
+    private void HandleBenchmarkScope(UIApplication app, BenchmarkScopeJob job)
+    {
+        try
+        {
+            if (job.Begin)
+            {
+                job.Ct.ThrowIfCancellationRequested();
+                if (_benchmarkGroup != null || _activeGroup != null) throw new InvalidOperationException("Another grouped operation is running.");
+                var doc = NativeToolUtil.Doc(app);
+                if (Services.DocumentSessions.Key(doc) != job.DocumentKey) throw new InvalidOperationException("Benchmark document changed before reset scope.");
+                _benchmarkGroup = new TransactionGroup(doc, "Claude benchmark (temporary)");
+                if (_benchmarkGroup.Start() != TransactionStatus.Started) throw new InvalidOperationException("Cannot start benchmark reset scope.");
+            }
+            else
+            {
+                // A turn group is nested inside this scope. End it first even on cancellation.
+                if (_activeGroup != null) HandleEndTurn(new EndTurnJob(new TaskCompletionSource<bool>()));
+                if (_benchmarkGroup != null && _benchmarkGroup.GetStatus() == TransactionStatus.Started &&
+                    _benchmarkGroup.RollBack() != TransactionStatus.RolledBack)
+                    throw new InvalidOperationException("Benchmark reset did not roll back; stop and inspect the document.");
+                _benchmarkGroup?.Dispose(); _benchmarkGroup = null;
+                GetProjectCatalog.Invalidate();
+            }
+            job.Tcs.TrySetResult(true);
+        }
+        catch (Exception ex)
+        {
+            if (job.Begin) { try { _benchmarkGroup?.Dispose(); } catch { } _benchmarkGroup = null; }
+            job.Tcs.TrySetException(ex);
+        }
     }
 
     private void HandleFocusElement(UIApplication app, FocusElementJob job)
@@ -342,6 +385,8 @@ public class ToolDispatcher : IExternalEventHandler
                 throw new InvalidOperationException("The chat pane is running a grouped API turn. Retry this MCP operation after it finishes.");
             var tool = _registry.Get(job.Name)
                 ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
+            if (_benchmarkGroup != null && job.Name is "open_family_editor" or "reload_family_into_document")
+                throw new InvalidOperationException("Benchmark reset scope requires the same active document; run family tasks in an already open RFA.");
 
             if (tool.RequiresNoTurnGroup && _activeGroup != null)
             {
@@ -570,6 +615,7 @@ public class ToolDispatcher : IExternalEventHandler
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;
     private sealed record ProbeJob(TaskCompletionSource<string> Tcs) : Job;
+    private sealed record BenchmarkScopeJob(bool Begin, string DocumentKey, CancellationToken Ct, TaskCompletionSource<bool> Tcs) : Job;
 
     // Collects the text of Revit's failure messages during a transaction commit so they can
     // be reported to the model, and lets Revit resolve them non-interactively (no modal

@@ -26,25 +26,59 @@ public static class CodexBackend
     {
         if (!string.IsNullOrWhiteSpace(requestedExe) && (requestedExe.Contains('\\') || requestedExe.Contains('/')))
             return File.Exists(requestedExe) && CodexCli.LooksLikeCodexBinary(requestedExe) ? requestedExe : null;
+        var candidates = new List<string>();
         foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
         {
+            if (string.IsNullOrWhiteSpace(dir)) continue;
             foreach (var suffix in new[] { ".exe", ".cmd", ".bat" })
             {
                 var path = Path.Combine(dir.Trim('"'), "codex" + suffix);
-                if (File.Exists(path)) return path;
+                if (File.Exists(path)) candidates.Add(path);
             }
         }
         var installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "OpenAI", "Codex", "bin", "codex.exe");
-        if (File.Exists(installed)) return installed;
+        if (File.Exists(installed)) candidates.Add(installed);
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
         if (Directory.Exists(root))
         {
-            var found = Directory.EnumerateFiles(root, "codex.exe", SearchOption.AllDirectories)
-                .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-            if (found != null) return found;
+            try { candidates.AddRange(Directory.EnumerateFiles(root, "codex.exe", SearchOption.AllDirectories)); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
         var native = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "codex.exe");
-        return File.Exists(native) ? native : null;
+        if (File.Exists(native)) candidates.Add(native);
+        // PATH can still point at an older desktop installation. Ask the actual binaries:
+        // Rust CLI executables have no Windows version resource. Cache by file fingerprint,
+        // probe concurrently with a bounded wait, and keep an explicit user path pinned.
+        var distinct = candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var versions = Task.WhenAll(distinct.Select(path => Task.Run(() => ReadVersion(path)))).GetAwaiter().GetResult();
+        return SelectExecutable(distinct.Zip(versions, (path, version) => (path, version)));
+    }
+
+    internal static string? SelectExecutable(IEnumerable<(string Path, Version? Version)> candidates) =>
+        candidates.OrderByDescending(c => c.Version ?? new Version(0, 0)).Select(c => c.Path).FirstOrDefault();
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Stamp, long Size, Version? Version)> VersionCache = new(StringComparer.OrdinalIgnoreCase);
+    private static Version? ReadVersion(string path)
+    {
+        try
+        {
+            var file = new FileInfo(path);
+            var stamp = file.LastWriteTimeUtc.Ticks; var size = file.Length;
+            if (VersionCache.TryGetValue(path, out var cached) && cached.Stamp == stamp && cached.Size == size) return cached.Version;
+            using var process = Start(path, new[] { "--version" }, Path.GetDirectoryName(path)!);
+            var output = process.StandardOutput.ReadToEndAsync();
+            var errors = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(2000)) { process.Kill(entireProcessTree: true); return null; }
+            // Only accept the CLI's product/version line, not arbitrary digits from warnings.
+            var match = System.Text.RegularExpressions.Regex.Match(output.GetAwaiter().GetResult(),
+                @"(?m)^codex(?:-cli)?\s+(\d+\.\d+\.\d+)(?:\S*)\s*$");
+            Version? version = match.Success && Version.TryParse(match.Groups[1].Value, out var parsed) ? parsed : null;
+            if (process.ExitCode != 0) return null;
+            VersionCache[path] = (stamp, size, version);
+            return version;
+        }
+        catch { return null; }
     }
 
     public static string ConfigSnippet(string url) =>

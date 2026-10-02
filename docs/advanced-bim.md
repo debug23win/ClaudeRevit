@@ -157,16 +157,19 @@ array totals plus bounded samples. Invalid replies/unavailable probes are ungrad
 JSONL records backend, requested model, effort, models used, judge choices, budgets,
 tokens, time and reason. Keep judge model/effort fixed for comparable runs.
 
-Use a disposable test project. Cleanup removes additions, including added types,
-after inspecting a committed/rolled-back deletion cascade. It refuses a cascade
-that touches baseline objects and stops on cleanup failure/document change.
-It does **not** restore changed/deleted baseline elements, generated files or
-undo every task; start each comparison from the same clean project copy.
+v3.7.1 adds quality/speed/total points and ten complex tasks (29 total), with
+independent native family flex evidence. Run project tasks in a scratch RVT and
+family tasks in an already open ordinary RFA. Missing document/seed prerequisites
+are skipped without points. Reset uses a native transaction group to restore
+model edits, deletions, added types and family parameters after each task,
+including on cancellation. External files remain. See the [benchmark guide](benchmark.md)
+for scoring, task references, fixtures and evidence limits.
 
 ## Validation and limits
 
-- 138 pure tests: parameter identities/editions, model selection, cleanup protection,
-  probe summaries, judge parsing, gradients and existing logic.
+- 152 pure tests: parameter identities/editions, model selection, cleanup protection,
+  probe deltas, quality/speed scoring, prerequisites, runner cancellation/reset,
+  judge parsing, gradients and existing logic.
 - Real WPF pane/benchmark checks with isolated backends: defaults, independent
   choices, typed models, busy/stop controls, project switching and narrow layouts.
 - Live local HTTP MCP and stdio bridge checks with isolated clients.
@@ -175,9 +178,10 @@ undo every task; start each comparison from the same clean project copy.
 - Actual Codex/ChatGPT no-tools calls succeeded for GPT-6 Astra and GPT-5.6 Luna.
   The tested Claude account reported subscription access disabled by its organization;
   that error is surfaced accurately, with no API fallback.
-- Revit API builds for 2025–2027. No supported live Revit was available in this
-  environment: modelling, nested-family flex, new native geometry and interactive
-  BIMStarter posting still require testing inside Revit 2025–2027.
+- Revit API builds for 2025–2027. Modelling, nested-family flex, new native geometry
+  and interactive BIMStarter posting still require execution checks inside Revit.
+  Revit 2027 was subsequently found on a custom drive; the earlier installation
+  inventory missed it. Installer v3.7.1 corrects that detection failure.
 
 The source PDFs and authenticated RFA library files are not bundled. EIR auditing
 is partial and does not certify customer compliance; see [Samolet EIR](samolet-eir.md).

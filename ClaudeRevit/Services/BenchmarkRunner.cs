@@ -20,7 +20,11 @@ public sealed class BenchmarkResult
     public string Title { get; init; } = "";
     public string Model { get; init; } = "";
     public string Verdict { get; init; } = "?";   // ✓ / ✗ / ? (judge unavailable)
-    public int Score { get; init; }                 // 0–100 from the judge
+    public int? Quality { get; init; }
+    public double? Speed { get; init; }
+    public double? Score { get; init; }
+    public double Seconds { get; init; }
+    public int ReferenceSeconds { get; init; }
     public int Rounds { get; init; }
     public long Tokens { get; init; }
     public string Time { get; init; } = "";         // "12.3s"
@@ -42,7 +46,7 @@ public static class BenchmarkRunner
         BenchmarkExecution execution, IReadOnlyList<BenchmarkTask> tasks,
         BenchmarkExecution judge, string runStamp, bool resetBetweenTasks,
         int maxRoundsPerTask, int maxSecondsPerTask,
-        Action<string> onStatus, Action<BenchmarkResult> onResult, CancellationToken ct)
+        Action<string> onStatus, Action<BenchmarkResult> onResult, CancellationToken ct, string? resultsPath = null)
     {
         _ = execution.Tag; _ = judge.Tag; // validate before suppression or any model changes
         if (Interlocked.CompareExchange(ref _running, 1, 0) != 0) throw new InvalidOperationException("A benchmark is already running.");
@@ -58,15 +62,27 @@ public static class BenchmarkRunner
                 if (string.IsNullOrWhiteSpace(documentKey) || documentKey == "none") throw new InvalidOperationException("Open a disposable test model before running the benchmark.");
                 onStatus($"{task.Id} · {task.Title} · starting…");
                 using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
-                var baseline = resetBetweenTasks ? new HashSet<long>(await ToolDispatcher.Instance.AllElementIdsAsync(ct)) : new();
-                var cleanupAttempted = false;
+                var before = await StatsAsync(task, false, documentKey, ct);
+                var skip = BenchmarkEligibility.SkipReason(task, before);
+                if (skip != null)
+                {
+                    var skipped = new BenchmarkResult { TaskId = task.Id, Title = task.Title, Model = execution.Tag, Verdict = "—", Reason = skip, ReferenceSeconds = task.ReferenceSeconds };
+                    Append(skipped, execution, judge, runStamp, false, 0, 0, 0, 0, resultsPath, maxRoundsPerTask, maxSecondsPerTask, resetBetweenTasks);
+                    onResult(skipped); continue;
+                }
+                var scopeStarted = false;
                 try
                 {
-                var before = await StatsAsync(ct);
+                if (resetBetweenTasks)
+                {
+                    await ToolDispatcher.Instance.BenchmarkScopeAsync(true, documentKey, ct);
+                    scopeStarted = true;
+                }
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed before the benchmark task.");
                 var chat = new ChatService(ephemeral: true) { SubscriptionMode = false };
-                var conversation = new ObservableCollection<ChatMessage> { new() { Role = "user", Text = task.Prompt } };
+                var conversation = new ObservableCollection<ChatMessage> { new() { Role = "user", Text = task.Prompt +
+                    "\nBenchmark: keep the current document active; do not save or close it, open another document, or change application/global settings. " +
+                    "Use native tools and verify the actual result." } };
                 chat.OnRound = (round, max) =>
                 {
                     onStatus($"{task.Id} · {task.Title} · tool round/call {round}");
@@ -74,6 +90,7 @@ public static class BenchmarkRunner
                 };
                 string? error = null;
                 var budgetStopped = false;
+                if (maxSecondsPerTask > 0) taskCts.CancelAfter(TimeSpan.FromSeconds(maxSecondsPerTask));
                 var stopwatch = Stopwatch.StartNew();
                 try
                 {
@@ -87,35 +104,38 @@ public static class BenchmarkRunner
                 catch (Exception ex) { error = ex.Message; Log.Error($"Benchmark task {task.Id}", ex); }
                 var seconds = stopwatch.Elapsed.TotalSeconds;
                 var finalText = conversation.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
-                if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading and cleanup stopped to protect the other document.");
-                var after = await StatsAsync(ct);
+                if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the original document's temporary reset scope is rolled back.");
+                var after = await StatsAsync(task, true, documentKey, ct);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
                     : await JudgeAsync(judgeChat, judge, task, before, after, finalText, ct);
                 if (budgetStopped) verdict = verdict with { Reason = "[task budget reached] " + verdict.Reason };
-                if (resetBetweenTasks)
+                if (scopeStarted)
                 {
-                    cleanupAttempted = true;
                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                    await ResetAsync(baseline, documentKey, cleanup.Token);
+                    await ToolDispatcher.Instance.BenchmarkScopeAsync(false, documentKey, cleanup.Token);
+                    scopeStarted = false;
                 }
                 var metrics = chat.LastTask;
+                var points = BenchmarkScoring.Calculate(verdict, seconds, task.ReferenceSeconds);
                 var row = new BenchmarkResult
                 {
                     TaskId = task.Id, Title = task.Title, Model = metrics?.Model ?? execution.Tag,
-                    Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗", Score = verdict.Score,
+                    Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗",
+                    Quality = points?.Quality, Speed = points?.Speed, Score = points?.Total,
+                    Seconds = seconds, ReferenceSeconds = task.ReferenceSeconds,
                     Rounds = metrics?.Rounds ?? 0, Tokens = (metrics?.InputTokens ?? 0) + (metrics?.OutputTokens ?? 0),
                     Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason
                 };
-                Append(row, execution, judge, runStamp, verdict.Pass, metrics?.InputTokens ?? 0, metrics?.OutputTokens ?? 0, row.Rounds, seconds);
+                Append(row, execution, judge, runStamp, verdict.Pass, metrics?.InputTokens ?? 0, metrics?.OutputTokens ?? 0, row.Rounds, seconds, resultsPath, maxRoundsPerTask, maxSecondsPerTask, resetBetweenTasks);
                 onResult(row);
                 }
                 finally
                 {
-                    if (resetBetweenTasks && !cleanupAttempted)
+                    if (scopeStarted)
                     {
                         using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                        await ResetAsync(baseline, documentKey, cleanup.Token);
+                        await ToolDispatcher.Instance.BenchmarkScopeAsync(false, documentKey, cleanup.Token);
                     }
                 }
             }
@@ -123,37 +143,39 @@ public static class BenchmarkRunner
         finally { ToolDispatcher.ForceSuppress = oldSuppression; Interlocked.Exchange(ref _running, 0); }
     }
 
-    // Cleanup adds (including types), never edits/deletions of pre-existing objects.
-    // Inspect the actual committed/rolled-back cascade and protect the baseline.
-    private static async Task ResetAsync(HashSet<long> baselineIds, string documentKey, CancellationToken ct)
-    {
-            if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Document changed; benchmark cleanup stopped.");
-            var now = await ToolDispatcher.Instance.AllElementIdsAsync(ct);
-            var added = now.Where(id => !baselineIds.Contains(id)).ToArray();
-            if (added.Length == 0) return;
-            var input = new Dictionary<string, JsonElement>
-            {
-                ["element_ids"] = JsonSerializer.SerializeToElement(added)
-            };
-            var raw = await ToolDispatcher.Instance.ExecuteAsync("delete_elements_checked", input, ct, documentKey);
-            using var preview = JsonDocument.Parse(raw);
-            if (!preview.RootElement.TryGetProperty("deleted_ids", out var ids)) throw new InvalidOperationException("Benchmark cleanup preview failed: " + Truncate(raw, 300));
-            var deleted = ids.EnumerateArray().Select(i => i.GetInt64()).ToArray();
-            BenchmarkCleanup.ValidateCascade(baselineIds, added, deleted);
-            input["preview"] = JsonSerializer.SerializeToElement(false);
-            input["document_key"] = JsonSerializer.SerializeToElement(documentKey);
-            input["expected_deleted_ids"] = JsonSerializer.SerializeToElement(deleted);
-            raw = await ToolDispatcher.Instance.ExecuteAsync("delete_elements_checked", input, ct, documentKey);
-            using var applied = JsonDocument.Parse(raw);
-            if (!applied.RootElement.TryGetProperty("applied", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new InvalidOperationException("Benchmark cleanup failed; stop before another task: " + Truncate(raw, 300));
-    }
-
-    private static async Task<string> StatsAsync(CancellationToken ct)
+    private static async Task<string> StatsAsync(BenchmarkTask task, bool completed, string documentKey, CancellationToken ct)
     {
         // Precise benchmark probe (counts rebar, DirectShapes, connections, wall lengths, level
         // elevations, floor areas…) — not the coarse get_model_statistics, which can't see those.
-        try { return await ToolDispatcher.Instance.BenchmarkProbeAsync(ct); }
+        try
+        {
+            var raw = await ToolDispatcher.Instance.BenchmarkProbeAsync(ct);
+            using var initial = JsonDocument.Parse(raw);
+            if (initial.RootElement.TryGetProperty("probe_error", out _) || !task.FamilyDocument ||
+                !initial.RootElement.TryGetProperty("is_family_document", out var kind) || !kind.GetBoolean()) return raw;
+            var values = JsonSerializer.Deserialize<Dictionary<string, object?>>(raw)!;
+            async Task Add(string key, string tool, Dictionary<string, JsonElement> input)
+            {
+                try
+                {
+                    var evidence = await ToolDispatcher.Instance.ExecuteAsync(tool, input, ct, documentKey);
+                    using var parsed = JsonDocument.Parse(evidence);
+                    values[key] = parsed.RootElement.Clone();
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { values[key] = new { evidence_error = ex.Message }; }
+            }
+            await Add("family_structure", "analyze_family_structure", new()
+                { ["max_depth"] = JsonSerializer.SerializeToElement(4), ["max_families"] = JsonSerializer.SerializeToElement(12) });
+            if (completed && task.FlexScenarios != null)
+            {
+                var input = new Dictionary<string, JsonElement>();
+                using var scenarios = JsonDocument.Parse(task.FlexScenarios);
+                if (scenarios.RootElement.GetArrayLength() > 0) input["scenarios"] = scenarios.RootElement.Clone();
+                await Add("independent_flex", "flex_family", input);
+            }
+            return JsonSerializer.Serialize(values);
+        }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return JsonSerializer.Serialize(new { probe_error = ex.Message }); }
     }
@@ -168,14 +190,17 @@ public static class BenchmarkRunner
             "before/after PROBE — precise counts by the relevant categories (walls with lengths_m, floors " +
             "with areas_m2, roofs, levels with elevations_m, grids, structural_columns, structural_framing, rebar, " +
             "area_reinforcement, path_reinforcement, structural_connections, doors, direct_shapes with " +
-            "bounding-box size_m, materials). Judge by the DELTA between before and after. Treat the agent's " +
+            "bounding-box size_m, materials), element identities/coordinates/host links, rebar centerlines/layouts, " +
+            "schedule fields/rows, recursive family structure and independently executed family flex scenarios. " +
+            "Judge by the DELTA between before and after. Unchanged element snapshots may be omitted explicitly. " +
+            "Use 0-100 QUALITY ONLY: accuracy, completeness, native editability and successful size/variant tests. " +
+            "Do not grade speed: it is calculated separately. Do not award credit for unavailable/truncated evidence. Treat the agent's " +
             "own summary as an UNVERIFIED claim — trust the probe over it; if the probe can't confirm the " +
             "claim, do not give credit for it. Reply with ONLY a JSON object, no prose: " +
             "{\"pass\": true|false, \"score\": <0-100>, \"reason\": \"<one sentence citing the probe delta>\"}.";
         try
         {
-            before = BenchmarkGrading.SummarizeProbe(before);
-            after = BenchmarkGrading.SummarizeProbe(after);
+            (before, after) = BenchmarkGrading.SummarizePair(before, after);
         }
         catch (Exception ex) { return new(false, 0, ex.Message, false); }
         var user =
@@ -209,11 +234,12 @@ public static class BenchmarkRunner
     }
 
     private static void Append(BenchmarkResult r, BenchmarkExecution execution, BenchmarkExecution judge, string runStamp,
-        bool pass, long inTok, long outTok, int rounds, double seconds)
+        bool pass, long inTok, long outTok, int rounds, double seconds, string? resultsPath, int maxRounds, int maxSeconds, bool reset)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(ResultsPath)!);
+            var path = resultsPath ?? ResultsPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             var record = new
             {
                 ts = runStamp,
@@ -228,15 +254,27 @@ public static class BenchmarkRunner
                 judge_effort = judge.Effort,
                 models_used = r.Model,
                 verdict = r.Verdict,
+                graded = r.Score.HasValue,
+                skipped = r.Verdict == "—",
                 pass,
                 score = r.Score,
+                quality_score = r.Quality,
+                speed_score = r.Speed,
+                scoring_version = BenchmarkScoring.Version,
+                scoring_formula = "quality * (0.8 + 0.2 * min(1, reference_seconds / seconds))",
+                reference_seconds = r.ReferenceSeconds,
+                timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
+                task_suite_version = "v3.7.1",
+                max_rounds = maxRounds,
+                max_seconds = maxSeconds,
+                reset_model = reset,
                 rounds,
                 input_tokens = inTok,
                 output_tokens = outTok,
                 seconds,
                 reason = r.Reason
             };
-            File.AppendAllText(ResultsPath, JsonSerializer.Serialize(record) + "\n");
+            File.AppendAllText(path, JsonSerializer.Serialize(record) + "\n");
         }
         catch (Exception ex) { Log.Error("Benchmark append failed", ex); }
     }

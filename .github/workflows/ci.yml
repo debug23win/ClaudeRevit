@@ -30,6 +30,14 @@ jobs:
         run: dotnet run --project ClaudeRevit.McpTests -c Release
       - name: Subscription CLI checks (isolated fake processes, no account)
         run: dotnet run --project ClaudeRevit.CliTests -c Release
+      - name: Compile installer detection check
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer\checks\DetectionCheck.iss
+          options: /Qp
+      - name: Installer detection regression checks
+        shell: pwsh
+        run: ./installer/checks/Test-Detection.ps1
       - name: Upload Revit 2027 build
         uses: actions/upload-artifact@v4
         with:

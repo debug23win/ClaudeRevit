@@ -7,7 +7,9 @@ namespace ClaudeRevit.Services;
 // rubric handed to the impartial judge (a fixed Claude model), which grades from the actual
 // before/after model state — NOT from the tested model's own narration — so the score is
 // independent of which model was under test.
-public sealed record BenchmarkTask(string Id, string Title, string Prompt, string Criteria);
+public sealed record BenchmarkTask(string Id, string Title, string Prompt, string Criteria,
+    int ReferenceSeconds = 120, bool FamilyDocument = false, bool RequiresNestedSeed = false,
+    string? FlexScenarios = null);
 
 public static class BenchmarkTasks
 {
@@ -145,5 +147,115 @@ public static class BenchmarkTasks
             "correctly reported as unnecessary, and before/after numbers are given that match the probe " +
             "delta. FAIL if placed geometry was deleted, if numbers are invented, or if it only described " +
             "what it would do without doing it."),
-    };
+
+        new BenchmarkTask("L5", "10-storey frame and selective correction",
+            "Build a native concrete frame with 10 storeys at 3500 mm intervals, a 15×12 m slab on each " +
+            "storey and a 4×3 column grid at X=0/5000/10000/15000 and Y=0/6000/12000 mm. " +
+            "Use 400×400 mm columns, 120 columns total. Then change only the 30 columns at X=15000 mm " +
+            "to 500×500 mm. Verify coordinates, elevations, counts and the unchanged 90 columns. No DirectShape substitutes.",
+            "PASS requires 10 native floors, 120 structural columns in the prescribed grid and 30 selectively retyped " +
+            "columns. Score completeness, correct alignment/elevations and accurate selective change from element evidence.", 480),
+
+        new BenchmarkTask("R3", "Column cage with three stirrup zones",
+            "Create a native 600×600 mm, 6000 mm tall concrete column. Reinforce with eight Ø20 longitudinal bars " +
+            "inside 40 mm cover and closed Ø10 stirrups: 100 mm spacing in the bottom/top 1200 mm zones and " +
+            "200 mm in the middle 3600 mm. Use native Rebar sets with explicit host, layout and hook choices; " +
+            "verify centerlines, counts and actual spacing. No lines, meshes or DirectShapes as reinforcement.",
+            "PASS requires native host-linked Rebar: eight longitudinal bars and three distinct stirrup zones. " +
+            "Verify diameter, layout quantity/spacing, elevations and centerlines relative to host bounds/cover. " +
+            "Counts alone do not establish compliance; missing hook/cover evidence loses credit.", 360),
+
+        new BenchmarkTask("R4", "Slab opening, two layers and edge reinforcement",
+            "Create an 8000×6000×250 mm native concrete slab with a centered 1500×1000 mm opening. " +
+            "Use native reinforcement for top and bottom Ø12 bars in both directions at 150 mm spacing, " +
+            "30 mm cover. Trim the mesh at the opening, add two Ø16 trimming bars along each opening edge " +
+            "and U bars at the perimeter. Verify bar geometry and hosting; no reinforcement through the opening.",
+            "PASS requires a native slab/opening and distinct top/bottom reinforcement in both directions, " +
+            "native trimming/edge bars, host links, diameters and centerline evidence. Penalize bars crossing the " +
+            "opening or leaving host bounds. Do not infer layers or cutouts just from Rebar counts.", 480),
+
+        new BenchmarkTask("R5", "Curved beam reinforcement and anchorage",
+            "Build a native curved reinforced-concrete beam following a 90-degree circular arc of 5000 mm " +
+            "radius, section 300×600 mm, with 35 mm cover. Add four Ø16 longitudinal bars following its curve " +
+            "and Ø8 stirrups at 150 mm along the arc with denser 75 mm end zones. Use native Rebar/free-form " +
+            "tools as appropriate. Verify actual curved centerlines, host and anchorage; report unsupported constraints honestly.",
+            "PASS requires a native curved structural member and hosted curved native rebar with correct radii/cover, " +
+            "quantity and end-zone geometry. Straight chords, meshes and unhosted shapes fail. Unsupported operations " +
+            "cannot receive full credit even when reported honestly.", 480),
+
+        new BenchmarkTask("D6", "Rebar schedule and checked quantities",
+            "Create a 400×400×4000 mm concrete column with four Ø16 longitudinal bars and Ø8 stirrups at " +
+            "200 mm spacing. Build a native rebar schedule Bench D6 Rebar containing diameter, bar length, " +
+            "quantity and total length, grouped by bar type. Verify the visible rows and totals against actual " +
+            "Rebar sets; do not invent fields or values.",
+            "PASS requires hosted native reinforcement, a Rebar ViewSchedule with the requested fields/grouping, " +
+            "nonempty body rows and lengths/quantities consistent with rebar evidence. A named empty schedule fails.", 300),
+
+        new BenchmarkTask("F1", "Constrained parametric solid, six size tests",
+            "In this ordinary RFA create a native rectangular extrusion driven by length parameters Bench_W, " +
+            "Bench_D, Bench_H using reference planes and labeled dimensions/parameter associations. " +
+            "Start with 1000×600×800 mm. Create types Bench Small and Bench Large, and formula Bench_H=Bench_W*0.8. " +
+            "Flex minimum, nominal, maximum and extreme aspect ratios without broken constraints. " +
+            "Keep this document active; do not save, open another document or use imported/DirectShape geometry.",
+            "PASS requires native solid forms, driving dimensions/associations and the formula; independent flex " +
+            "must pass every scenario with actual solid bounds/volume changing to the requested sizes. Merely adding " +
+            "parameters/types without geometry response fails.", 360, true, FlexScenarios: """
+            [{"name":"small","values":{"Bench_W":300,"Bench_D":200},"require_solid":true},
+             {"name":"nominal","values":{"Bench_W":1000,"Bench_D":600},"require_solid":true},
+             {"name":"large","values":{"Bench_W":3000,"Bench_D":1800},"require_solid":true},
+             {"name":"wide","values":{"Bench_W":2500,"Bench_D":200},"require_solid":true},
+             {"name":"deep","values":{"Bench_W":300,"Bench_D":2000},"require_solid":true},
+             {"name":"repeat","values":{"Bench_W":1000,"Bench_D":600},"require_solid":true}]
+            """),
+
+        new BenchmarkTask("F2", "Nested assembly, associations and variants",
+            "Use the editable unhosted child families already loaded in this RFA. Place four native nested instances " +
+            "in a 2×2 assembly. Add parent length Bench_W and a compatible parent length parameter Bench_ChildSize " +
+            "associated with a driving child instance length parameter on all four children. Use Bench_ChildSize=Bench_W/4. " +
+            "Create assembly types Bench Small and Bench Large at Bench_W=800 and 2400 mm. Inspect recursive nesting " +
+            "and flex both types and intermediate sizes; prove each child changes, not just the parent metadata. " +
+            "Keep this RFA active; do not save or switch documents. Discover the actual child parameter names first.",
+            "PASS requires four new nested FamilyInstances, four real parent-child driving associations and the formula. " +
+            "Independent flex at 800/1600/2400 mm must change all four children's bounds with visible native solids. " +
+            "Inspect recursive graph and types. An association to a non-driving text parameter fails.", 480, true, true, """
+            [{"name":"small","values":{"Bench_W":800},"require_solid":true},
+             {"name":"middle","values":{"Bench_W":1600},"require_solid":true},
+             {"name":"large","values":{"Bench_W":2400},"require_solid":true}]
+            """),
+
+        new BenchmarkTask("F3", "Multi-level nesting audit and flex",
+            "Analyze the existing multi-level nested RFA down to depth 4. Identify shared/unshared children, " +
+            "host types, dependencies, associated parameters, formulas and imports. Add types Bench Variant A/B " +
+            "using two different valid combinations of existing length and yes/no parameters. Flex all existing " +
+            "types, then your two variants; report exact failures and geometry changes from real probes. " +
+            "Do not delete baseline content, save or switch documents.",
+            "PASS requires a recursive graph reaching at least two child levels and accurate shared/host/association " +
+            "evidence, two new valid types, independent all-types flex with solids and no constraint errors. " +
+            "Claims about nodes skipped due to limits/uneditable status receive no credit.", 360, true, true, "[]"),
+
+        new BenchmarkTask("F4", "Solid and void forms with a size matrix",
+            "In this RFA create a native solid extrusion driven by Bench_W/Bench_D/Bench_H, plus a native " +
+            "void extrusion cutting a centered rectangular through-hole driven by Bench_Hole=Bench_W/4. " +
+            "Nominal size 1200×800×600 mm. Combine the cut properly and constrain the hole. Flex small, large " +
+            "and narrow variants. Keep the RFA active; do not save or use mesh/imported geometry.",
+            "PASS requires native solid and void forms and a real geometry combination. Independent flex must " +
+            "show valid positive solids, correct outer bounds and reduced volume for the through-hole at every " +
+            "size. A visible void that does not cut the solid fails.", 480, true, FlexScenarios: """
+            [{"name":"small","values":{"Bench_W":600,"Bench_D":400,"Bench_H":300},"require_solid":true},
+             {"name":"nominal","values":{"Bench_W":1200,"Bench_D":800,"Bench_H":600},"require_solid":true},
+             {"name":"large","values":{"Bench_W":2400,"Bench_D":1600,"Bench_H":1200},"require_solid":true},
+             {"name":"narrow","values":{"Bench_W":1200,"Bench_D":350,"Bench_H":600},"require_solid":true}]
+            """),
+
+        new BenchmarkTask("F5", "Native revolve, sweep, blend and swept blend",
+            "In this RFA create four separate native solid forms: a 360-degree revolve of a stepped spindle " +
+            "profile (overall height 1000 mm, maximum radius 150 mm); a rectangular 100×150 mm profile swept " +
+            "around an L path with 1000 and 600 mm legs; a 500 mm high blend between centered 400×400 and " +
+            "200×200 mm rectangles; and a swept blend along a straight 1000 mm path between 300×300 and " +
+            "150×150 mm profiles. Add three family types and verify every type regenerates with all four " +
+            "native solids. Keep this RFA active; do not save or use imported/DirectShape approximations.",
+            "PASS requires the four native API form kinds Revolve, Sweep, Blend and SweptBlend, appropriate " +
+            "bounds and positive visible volumes, three types and independent successful all-types flex. " +
+            "Replacing a requested form with an extrusion or mesh loses that form's credit.", 480, true, FlexScenarios: "[]"),
+    }.Select(t => t.Id.StartsWith("B", System.StringComparison.Ordinal) ? t with { ReferenceSeconds = 30 } : t).ToArray();
 }
