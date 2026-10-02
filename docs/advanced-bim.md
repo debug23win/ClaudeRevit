@@ -17,7 +17,8 @@ Creation/edition tools with `preview` default to **true**. They commit a native
 transaction to expose Revit validation, then roll back their transaction group.
 Preview IDs for newly created objects are omitted. After reviewing the result, repeat
 with `preview=false` to apply. These tools have their own undo boundaries; a family
-inspection/document transition can split an ordinary API turn's grouped undo.
+inspection/document transition can create separate undo entries. Ordinary API
+groups cover one callback only; no transaction/group spans asynchronous inference.
 
 ## Complex families
 
@@ -157,12 +158,12 @@ array totals plus bounded samples. Invalid replies/unavailable probes are ungrad
 JSONL records backend, requested model, effort, models used, judge choices, budgets,
 tokens, time and reason. Keep judge model/effort fixed for comparable runs.
 
-v3.7.1 adds quality/speed/total points and ten complex tasks (29 total), with
+v3.7.2 adds quality/speed/total points and ten complex tasks (29 total), with
 independent native family flex evidence. Run project tasks in a scratch RVT and
 family tasks in an already open ordinary RFA. Missing document/seed prerequisites
-are skipped without points. Reset uses a native transaction group to restore
-model edits, deletions, added types and family parameters after each task,
-including on cancellation. External files remain. See the [benchmark guide](benchmark.md)
+are skipped without points. Each task uses a separate file copy of a saved local
+non-workshared seed. That copy is closed unsaved and the seed is restored after
+the task or cancellation. External exports remain. See the [benchmark guide](benchmark.md)
 for scoring, task references, fixtures and evidence limits.
 
 ## Validation and limits
@@ -181,7 +182,7 @@ for scoring, task references, fixtures and evidence limits.
 - Revit API builds for 2025–2027. Modelling, nested-family flex, new native geometry
   and interactive BIMStarter posting still require execution checks inside Revit.
   Revit 2027 was subsequently found on a custom drive; the earlier installation
-  inventory missed it. Installer v3.7.1 corrects that detection failure.
+  inventory missed it. The updated installer corrects that detection failure.
 
 The source PDFs and authenticated RFA library files are not bundled. EIR auditing
 is partial and does not certify customer compliance; see [Samolet EIR](samolet-eir.md).

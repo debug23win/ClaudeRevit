@@ -75,8 +75,9 @@ public static class BenchmarkRunner
                 {
                 if (resetBetweenTasks)
                 {
-                    await ToolDispatcher.Instance.BenchmarkScopeAsync(true, documentKey, ct);
+                    documentKey = await ToolDispatcher.Instance.BenchmarkScopeAsync(true, documentKey, ct);
                     scopeStarted = true;
+                    before = await StatsAsync(task, false, documentKey, ct);
                 }
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed before the benchmark task.");
                 var chat = new ChatService(ephemeral: true) { SubscriptionMode = false };
@@ -104,7 +105,7 @@ public static class BenchmarkRunner
                 catch (Exception ex) { error = ex.Message; Log.Error($"Benchmark task {task.Id}", ex); }
                 var seconds = stopwatch.Elapsed.TotalSeconds;
                 var finalText = conversation.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
-                if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the original document's temporary reset scope is rolled back.");
+                if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the owned scratch copy is closed without saving.");
                 var after = await StatsAsync(task, true, documentKey, ct);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
@@ -264,7 +265,7 @@ public static class BenchmarkRunner
                 scoring_formula = "quality * (0.8 + 0.2 * min(1, reference_seconds / seconds))",
                 reference_seconds = r.ReferenceSeconds,
                 timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
-                task_suite_version = "v3.7.1",
+                task_suite_version = "v3.7.2",
                 max_rounds = maxRounds,
                 max_seconds = maxSeconds,
                 reset_model = reset,

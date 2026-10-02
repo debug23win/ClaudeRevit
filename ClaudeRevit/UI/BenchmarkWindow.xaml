@@ -54,10 +54,10 @@
             <WrapPanel Margin="0,0,0,8">
                 <Button x:Name="RunButton" Content="Run benchmark" Width="130" Height="28" Click="RunButton_Click" />
                 <Button x:Name="CancelButton" Content="Stop" Width="70" Height="28" Margin="8,0" Click="CancelButton_Click" IsEnabled="False" />
-                <CheckBox x:Name="ResetBox" Content="Roll back model changes after each task" IsChecked="True" VerticalAlignment="Center" Margin="8,0" />
+                <CheckBox x:Name="ResetBox" Content="Use fresh document copy per task" IsChecked="True" VerticalAlignment="Center" Margin="8,0" />
             </WrapPanel>
             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
-                Text="Use a scratch RVT for project tasks or an ordinary RFA for family tasks. F2 needs editable nested child families; F3 needs two levels of nesting. Incompatible tasks are skipped without points. Reset rolls back model edits, additions, types and family parameters; exported files remain. Subscription is the default; API billing requires explicit selection. Keep the judge, seed model and task limits fixed when comparing runs. Results: benchmark_results.jsonl in the ClaudeRevit settings folder." />
+                Text="Save a local non-workshared scratch RVT or ordinary RFA first, with no unsaved edits. Each task uses a temporary copy, then closes it unsaved and restores the seed. Exported files remain. F2 needs editable nested children; F3 needs two nesting levels. Incompatible tasks are skipped without points. Subscription is the default; API billing is explicit. Keep judge, seed and limits fixed. Results: benchmark_results.jsonl in the ClaudeRevit settings folder." />
             <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
                 Text="Quality: independent judge, 0–100. Speed: 100 × min(1, reference time / actual time). Total: quality × (0.8 + 0.2 × speed / 100). Fixed per-task reference times are provisional, not calibrated performance targets. Time includes modelling and tools; probes, judging and reset are excluded." />
         </StackPanel>

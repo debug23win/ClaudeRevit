@@ -22,9 +22,11 @@ public class BenchmarkRunnerTests : IDisposable
     [Fact]
     public async Task SkipsWrongDocumentAndWritesQualitySpeedAndFormulaWithoutInventedPoints()
     {
+        ChatService.Send = _ => { Assert.Equal("test-document-scratch", DocumentSessions.CurrentDocumentKey); return Task.CompletedTask; };
         var rows = new List<BenchmarkResult>();
         await Run(new[] { BenchmarkTasks.All[0], BenchmarkTasks.All.Single(t => t.Id == "F1") }, rows);
         Assert.Equal(1, _dispatcher.Starts); Assert.Equal(1, _dispatcher.Ends); Assert.False(_dispatcher.ScopeActive);
+        Assert.Equal("test-document", DocumentSessions.CurrentDocumentKey);
         Assert.Equal(90, rows[0].Quality); Assert.Equal(90, rows[0].Score);
         Assert.Equal("—", rows[1].Verdict); Assert.Null(rows[1].Score);
         var lines = File.ReadAllLines(Path.Combine(_root, "results.jsonl"));
@@ -49,6 +51,7 @@ public class BenchmarkRunnerTests : IDisposable
         var rows = new List<BenchmarkResult>();
         await Assert.ThrowsAsync<InvalidOperationException>(() => Run(new[] { BenchmarkTasks.All[0] }, rows));
         Assert.Empty(rows); Assert.Equal(1, _dispatcher.Ends); Assert.False(ToolDispatcher.ForceSuppress);
+        Assert.Equal("other-document", DocumentSessions.CurrentDocumentKey);
     }
     [Fact]
     public async Task FamilyTaskGetsIndependentAnalysisAndFlexAndUnavailableJudgeHasNoPoints()
@@ -56,7 +59,7 @@ public class BenchmarkRunnerTests : IDisposable
         _dispatcher.Family = true; ChatService.Grade = "unavailable";
         var rows = new List<BenchmarkResult>();
         await Run(new[] { BenchmarkTasks.All.Single(t => t.Id == "F1") }, rows);
-        Assert.Equal(2, _dispatcher.Tools.Count(t => t == "analyze_family_structure"));
+        Assert.Equal(3, _dispatcher.Tools.Count(t => t == "analyze_family_structure"));
         Assert.Single(_dispatcher.Tools, t => t == "flex_family");
         Assert.Equal("?", rows[0].Verdict); Assert.Null(rows[0].Score); Assert.Equal(1, _dispatcher.Ends);
     }
