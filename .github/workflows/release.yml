@@ -88,6 +88,16 @@ jobs:
             throw "Tag $tag already exists at $existing. Refusing to move a published tag — pick a new version or delete the tag/release deliberately first."
           }
 
+      - name: Compile installer detection check
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer\checks\DetectionCheck.iss
+          options: /Qp
+
+      - name: Installer detection regression checks
+        shell: pwsh
+        run: ./installer/checks/Test-Detection.ps1
+
       - name: Compile installer with Inno Setup
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:

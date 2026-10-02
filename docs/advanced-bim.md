@@ -175,9 +175,10 @@ undo every task; start each comparison from the same clean project copy.
 - Actual Codex/ChatGPT no-tools calls succeeded for GPT-6 Astra and GPT-5.6 Luna.
   The tested Claude account reported subscription access disabled by its organization;
   that error is surfaced accurately, with no API fallback.
-- Revit API builds for 2025–2027. No supported live Revit was available in this
-  environment: modelling, nested-family flex, new native geometry and interactive
-  BIMStarter posting still require testing inside Revit 2025–2027.
+- Revit API builds for 2025–2027. Modelling, nested-family flex, new native geometry
+  and interactive BIMStarter posting still require execution checks inside Revit.
+  Revit 2027 was subsequently found on a custom drive; the earlier installation
+  inventory missed it. Installer v3.7.1 corrects that detection failure.
 
 The source PDFs and authenticated RFA library files are not bundled. EIR auditing
 is partial and does not certify customer compliance; see [Samolet EIR](samolet-eir.md).

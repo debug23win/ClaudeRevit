@@ -4,6 +4,8 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
+**v3.7.1:** the installer detects Revit on custom drives using registered paths and the executable version; its version selection text adapts to display scaling.
+
 **v3.7:** family nesting analysis and flex tests, native parametric forms and complex
 reinforcement, committed rollback previews, a catalog of 63 BIMStarter commands,
 ADSK 2019/2021 FOP references and a Samolet EIR profile. The benchmark defaults to

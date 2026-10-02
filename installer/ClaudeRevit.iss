@@ -81,14 +81,7 @@ begin
   end;
 end;
 
-// A Revit version is "installed" if either its all-users add-ins folder (created by the
-// Revit installer) or its program folder exists.
-function RevitInstalled(Ver: String): Boolean;
-begin
-  Result := DirExists(ExpandConstant('{commonappdata}\Autodesk\Revit\Addins\' + Ver))
-         or DirExists(ExpandConstant('{commonpf}\Autodesk\Revit ' + Ver))
-         or DirExists(ExpandConstant('{commonpf64}\Autodesk\Revit ' + Ver));
-end;
+#include "RevitDetection.iss"
 
 function IsRevitRunning: Boolean;
 var
@@ -106,6 +99,7 @@ var
   i, y: Integer;
   anyDetected: Boolean;
   intro: TNewStaticText;
+  revitExe: String;
 begin
   VersionsPage := CreateCustomPage(
     wpWelcome,
@@ -118,13 +112,13 @@ begin
   intro.Left := 0;
   intro.Width := VersionsPage.SurfaceWidth;
   intro.AutoSize := False;
-  intro.Height := 34;
   intro.WordWrap := True;
-  intro.Caption := 'Installed versions are detected and pre-selected. Each version gets the '
+  intro.Caption := 'Installed versions are detected from their registered paths, including custom drives, and pre-selected. Each version gets the '
     + 'build that matches its .NET runtime (2025/2026 = .NET 8, 2027 = .NET 10).';
+  intro.AdjustHeight;
 
   anyDetected := False;
-  y := 42;
+  y := intro.Top + intro.Height + ScaleY(12);
   for i := 0 to 2 do
   begin
     ChkVer[i] := TNewCheckBox.Create(VersionsPage);
@@ -132,15 +126,19 @@ begin
     ChkVer[i].Top := y;
     ChkVer[i].Left := 0;
     ChkVer[i].Width := VersionsPage.SurfaceWidth;
-    if RevitInstalled(VersionAt(i)) then
+    ChkVer[i].Height := ScaleY(20);
+    revitExe := FindRevitExe(VersionAt(i));
+    if revitExe <> '' then
     begin
       ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (detected)';
       ChkVer[i].Checked := True;
       anyDetected := True;
+      ChkVer[i].Hint := revitExe;
+      ChkVer[i].ShowHint := True;
     end
     else
       ChkVer[i].Caption := 'Revit ' + VersionAt(i) + '  (not detected — tick to install anyway)';
-    y := y + 26;
+    y := y + ScaleY(26);
   end;
 
   // Nothing detected: default to the newest so a working install is one click away.
