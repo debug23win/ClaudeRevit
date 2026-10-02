@@ -33,12 +33,23 @@ namespace ClaudeRevit.Tools
         public static bool ForceSuppress;
         public bool Family, ScopeActive;
         public int Starts, Ends;
+        private string _seedKey = "", _fixtureKey = "";
         public List<string> Tools { get; } = new();
-        public Task BenchmarkScopeAsync(bool begin, string key, CancellationToken ct)
+        public Task<string> BenchmarkScopeAsync(bool begin, string key, CancellationToken ct)
         {
-            if (begin) { ct.ThrowIfCancellationRequested(); ScopeActive = true; Starts++; }
-            else { ScopeActive = false; Ends++; }
-            return Task.CompletedTask;
+            if (begin)
+            {
+                ct.ThrowIfCancellationRequested(); ScopeActive = true; Starts++;
+                _seedKey = key; _fixtureKey = key + "-scratch";
+                ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey = _fixtureKey;
+            }
+            else
+            {
+                ScopeActive = false; Ends++;
+                if (ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey == _fixtureKey)
+                    ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey = _seedKey;
+            }
+            return Task.FromResult(ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey);
         }
         public Task<string> BenchmarkProbeAsync(CancellationToken ct)
         { ct.ThrowIfCancellationRequested(); return Task.FromResult(JsonSerializer.Serialize(new { is_family_document = Family, total = 0, nested_seed_types = Array.Empty<object>() })); }

@@ -35,7 +35,7 @@ a mean over a different subset is not an equivalent comparison.
 Results append to `%APPDATA%\ClaudeRevit\benchmark_results.jsonl`. Each row
 stores backend/model/effort, independent judge choices, actual models, verdict,
 quality/speed/total, reference time, formula version, modelling seconds, rounds,
-tokens and reason. `score` is the total in v3.7.1; older records used it for
+tokens and reason. `score` is the total in v3.7.2; older records used it for
 quality. Use `scoring_version=quality-speed-v1` to distinguish new records.
 
 ## Documents and reset
@@ -45,14 +45,23 @@ Run project tasks in a disposable **RVT**. Run F1–F5 in an already open ordina
 forms. The runner checks document kind and prerequisites before starting a model
 turn; All tasks is 29 tasks, with incompatible tasks skipped.
 
-Leave **Roll back model changes after each task** enabled. A temporary native
-transaction group contains each task's changes and is rolled back after collecting
-evidence, including on cancellation. This restores existing model edits/deletions,
-added types and family parameters, not just new instances. Exported files and
-other external side effects are not rolled back. Do not save, switch documents,
-or manually edit during a run. Document change stops grading and only rolls back
-the original document's temporary group. With reset disabled, changes remain and
-tasks can contaminate one another; use a fresh document for each comparison.
+Leave **Use fresh document copy per task** enabled. Save a local non-workshared
+scratch RVT/RFA first, with no pending unsaved edits. The runner opens a uniquely
+named file copy per task and collects before/after evidence there. It restores the
+seed document and closes the temporary copy without saving, including after
+cancellation. Geometry edits, deleted elements, added types and family parameters
+cannot contaminate the seed or another task. If you manually switch documents,
+grading stops and only the owned background copy is closed; your chosen document
+stays active. Exports outside the scratch directory and other external side effects
+remain; the owned temporary directory is removed. Do not save/switch/edit during
+a run. With reset disabled, changes remain in the active document and tasks can
+contaminate one another; use a fresh document for each comparison.
+
+No transaction group spans separate event callbacks. Revit requires transactions
+to close before an event returns ([Autodesk documentation](https://help.autodesk.com/cloudhelp/2018/ENU/Revit-API/Revit_API_Developers_Guide/Basic_Interaction_with_Revit_Elements/Transactions/Transactions_in_Events.html)).
+Ordinary API jobs drained in a single callback can share an undo group; a complete
+asynchronous chat turn may have multiple undo entries. Copy/open/close time is
+excluded from modelling speed.
 
 F2 requires loaded editable unhosted child families with a driving **instance
 length parameter** that supports association. F3 requires an existing assembly
@@ -62,7 +71,7 @@ in a blank suitable RFA. For project reinforcement tasks, provide concrete
 structural host types and suitable rebar/hook types, or allow the model to load
 them using its tools. Missing resources reduce achievable quality.
 
-## Complex tasks added in v3.7.1
+## Complex tasks
 
 | ID | What it tests | Reference |
 |---|---|---:|
@@ -98,10 +107,10 @@ useful checks, not a complete engineering compliance audit. The grader is a
 model and can vary; keep it fixed and review its cited reasons.
 
 152 pure tests and isolated real-WPF/MCP/CLI checks cover scoring, filtering
-evidence, independent flex dispatch, prerequisites, cancellation/reset ordering,
+evidence, independent flex dispatch, prerequisites, cancellation/copy cleanup ordering,
 document changes, displayed averages and version-based CLI selection. Builds
 target the matching Revit APIs for 2025–2027. The new geometry scenarios and
-native transaction-group reset still require execution validation inside Revit.
+fresh-copy opening/activation/closing still require execution validation inside Revit.
 `test_revit_connection` now contains a separate unsaved native fixture checking
 instance/type collection and nested group rollback; it does not modify the user
 document. Compilation and isolated tests do not establish live native success.

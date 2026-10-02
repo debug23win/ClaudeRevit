@@ -29,7 +29,8 @@ public class ToolDispatcher : IExternalEventHandler
     private ExternalEvent _event = null!;
     private readonly ConcurrentQueue<Job> _queue = new();
     private TransactionGroup? _activeGroup;
-    private TransactionGroup? _benchmarkGroup;
+    private BenchmarkFixture? _benchmarkFixture;
+    private sealed record BenchmarkFixture(Document Document, string SeedPath, string Directory);
     private string _turnLabel = "Claude";
 
     // Dialog/failure suppression. Revit shows modal warning dialogs (and task dialogs) on
@@ -126,11 +127,10 @@ public class ToolDispatcher : IExternalEventHandler
         return tcs.Task;
     }
 
-    public Task BenchmarkScopeAsync(bool begin, string documentKey, CancellationToken ct)
+    public Task<string> BenchmarkScopeAsync(bool begin, string documentKey, CancellationToken ct)
     {
-        // Begin cannot be abandoned after starting a group. Cancellation is checked on the
-        // Revit thread, and the caller always awaits its disposition before its finally block.
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Copy/open/close are completed on the API thread before returning disposition.
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         _queue.Enqueue(new BenchmarkScopeJob(begin, documentKey, ct, tcs));
         _event.Raise();
         return tcs.Task;
@@ -138,6 +138,8 @@ public class ToolDispatcher : IExternalEventHandler
 
     public void Execute(UIApplication app)
     {
+        try
+        {
         while (_queue.TryDequeue(out var job))
         {
             switch (job)
@@ -151,6 +153,13 @@ public class ToolDispatcher : IExternalEventHandler
                 case ProbeJob p when !p.Tcs.Task.IsCompleted: HandleProbe(app, p); break;
                 case BenchmarkScopeJob b: HandleBenchmarkScope(app, b); break;
             }
+        }
+        }
+        finally
+        {
+            // Revit requires every transaction/group to end before an event handler returns.
+            // A turn may span multiple callbacks; only jobs drained in THIS callback share undo.
+            CloseTurnGroup();
         }
     }
 
@@ -273,27 +282,45 @@ public class ToolDispatcher : IExternalEventHandler
             if (job.Begin)
             {
                 job.Ct.ThrowIfCancellationRequested();
-                if (_benchmarkGroup != null || _activeGroup != null) throw new InvalidOperationException("Another grouped operation is running.");
+                if (_benchmarkFixture != null || _activeGroup != null || _suppressTurn) throw new InvalidOperationException("Another operation is running.");
                 var doc = NativeToolUtil.Doc(app);
-                if (Services.DocumentSessions.Key(doc) != job.DocumentKey) throw new InvalidOperationException("Benchmark document changed before reset scope.");
-                _benchmarkGroup = new TransactionGroup(doc, "Claude benchmark (temporary)");
-                if (_benchmarkGroup.Start() != TransactionStatus.Started) throw new InvalidOperationException("Cannot start benchmark reset scope.");
+                if (Services.DocumentSessions.Key(doc) != job.DocumentKey) throw new InvalidOperationException("Benchmark document changed before copying the seed.");
+                if (doc.IsModified || string.IsNullOrWhiteSpace(doc.PathName) || !System.IO.File.Exists(doc.PathName) || doc.IsWorkshared || doc.IsModelInCloud)
+                    throw new InvalidOperationException("Save a local, non-workshared scratch RVT/RFA first (no unsaved edits). Reset runs each task in a fresh file copy.");
+                var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ClaudeRevit-benchmark", Guid.NewGuid().ToString("N"));
+                if (System.IO.Directory.Exists(directory)) throw new InvalidOperationException("Benchmark scratch directory already exists.");
+                System.IO.Directory.CreateDirectory(directory);
+                var copy = System.IO.Path.Combine(directory, "Bench-" + Guid.NewGuid().ToString("N") + System.IO.Path.GetExtension(doc.PathName));
+                try
+                {
+                    System.IO.File.Copy(doc.PathName, copy, false);
+                    var fixture = app.OpenAndActivateDocument(copy).Document;
+                    _benchmarkFixture = new(fixture, doc.PathName, directory);
+                }
+                catch { try { DeleteBenchmarkDirectory(directory); } catch { } throw; }
             }
             else
             {
-                // A turn group is nested inside this scope. End it first even on cancellation.
-                if (_activeGroup != null) HandleEndTurn(new EndTurnJob(new TaskCompletionSource<bool>()));
-                if (_benchmarkGroup != null && _benchmarkGroup.GetStatus() == TransactionStatus.Started &&
-                    _benchmarkGroup.RollBack() != TransactionStatus.RolledBack)
-                    throw new InvalidOperationException("Benchmark reset did not roll back; stop and inspect the document.");
-                _benchmarkGroup?.Dispose(); _benchmarkGroup = null;
+                CloseTurnGroup();
+                if (_benchmarkFixture is { } fixture)
+                {
+                    // A manually selected other document remains active. Otherwise restore the
+                    // seed before closing the active temporary document (Revit forbids closing it).
+                    if (ReferenceEquals(app.ActiveUIDocument?.Document, fixture.Document))
+                        app.OpenAndActivateDocument(fixture.SeedPath);
+                    if (fixture.Document.IsValidObject && !fixture.Document.Close(false))
+                        throw new InvalidOperationException("Cannot close the benchmark scratch copy: " + fixture.Directory);
+                    _benchmarkFixture = null;
+                    try { DeleteBenchmarkDirectory(fixture.Directory); }
+                    catch (Exception ex) { Services.Log.Error("Benchmark scratch file cleanup failed", ex); }
+                }
                 GetProjectCatalog.Invalidate();
             }
-            job.Tcs.TrySetResult(true);
+            Services.DocumentSessions.Update(app.ActiveUIDocument?.Document);
+            job.Tcs.TrySetResult(Services.DocumentSessions.CurrentDocumentKey);
         }
         catch (Exception ex)
         {
-            if (job.Begin) { try { _benchmarkGroup?.Dispose(); } catch { } _benchmarkGroup = null; }
             job.Tcs.TrySetException(ex);
         }
     }
@@ -338,11 +365,7 @@ public class ToolDispatcher : IExternalEventHandler
     {
         try
         {
-            if (_activeGroup != null)
-            {
-                if (_activeGroup.HasStarted() && !_activeGroup.HasEnded())
-                    _activeGroup.Assimilate();
-            }
+            CloseTurnGroup();
             job.Tcs.TrySetResult(true);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
@@ -351,10 +374,26 @@ public class ToolDispatcher : IExternalEventHandler
             // Must run even if Assimilate threw. Otherwise the group leaks AND _suppressTurn stays
             // true for the rest of the session, silently swallowing Revit's own warnings to the
             // user — a failure they would have no way to notice.
-            try { _activeGroup?.Dispose(); } catch { }
-            _activeGroup = null;
             _suppressTurn = false;
         }
+    }
+
+    private static void DeleteBenchmarkDirectory(string directory)
+    {
+        var root = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ClaudeRevit-benchmark"));
+        var info = new System.IO.DirectoryInfo(System.IO.Path.GetFullPath(directory));
+        if (!string.Equals(info.Parent?.FullName, root, StringComparison.OrdinalIgnoreCase) ||
+            !Guid.TryParseExact(info.Name, "N", out _) || info.LinkTarget != null)
+            throw new InvalidOperationException("Unexpected benchmark cleanup path.");
+        if (info.Exists) info.Delete(true);
+    }
+
+    private void CloseTurnGroup()
+    {
+        var group = _activeGroup; _activeGroup = null;
+        if (group == null) return;
+        try { if (group.GetStatus() == TransactionStatus.Started) group.Assimilate(); }
+        finally { group.Dispose(); }
     }
 
     private void HandleTool(UIApplication app, ToolJob job)
@@ -385,8 +424,8 @@ public class ToolDispatcher : IExternalEventHandler
                 throw new InvalidOperationException("The chat pane is running a grouped API turn. Retry this MCP operation after it finishes.");
             var tool = _registry.Get(job.Name)
                 ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
-            if (_benchmarkGroup != null && job.Name is "open_family_editor" or "reload_family_into_document")
-                throw new InvalidOperationException("Benchmark reset scope requires the same active document; run family tasks in an already open RFA.");
+            if (_benchmarkFixture != null && job.Name is "open_family_editor" or "reload_family_into_document")
+                throw new InvalidOperationException("Benchmark tasks must keep the scratch copy active; run family tasks from a saved RFA seed.");
 
             if (tool.RequiresNoTurnGroup && _activeGroup != null)
             {
@@ -615,7 +654,7 @@ public class ToolDispatcher : IExternalEventHandler
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;
     private sealed record ProbeJob(TaskCompletionSource<string> Tcs) : Job;
-    private sealed record BenchmarkScopeJob(bool Begin, string DocumentKey, CancellationToken Ct, TaskCompletionSource<bool> Tcs) : Job;
+    private sealed record BenchmarkScopeJob(bool Begin, string DocumentKey, CancellationToken Ct, TaskCompletionSource<string> Tcs) : Job;
 
     // Collects the text of Revit's failure messages during a transaction commit so they can
     // be reported to the model, and lets Revit resolve them non-interactively (no modal
