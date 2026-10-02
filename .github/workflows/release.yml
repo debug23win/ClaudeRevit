@@ -47,6 +47,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Pane checks failed" }
           dotnet run --project ClaudeRevit.McpTests -c Release
           if ($LASTEXITCODE -ne 0) { throw "MCP transport checks failed" }
+          dotnet run --project ClaudeRevit.CliTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Subscription CLI checks failed" }
 
       # One add-in DLL cannot load into every Revit: 2025/2026 host .NET 8, 2027 hosts
       # .NET 10. Build each supported version against its matching Revit API reference
@@ -101,6 +103,13 @@ jobs:
           "path=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Installer: $($exe.FullName) ($([math]::Round($exe.Length / 1KB, 1)) KB)"
 
+      - name: Select release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $notes = "docs/releases/${{ steps.vars.outputs.version }}.md"
+          if (Test-Path -LiteralPath $notes) { "path=$notes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append }
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -108,6 +117,7 @@ jobs:
           name: ${{ steps.vars.outputs.version }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2025.zip
             ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2026.zip

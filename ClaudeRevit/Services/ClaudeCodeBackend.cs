@@ -26,6 +26,7 @@ public static class ClaudeCodeBackend
         public string Text = "";
         public string? SessionId;
         public string? Error;
+        public bool Completed;
         // From the final `result` event — real numbers even on a subscription.
         public long InputTokens;
         public long OutputTokens;
@@ -73,6 +74,10 @@ public static class ClaudeCodeBackend
             "--verbose",
             "--include-partial-messages"
         };
+        // Keep subscription OAuth, while excluding settings that can supply an
+        // API-key helper, unrelated MCP servers or project hooks.
+        args.AddRange(new[] { "--setting-sources", "", "--strict-mcp-config" });
+        if (string.IsNullOrWhiteSpace(mcpConfigPath)) args.AddRange(new[] { "--tools", "" });
         McpAgentSelection.AddClaudeOptions(args, model, effort);
         // MCP + tools are for the "drive Revit" path. The judge runs with neither (empty) — a pure
         // text-grading call — so skip the flags; an empty allowedTools glob denies every tool.
@@ -117,6 +122,8 @@ public static class ClaudeCodeBackend
         var viaCmd = resolved.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
                      resolved.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
 
+        await VerifySubscriptionAsync(resolved, workDir, ct);
+
         Process proc;
         try
         {
@@ -139,6 +146,8 @@ public static class ClaudeCodeBackend
             return result;
         }
 
+        using var processLifetime = proc;
+        using var cancelled = ct.Register(() => { try { proc.Kill(true); } catch { } });
         try
         {
             await proc.StandardInput.WriteAsync(prompt);
@@ -150,7 +159,7 @@ public static class ClaudeCodeBackend
             var errTask = proc.StandardError.ReadToEndAsync();
 
             string? line;
-            while ((line = await proc.StandardOutput.ReadLineAsync()) != null)
+            while ((line = await proc.StandardOutput.ReadLineAsync(ct)) != null)
             {
                 ct.ThrowIfCancellationRequested();
                 ParseLine(line, result, onText, onTool);
@@ -159,10 +168,11 @@ public static class ClaudeCodeBackend
             var err = await errTask;
             await proc.WaitForExitAsync(ct);
 
-            if (proc.ExitCode != 0 && string.IsNullOrEmpty(result.Text))
-                result.Error = string.IsNullOrWhiteSpace(err)
+            if (proc.ExitCode != 0 && result.Error == null)
+                result.Error = string.IsNullOrWhiteSpace(err) && result.Text.Length > 0 ? result.Text : string.IsNullOrWhiteSpace(err)
                     ? $"Claude Code exited with code {proc.ExitCode}."
                     : err.Trim();
+            if (proc.ExitCode == 0 && !result.Completed && result.Error == null) result.Error = "Claude Code returned no completion event. Update the CLI or check its output format.";
         }
         catch (OperationCanceledException)
         {
@@ -171,6 +181,7 @@ public static class ClaudeCodeBackend
         }
         catch (Exception ex)
         {
+            ct.ThrowIfCancellationRequested();
             result.Error = ex.Message;
         }
         return result;
@@ -179,14 +190,15 @@ public static class ClaudeCodeBackend
     // A one-shot, no-tools text completion on the subscription — used for the impartial benchmark
     // judge so grading costs nothing on the API. The bogus allowedTools glob matches no tool, so in
     // headless (-p) mode every built-in tool is auto-denied and the model just returns text.
-    public static async Task<string> CompleteAsync(string exe, string prompt, string workDir, CancellationToken ct)
+    public static async Task<string> CompleteAsync(string exe, string prompt, string workDir, CancellationToken ct,
+        string? model = null, string? effort = null)
     {
         var res = await RunAsync(
             exe, prompt, workDir, mcpConfigPath: "", resumeSessionId: null,
             allowedToolsGlob: "__deny_all_tools__",
-            onText: _ => { }, onTool: _ => { }, ct);
-        if (string.IsNullOrEmpty(res.Text) && !string.IsNullOrEmpty(res.Error))
-            throw new InvalidOperationException(res.Error);
+            onText: _ => { }, onTool: _ => { }, ct, model: model, effort: effort);
+        if (res.IsError || !string.IsNullOrEmpty(res.Error))
+            throw new InvalidOperationException(res.Error ?? res.Text);
         return res.Text;
     }
 
@@ -230,10 +242,13 @@ public static class ClaudeCodeBackend
 
             if (type == "result")
             {
+                result.Completed = true;
                 if (root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.String)
                     result.Text = res.GetString() ?? result.Text;
                 if (root.TryGetProperty("is_error", out var ie) && ie.ValueKind == JsonValueKind.True)
                     result.IsError = true;
+                if (result.IsError && root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array)
+                    result.Error = string.Join("; ", errors.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : e.GetRawText()));
                 if (root.TryGetProperty("subtype", out var sub) && sub.ValueKind == JsonValueKind.String)
                     result.Subtype = sub.GetString();
                 if (root.TryGetProperty("num_turns", out var nt) && nt.TryGetInt32(out var ntv)) result.NumTurns = ntv;
@@ -360,6 +375,28 @@ public static class ClaudeCodeBackend
         return null;
     }
 
+    private static async Task VerifySubscriptionAsync(string exe, string workDir, CancellationToken ct)
+    {
+        var shim = exe.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || exe.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
+        var args = shim ? new List<string> { "/c", exe, "auth", "status", "--json" } : new List<string> { "auth", "status", "--json" };
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        using var status = Start(shim ? "cmd.exe" : exe, args, workDir);
+        using var cancel = timeout.Token.Register(() => { try { status.Kill(true); } catch { } });
+        var stdout = status.StandardOutput.ReadToEndAsync(timeout.Token);
+        var stderr = status.StandardError.ReadToEndAsync(timeout.Token);
+        await status.WaitForExitAsync(timeout.Token);
+        var raw = await stdout; await stderr;
+        try
+        {
+            using var json = JsonDocument.Parse(raw);
+            if (status.ExitCode == 0 && json.RootElement.TryGetProperty("loggedIn", out var logged) && logged.ValueKind == JsonValueKind.True &&
+                json.RootElement.TryGetProperty("authMethod", out var method) && method.GetString() == "claude.ai") return;
+        }
+        catch (JsonException) { }
+        throw new InvalidOperationException("Sign in to Claude Code with your Claude subscription. Update the CLI if 'claude auth status --json' is unavailable. API/Console login is not used in subscription mode.");
+    }
+
     private static Process Start(string file, IEnumerable<string> args, string workDir)
     {
         var psi = new ProcessStartInfo
@@ -379,6 +416,11 @@ public static class ClaudeCodeBackend
             StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
+        // This backend is explicitly the Claude subscription path. Inherited API
+        // credentials/cloud switches must not silently charge a different account.
+        foreach (var key in new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+                     "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY" })
+            psi.Environment.Remove(key);
         return Process.Start(psi) ?? throw new InvalidOperationException("Process.Start returned null.");
     }
 }

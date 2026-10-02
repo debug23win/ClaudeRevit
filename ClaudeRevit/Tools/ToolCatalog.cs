@@ -23,11 +23,12 @@ public static class ToolCatalog
     {
         var n = tool.GetType().Name;
         bool Has(params string[] keys) => keys.Any(k => n.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0);
+        if (n is "BimStarterModelTools" or "RunBimStarterCommand") return "Modeling";
 
         // Specific groups first so a broad keyword (e.g. "Delete", "Family") doesn't steal a
         // tool that belongs to a narrower group.
         if (Has("Rebar", "Reinforcement")) return "Rebar";
-        if (Has("FamilyParameter", "FamilyDimension", "LinearArray", "FamilyInstances", "ReferencePlanes", "AssociateFamily"))
+        if (Has("FamilyParameter", "FamilyDimension", "LinearArray", "FamilyInstances", "ReferencePlanes", "AssociateFamily", "FamilyStructure", "FlexFamily", "FamilyForm", "FamilyEditor", "NestedFamily"))
             return "Family editor";
         if (Has("SaveTool", "DeleteTool", "EjectTool", "ToolSource", "CustomTools", "Memory", "Journal",
                 "DiagnosticReport", "FullResult", "ExecuteCSharp", "RunDynamo", "DependentElements"))

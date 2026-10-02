@@ -29,6 +29,7 @@ public class ToolDispatcher : IExternalEventHandler
     private ExternalEvent _event = null!;
     private readonly ConcurrentQueue<Job> _queue = new();
     private TransactionGroup? _activeGroup;
+    private string _turnLabel = "Claude";
 
     // Dialog/failure suppression. Revit shows modal warning dialogs (and task dialogs) on
     // transaction commit — fine when a user is present, but they STALL unattended automation
@@ -213,6 +214,7 @@ public class ToolDispatcher : IExternalEventHandler
 
             var probe = new
             {
+                document_key = Services.DocumentSessions.Key(doc),
                 total = new FilteredElementCollector(doc).WhereElementIsNotElementType().GetElementCount(),
                 walls = wallLens.Count,
                 wall_lengths_m = wallLens,
@@ -237,7 +239,7 @@ public class ToolDispatcher : IExternalEventHandler
             };
             job.Tcs.TrySetResult(Services.Json.Serialize(probe));
         }
-        catch (Exception ex) { job.Tcs.TrySetResult("{\"probe_error\":\"" + ex.Message + "\"}"); }
+        catch (Exception ex) { job.Tcs.TrySetResult(Services.Json.Serialize(new { probe_error = ex.Message })); }
     }
 
     private void HandleAllIds(UIApplication app, AllIdsJob job)
@@ -246,7 +248,7 @@ public class ToolDispatcher : IExternalEventHandler
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) { job.Tcs.TrySetResult(new List<long>()); return; }
-            var ids = new FilteredElementCollector(doc).WhereElementIsNotElementType()
+            var ids = new FilteredElementCollector(doc)
                 .ToElementIds().Select(id => id.Value).ToList();
             job.Tcs.TrySetResult(ids);
         }
@@ -277,6 +279,7 @@ public class ToolDispatcher : IExternalEventHandler
             if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
                 throw new InvalidOperationException("The active document changed before the turn started. Send the request again in the intended document.");
             _suppressTurn = true;
+            _turnLabel = job.Label;
             var doc = app.ActiveUIDocument?.Document;
             if (doc != null && _activeGroup == null)
             {
@@ -335,10 +338,22 @@ public class ToolDispatcher : IExternalEventHandler
         {
             if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
                 throw new InvalidOperationException("The active document changed while this operation was queued. No changes were made; retry in the intended document.");
-            if (_activeGroup != null && job.Session != null)
+            if (_suppressTurn && job.Session != null)
                 throw new InvalidOperationException("The chat pane is running a grouped API turn. Retry this MCP operation after it finishes.");
             var tool = _registry.Get(job.Name)
                 ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
+
+            if (tool.RequiresNoTurnGroup && _activeGroup != null)
+            {
+                try { _activeGroup.Assimilate(); }
+                finally { _activeGroup.Dispose(); _activeGroup = null; }
+            }
+            else if (!tool.RequiresNoTurnGroup && _suppressTurn && _activeGroup == null &&
+                     (tool.RequiresTransaction || tool.IsScriptTool) && app.ActiveUIDocument?.Document is { } turnDoc)
+            {
+                _activeGroup = new TransactionGroup(turnDoc, _turnLabel);
+                _activeGroup.Start();
+            }
 
             // Defence in depth: even if a gated tool is somehow requested while the setting
             // is off, refuse rather than run arbitrary code.

@@ -9,6 +9,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Page Include="..\ClaudeRevit\UI\ChatPaneView.xaml" Link="ChatPaneView.xaml" />
+    <Page Include="..\ClaudeRevit\UI\BenchmarkWindow.xaml" Link="BenchmarkWindow.xaml" />
+    <Compile Include="..\ClaudeRevit\UI\BenchmarkWindow.xaml.cs" Link="BenchmarkWindow.xaml.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkExecution.cs" Link="BenchmarkExecution.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkTasks.cs" Link="BenchmarkTasks.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatPaneView.xaml.cs" Link="ChatPaneView.xaml.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="ChatMessage.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="McpAgentSelection.cs" />

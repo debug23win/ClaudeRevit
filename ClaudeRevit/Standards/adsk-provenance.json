@@ -1,0 +1,28 @@
+{
+  "source_archive": "User-supplied fop.zip",
+  "sources": [
+    {
+      "source": "ФОП2019.txt",
+      "profile": "ADSK-2019",
+      "count": 264,
+      "sha256": "960c6b832f515bf3659c00b45047fae9dff744386bb6aaf2857bb77aca452e25"
+    },
+    {
+      "source": "ФОП2021.txt",
+      "profile": "ADSK-2021",
+      "count": 323,
+      "sha256": "f9241e0777527a8300a076ca8c77fbe7e8b04d75a001ef0153f137dc18ee5f14"
+    }
+  ],
+  "spec_conflicts": [],
+  "note": "These are ADSK 2019/2021 snapshots supplied by the user, not a verified BIM-Standart v2.0 edition.",
+  "xlsx": {
+    "source": "ADSK-ФОП.xlsx",
+    "sha256": "78adf79e22eedb54351ad5e9c65c2d2c0c726a906892ca8d31f83ddef829c52e",
+    "snapshots": [
+      "2019_2022-02-14",
+      "2021_2024-05-13"
+    ],
+    "recommended_group_note": "Workbook recommendations, not evidence of live category/type/instance bindings."
+  }
+}

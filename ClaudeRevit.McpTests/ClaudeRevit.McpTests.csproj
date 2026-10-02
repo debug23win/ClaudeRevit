@@ -9,6 +9,9 @@
   <ItemGroup>
     <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="StandardKnowledge.cs" />
     <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="SharedParameterCatalog.cs" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\Workflows.json" LogicalName="ClaudeRevit.Standards.Workflows.json" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarterTools.json" LogicalName="ClaudeRevit.Standards.BimStarterTools.json" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <Compile Include="..\ClaudeRevit\Services\McpServer.cs" Link="McpServer.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="McpSchema.cs" />

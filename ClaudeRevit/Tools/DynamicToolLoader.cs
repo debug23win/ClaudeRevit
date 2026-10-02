@@ -278,6 +278,12 @@ public static class DynamicToolLoader
         var tool = ToolRegistry.Instance.Get(name);
         if (tool == null || tool is DynamicToolProxy) return null;
         var typeName = tool.GetType().Name;
+        typeName = typeName switch
+        {
+            "GetBimStarterTools" or "RunBimStarterCommand" => "BimStarterPluginTools",
+            "SetRebarConstraint" => "GetRebarConstraints",
+            _ => typeName
+        };
         var asm = typeof(DynamicToolLoader).Assembly;
         var res = asm.GetManifestResourceNames()
             .FirstOrDefault(r => r.EndsWith("/" + typeName + ".cs", StringComparison.Ordinal)

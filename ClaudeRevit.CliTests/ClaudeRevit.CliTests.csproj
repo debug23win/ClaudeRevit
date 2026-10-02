@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <AssemblyName>codex</AssemblyName><RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\ClaudeCodeBackend.cs" Link="ClaudeCodeBackend.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexBackend.cs" Link="CodexBackend.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexCli.cs" Link="CodexCli.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexModels.cs" Link="CodexModels.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexModelCatalog.cs" Link="CodexModelCatalog.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="McpAgentSelection.cs" />
+    <Compile Include="..\ClaudeRevit\Services\TextUtil.cs" Link="TextUtil.cs" />
+  </ItemGroup>
+</Project>

@@ -2,79 +2,62 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Claude Revit — Model benchmark"
-        Width="780" Height="620"
+        Width="960" Height="700"
         WindowStartupLocation="CenterOwner"
-        MinWidth="620" MinHeight="420"
+        MinWidth="780" MinHeight="520"
         ShowInTaskbar="False"
         FontFamily="Segoe UI" FontSize="13">
     <DockPanel Margin="14">
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Text="Model:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox x:Name="ModelBox" Width="150" Height="26" VerticalContentAlignment="Center">
-                <ComboBoxItem Tag="auto" IsSelected="True">Auto (as configured)</ComboBoxItem>
-                <ComboBoxItem Tag="sonnet-5">Sonnet 5</ComboBoxItem>
-                <ComboBoxItem Tag="opus-4-8">Opus 4.8</ComboBoxItem>
-                <ComboBoxItem Tag="fable-5">Fable 5</ComboBoxItem>
-                <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
-                <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
-                <ComboBoxItem Tag="haiku-4-5">Haiku 4.5</ComboBoxItem>
-                <ComboBoxItem Tag="alt">Alt model (as configured)</ComboBoxItem>
-                <!-- Pin a specific model of the configured alt provider, so several can be compared
-                     without rewriting Settings between runs. Needs the alt provider set to OpenAI. -->
-                <ComboBoxItem Tag="alt:gpt-6-astra">OpenAI GPT-6 Astra</ComboBoxItem>
-                <ComboBoxItem Tag="alt:gpt-5.6-sol">OpenAI GPT-5.6 Sol</ComboBoxItem>
-                <ComboBoxItem Tag="alt:gpt-5.6-terra">OpenAI GPT-5.6 Terra</ComboBoxItem>
-                <ComboBoxItem Tag="alt:gpt-5.6-luna">OpenAI GPT-5.6 Luna</ComboBoxItem>
-                <ComboBoxItem Tag="claudecode">Claude Code (MCP / subscription)</ComboBoxItem>
-                <ComboBoxItem Tag="codex">Codex / OpenAI via MCP</ComboBoxItem>
-                <ComboBoxItem Tag="codex:gpt-6-astra">Codex · GPT-6 Astra (MCP)</ComboBoxItem>
-                <ComboBoxItem Tag="codex:gpt-5.6-sol">Codex · GPT-5.6 Sol (MCP)</ComboBoxItem>
-                <ComboBoxItem Tag="codex:gpt-5.6-terra">Codex · GPT-5.6 Terra (MCP)</ComboBoxItem>
-            </ComboBox>
-            <TextBlock Text="Judge:" VerticalAlignment="Center" Margin="12,0,8,0" />
-            <ComboBox x:Name="JudgeBox" Width="120" Height="26" VerticalContentAlignment="Center"
-                      ToolTip="The model that grades each task from an objective before/after probe. Keep it FIXED when comparing runs — changing the judge changes the yardstick.">
-                <ComboBoxItem Tag="opus-4-8" IsSelected="True">Opus 4.8</ComboBoxItem>
-                <ComboBoxItem Tag="opus-5">Opus 5</ComboBoxItem>
-                <ComboBoxItem Tag="fable-5">Fable 5</ComboBoxItem>
-                <ComboBoxItem Tag="fable-5-1">Fable 5.1</ComboBoxItem>
-                <ComboBoxItem Tag="sonnet-5">Sonnet 5</ComboBoxItem>
-            </ComboBox>
-            <TextBlock Text="Tasks:" VerticalAlignment="Center" Margin="12,0,8,0" />
-            <ComboBox x:Name="TaskSetBox" Width="150" Height="26" VerticalContentAlignment="Center"
-                      ToolTip="Run a subset to save tokens — you rarely need all 19 every time.">
-                <ComboBoxItem Tag="all" IsSelected="True">All (19)</ComboBoxItem>
-                <ComboBoxItem Tag="basic">Basics only (7)</ComboBoxItem>
-                <ComboBoxItem Tag="composite">Composite L1–L4</ComboBoxItem>
-                <ComboBoxItem Tag="domain">Domain: rebar &amp; steel</ComboBoxItem>
-                <ComboBoxItem Tag="docs">Documentation (sheets, schedules, tags)</ComboBoxItem>
-                <ComboBoxItem Tag="hard">Hard discriminators (L3,L4,R,S,D)</ComboBoxItem>
-            </ComboBox>
-            <Button x:Name="RunButton" Content="Run benchmark" Width="120" Height="26" Margin="16,0,0,0"
-                    Click="RunButton_Click" />
-            <Button x:Name="CancelButton" Content="Stop" Width="70" Height="26" Margin="8,0,0,0"
-                    Click="CancelButton_Click" IsEnabled="False" />
-            <CheckBox x:Name="ResetBox" Content="Reset model between tasks" IsChecked="True"
-                      VerticalAlignment="Center" Margin="16,0,0,0"
-                      ToolTip="Delete each task's elements after grading, so every task starts from the same clean baseline (fair comparison). Uncheck to keep everything and inspect the result." />
-            <TextBlock Text="Stop task after" VerticalAlignment="Center" Margin="16,0,4,0" />
-            <TextBox x:Name="MaxRoundsBox" Text="15" Width="34" Height="24" VerticalContentAlignment="Center"
-                     ToolTip="Give up on a task after this many tool rounds and grade what it built (0 = no limit)." />
-            <TextBlock Text="rounds or" VerticalAlignment="Center" Margin="4,0,4,0" />
-            <TextBox x:Name="MaxMinutesBox" Text="5" Width="34" Height="24" VerticalContentAlignment="Center"
-                     ToolTip="…or after this many minutes (0 = no limit)." />
-            <TextBlock Text="min" VerticalAlignment="Center" Margin="4,0,0,0" />
-            <CheckBox x:Name="RunViaSubBox" Content="Run on subscription" IsChecked="False"
-                      VerticalAlignment="Center" Margin="16,0,0,0"
-                      ToolTip="Run the selected model through the Claude Code CLI (your subscription) via --model, instead of the pay-per-token API. Zero API cost. (Auto/Fable fall back to the CLI's default model; the advisor escalation does not apply.)" />
-            <CheckBox x:Name="JudgeViaCCBox" Content="Judge on subscription" IsChecked="True"
-                      VerticalAlignment="Center" Margin="16,0,0,0"
-                      ToolTip="Grade with the Claude Code CLI (your subscription) instead of the Opus 4.8 API, so the benchmark costs nothing on the API. The judge still grades only from the objective before/after probe. Needs the Claude Code CLI installed." />
+        <StackPanel DockPanel.Dock="Top">
+            <WrapPanel Margin="0,0,0,8">
+                <TextBlock Text="Run with:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox x:Name="BackendBox" Width="180" SelectionChanged="Backend_Changed">
+                    <ComboBoxItem Tag="codex" IsSelected="True">Codex · subscription</ComboBoxItem>
+                    <ComboBoxItem Tag="claudecode">Claude Code · subscription</ComboBoxItem>
+                    <ComboBoxItem Tag="api">API · per-token billing</ComboBoxItem>
+                </ComboBox>
+                <TextBlock Text="Model:" VerticalAlignment="Center" Margin="10,0,6,0" />
+                <ComboBox x:Name="ModelBox" Width="210" IsEditable="True" DisplayMemberPath="Label" SelectionChanged="Model_Changed" />
+                <ComboBox x:Name="EffortBox" Width="85" Margin="6,0,0,0" ToolTip="Reasoning effort supported by the selected model." />
+                <Button Content="Refresh models" Click="Refresh_Click" Margin="10,0,0,0" Padding="6,2" />
+            </WrapPanel>
+            <WrapPanel Margin="0,0,0,8">
+                <TextBlock Text="Judge with:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox x:Name="JudgeBackendBox" Width="180" SelectionChanged="Backend_Changed">
+                    <ComboBoxItem Tag="codex" IsSelected="True">Codex · subscription</ComboBoxItem>
+                    <ComboBoxItem Tag="claudecode">Claude Code · subscription</ComboBoxItem>
+                    <ComboBoxItem Tag="api">API · per-token billing</ComboBoxItem>
+                </ComboBox>
+                <TextBlock Text="Model:" VerticalAlignment="Center" Margin="10,0,6,0" />
+                <ComboBox x:Name="JudgeBox" Width="210" IsEditable="True" DisplayMemberPath="Label" SelectionChanged="Model_Changed" />
+                <ComboBox x:Name="JudgeEffortBox" Width="85" Margin="6,0,0,0" />
+            </WrapPanel>
+            <TextBlock x:Name="ModelStatusText" TextWrapping="Wrap" Foreground="#B26A00" Margin="0,0,0,8" />
+            <WrapPanel Margin="0,0,0,8">
+                <TextBlock Text="Tasks:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox x:Name="TaskSetBox" Width="220">
+                    <ComboBoxItem Tag="all" IsSelected="True">All tasks (19)</ComboBoxItem>
+                    <ComboBoxItem Tag="basic">Basics</ComboBoxItem>
+                    <ComboBoxItem Tag="composite">Composite tasks</ComboBoxItem>
+                    <ComboBoxItem Tag="domain">Rebar and steel</ComboBoxItem>
+                    <ComboBoxItem Tag="docs">Sheets, schedules and tags</ComboBoxItem>
+                    <ComboBoxItem Tag="hard">Hard tasks</ComboBoxItem>
+                </ComboBox>
+                <TextBlock Text="Task limit:" VerticalAlignment="Center" Margin="10,0,6,0" />
+                <TextBox x:Name="MaxRoundsBox" Text="15" Width="38" VerticalContentAlignment="Center" />
+                <TextBlock Text="rounds/tool calls or" VerticalAlignment="Center" Margin="6,0" />
+                <TextBox x:Name="MaxMinutesBox" Text="5" Width="38" VerticalContentAlignment="Center" />
+                <TextBlock Text="min (0 = unlimited)" VerticalAlignment="Center" Margin="6,0" />
+            </WrapPanel>
+            <WrapPanel Margin="0,0,0,8">
+                <Button x:Name="RunButton" Content="Run benchmark" Width="130" Height="28" Click="RunButton_Click" />
+                <Button x:Name="CancelButton" Content="Stop" Width="70" Height="28" Margin="8,0" Click="CancelButton_Click" IsEnabled="False" />
+                <CheckBox x:Name="ResetBox" Content="Delete added elements after each task" IsChecked="True" VerticalAlignment="Center" Margin="8,0" />
+            </WrapPanel>
+            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                Text="Runs real modelling in the active document. Use a scratch project. Subscription is the default for both modelling and judging; API billing requires an explicit selection. Keep the judge model and effort fixed when comparing runs. Reset removes additions only; edits to existing elements are retained. Results: benchmark_results.jsonl in the ClaudeRevit settings folder." />
         </StackPanel>
-
-        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="#B26A00" Margin="0,0,0,8"
-                   Text="Runs real modelling in the ACTIVE document — open a scratch/empty project first. Each task is one undo step. Grading uses an impartial judge (chosen above, Opus 4.8 by default) — keep it the same across runs you intend to compare. An Anthropic API key is required for it unless you grade on the subscription. Results are appended to benchmark_results.jsonl in %AppData%\ClaudeRevit." />
 
         <Border DockPanel.Dock="Top" Background="#EEF4FF" BorderBrush="#CFE0FF" BorderThickness="1"
                 Padding="8,5" Margin="0,0,0,8" x:Name="NowPanel" Visibility="Collapsed">
@@ -94,6 +77,7 @@
                   RowHeaderWidth="0" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Task" Binding="{Binding TaskId}" Width="46" />
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="150" />
                 <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="150" />
                 <DataGridTextColumn Header="✓/✗" Binding="{Binding Verdict}" Width="40" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score}" Width="50" />

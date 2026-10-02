@@ -12,7 +12,7 @@ public class GetSharedParameterCatalog : IRevitTool
 {
     public string Name => "get_shared_parameter_catalog";
     public string Description => "Search shared parameter definitions by GUID/name/group. Includes the verified " +
-        "BIMStarter/Weandrevit 2020 RU/ENG reference and the configured Revit FOP (including ADSK if configured). " +
+        "BIMStarter/Weandrevit 2020 RU/ENG and verified ADSK 2019/2021 references, plus the configured Revit FOP. " +
         "file_path reads a specific local FOP instead. Reports original data-type tokens and source hashes; " +
         "definitions do not imply project bindings. Does not modify the file or Revit's FOP setting.";
     public InputSchema InputSchema => new()
@@ -20,6 +20,7 @@ public class GetSharedParameterCatalog : IRevitTool
         Properties = new Dictionary<string, JsonElement>
         {
             ["query"] = JsonSerializer.SerializeToElement(new { type = "string", description = "GUID or substring in name/group/description; RU or ENG." }),
+            ["profile"] = NativeToolUtil.Field("string", "Optional profile substring, e.g. ADSK-2021, ADSK-2019, BIMStarter."),
             ["file_path"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional full path to a Revit shared parameter TXT file." }),
             ["offset"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 0 }),
             ["limit"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 1, maximum = 300, description = "Default 60." })
@@ -43,7 +44,7 @@ public class GetSharedParameterCatalog : IRevitTool
         else
         {
             definitions.AddRange(StandardKnowledge.Definitions);
-            sources.Add(new { source = "Bundled BIMStarter 2020 RU/ENG GUID reference", count = definitions.Count });
+            sources.AddRange(definitions.GroupBy(d => d.Profile).Select(g => (object)new { source = g.Key, count = g.Count() }));
             try
             {
                 var catalog = StandardKnowledge.Configured(app.Application.SharedParametersFilename);
@@ -53,15 +54,16 @@ public class GetSharedParameterCatalog : IRevitTool
                     sources.Add(new { catalog.Source, catalog.Sha256, count = catalog.Definitions.Count });
                     warnings.AddRange(catalog.Warnings);
                 }
-                else warnings.Add("No FOP is configured in Revit. The bundled catalog is not the full official ADSK FOP2021.");
+                else warnings.Add("No FOP is configured in Revit. Bundled catalogs are references; adding a shared parameter requires the actual TXT external definition.");
             }
             catch (Exception ex) { warnings.Add("Configured FOP could not be read: " + ex.Message); }
         }
-        var matches = definitions.Where(d => string.IsNullOrEmpty(query) ||
+        var profile = NativeToolUtil.Text(input, "profile");
+        var matches = definitions.Where(d => (profile.Length == 0 || d.Profile.Contains(profile, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(query) ||
             d.Guid.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
             d.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             d.Group.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-            d.Description.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+            d.Description.Contains(query, StringComparison.OrdinalIgnoreCase))).ToList();
         int offset = input.TryGetValue("offset", out var o) ? Math.Max(0, o.GetInt32()) : 0;
         int limit = input.TryGetValue("limit", out var l) ? Math.Clamp(l.GetInt32(), 1, 300) : 60;
         return Services.Json.Serialize(new
