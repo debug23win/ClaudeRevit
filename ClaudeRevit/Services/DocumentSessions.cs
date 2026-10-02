@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.CompilerServices;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
@@ -11,8 +10,12 @@ namespace ClaudeRevit.Services;
 // All Revit document reads happen on its API thread. HTTP/CLI workers use these snapshots.
 public static class DocumentSessions
 {
-    private sealed class DocumentIdentity { public string Id { get; } = Guid.NewGuid().ToString("N"); }
-    private static readonly ConditionalWeakTable<Document, DocumentIdentity> Identities = new();
+    private sealed record DocumentIdentity(Document Document, string Id);
+    // Revit can return different managed wrappers for the same open native document.
+    // ConditionalWeakTable/ReferenceEquals compare wrappers and falsely report a switch
+    // on Idling, erasing unsaved chat drafts and rejecting queued benchmark/MCP work.
+    // Use native Document.Equals; prune closed documents so reopened files get new keys.
+    private static readonly List<DocumentIdentity> Identities = new();
     private static readonly Dictionary<string, ConversationWorkspace> Workspaces = new();
     private static readonly string ProcessId = Guid.NewGuid().ToString("N");
     private static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit");
@@ -35,12 +38,28 @@ public static class DocumentSessions
         app.ViewActivated -= OnViewActivated; app.Idling -= OnIdling;
         foreach (var workspace in Workspaces.Values) workspace.Dispose();
         Workspaces.Clear();
+        Identities.Clear();
     }
     private static void OnViewActivated(object? sender, ViewActivatedEventArgs e) => Update(e.CurrentActiveView?.Document);
     private static void OnIdling(object? sender, IdlingEventArgs e)
     { if (sender is UIApplication app) Update(app.ActiveUIDocument?.Document); }
 
-    public static string Key(Document? document) => document == null ? "none" : Identities.GetValue(document, _ => new()).Id;
+    public static bool Same(Document? left, Document? right) =>
+        left != null && right != null && left.IsValidObject && right.IsValidObject && left.Equals(right);
+
+    // API thread only: session keys identify open documents, independently of file paths,
+    // titles, Save As, managed wrappers or hash collisions.
+    public static string Key(Document? document)
+    {
+        for (var i = Identities.Count - 1; i >= 0; i--)
+            if (!Identities[i].Document.IsValidObject) Identities.RemoveAt(i);
+        if (document == null || !document.IsValidObject) return "none";
+        foreach (var identity in Identities)
+            if (Same(identity.Document, document)) return identity.Id;
+        var id = Guid.NewGuid().ToString("N");
+        Identities.Add(new(document, id));
+        return id;
+    }
     private static string Identity(Document document, string key)
     {
         if (document.IsModelInCloud)
@@ -56,6 +75,7 @@ public static class DocumentSessions
     }
     public static void Update(Document? document)
     {
+        if (document != null && !document.IsValidObject) document = null;
         var key = Key(document);
         var identity = document == null ? "idle:" + ProcessId : Identity(document, key);
         var workspace = Workspace(identity);

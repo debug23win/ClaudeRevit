@@ -57,6 +57,14 @@ remain; the owned temporary directory is removed. Do not save/switch/edit during
 a run. With reset disabled, changes remain in the active document and tasks can
 contaminate one another; use a fresh document for each comparison.
 
+In v3.7.3, document guards compare the open native document using Revit's
+[`Document.Equals`](https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/f0efbd19-9399-1ee7-96e5-fe1dbbaa0815.htm),
+which treats separate managed wrappers of the same open document as equal.
+This fixes the false “document changed before copying the seed” error in v3.7.2
+and disappearing typed chat input in unsaved documents. A real switch still
+stops queued work; reopening a file gets a fresh session key. Temporary-copy
+cleanup uses the same comparison when deciding whether to reactivate the seed.
+
 No transaction group spans separate event callbacks. Revit requires transactions
 to close before an event returns ([Autodesk documentation](https://help.autodesk.com/cloudhelp/2018/ENU/Revit-API/Revit_API_Developers_Guide/Basic_Interaction_with_Revit_Elements/Transactions/Transactions_in_Events.html)).
 Ordinary API jobs drained in a single callback can share an undo group; a complete

@@ -19,7 +19,7 @@ namespace ClaudeRevit.Services
     }
     public sealed class ChatService
     {
-        private string _scope = DocumentSessions.Scope;
+        private string _scope = DocumentSessions.CurrentWorkspace.Identity;
         public static readonly Dictionary<string, List<ChatMessage>> Saved = new();
         public bool SubscriptionMode { get; set; }
         public Func<string, string, Task<bool>>? ConfirmToolAsync;
@@ -32,8 +32,8 @@ namespace ClaudeRevit.Services
             SentSelection = selection;
             return Pending?.Task.WaitAsync(ct) ?? Task.CompletedTask;
         }
-        public bool WorkspaceIsCurrent => _scope == DocumentSessions.Scope;
-        public void SwitchWorkspace() => _scope = DocumentSessions.Scope;
+        public bool WorkspaceIsCurrent => _scope == DocumentSessions.CurrentWorkspace.Identity;
+        public void SwitchWorkspace() => _scope = DocumentSessions.CurrentWorkspace.Identity;
         public List<ChatMessage> LoadUiMessages() => Saved.TryGetValue(_scope, out var saved) ? new(saved) : new();
         public void SaveHistory(IEnumerable<ChatMessage> messages) => Saved[_scope] = messages.ToList();
         public void ClearHistory() { }
@@ -48,11 +48,11 @@ namespace ClaudeRevit.Services
             });
     }
     public static class McpServer { public static string ClientWorkDir() => Environment.CurrentDirectory; }
-    public static class DocumentSessions
+    public sealed class ConversationWorkspace : IDisposable
     {
-        public static string Scope = "a";
-        public static event Action<bool>? Changed;
-        public static void Change(string scope, bool managed) { Scope = scope; Changed?.Invoke(managed); }
+        public string Identity { get; private init; } = "";
+        public static ConversationWorkspace Acquire(string root, string identity) => new() { Identity = identity };
+        public void Dispose() { }
     }
     public static class HistoryStore { public static List<ChatMessage> LoadUiMessages() => new(); }
     public static class UsageTracker
@@ -92,7 +92,11 @@ namespace ClaudeRevit.Services
     }
     public static class Log { public static void Error(string message, Exception ex) => Console.Error.WriteLine(message + ": " + ex.Message); }
 }
-namespace ClaudeRevit.Tools { public static class DynamicToolLoader { public static void LoadAll() { } } }
+namespace ClaudeRevit.Tools
+{
+    public static class DynamicToolLoader { public static void LoadAll() { } }
+    public static class ToolContext { public static bool IsExecuting { get; set; } }
+}
 namespace ClaudeRevit.UI
 {
     public class SettingsWindow : Window { }

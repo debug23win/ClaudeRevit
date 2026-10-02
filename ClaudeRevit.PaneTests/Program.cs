@@ -17,7 +17,10 @@ internal static class Program
         {
             try
             {
+                DocumentHarness.Change("a", false);
                 var pane = new ChatPaneView();
+                CheckRepeatedDocumentWrappers(pane);
+                DocumentHarness.Change("a", false);
                 var agent = (ComboBox)pane.FindName("AgentPicker");
                 var model = (ComboBox)pane.FindName("McpModelPicker");
                 var effort = (ComboBox)pane.FindName("McpEffortPicker");
@@ -46,27 +49,29 @@ internal static class Program
                 var pending = (Task)send.Invoke(pane, null)!;
                 Check(!agent.IsEnabled && !model.IsEnabled && !effort.IsEnabled, "Selection stayed enabled during a turn");
                 Check(!((Button)pane.FindName("SettingsButton")).IsEnabled, "Settings stayed enabled during a turn");
+                for (var i = 0; i < 20; i++) DocumentHarness.Change("a", false);
+                Check(!pending.IsCompleted, "Repeated document wrappers cancelled the active chat turn");
                 ChatService.Pending.SetResult();
                 await pending;
                 Check(agent.IsEnabled && model.IsEnabled && effort.IsEnabled, "Selection was not restored after a turn");
                 pane.Messages.Clear();
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project A" });
-                DocumentSessions.Change("b", false);
+                DocumentHarness.Change("b", false);
                 Check(pane.Messages.Count == 0, "Another project's transcript was shown in B");
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project B" });
-                DocumentSessions.Change("a", false);
+                DocumentHarness.Change("a", false);
                 Check(pane.Messages.Single().Text == "Project A", "Returning to A lost its transcript");
                 ChatService.Pending = new();
                 ((TextBox)pane.FindName("InputBox")).Text = "Pending A turn";
                 var cancelled = (Task)send.Invoke(pane, null)!;
-                DocumentSessions.Change("b", false);
+                DocumentHarness.Change("b", false);
                 await cancelled;
                 Check(pane.Messages.Single().Text == "Project B", "Cancelled A turn was saved into B");
-                Check(ChatService.Saved["a"].Any(m => m.Text == "Pending A turn"), "A's cancelled transcript was lost");
+                Check(ChatService.Saved["file:A"].Any(m => m.Text == "Pending A turn"), "A's cancelled transcript was lost");
                 ChatService.Pending = new();
                 ((TextBox)pane.FindName("InputBox")).Text = "Open family from B";
                 var managed = (Task)send.Invoke(pane, null)!;
-                DocumentSessions.Change("family", true);
+                DocumentHarness.Change("family", true);
                 Check(!managed.IsCompleted, "A managed family transition cancelled its own task");
                 ChatService.Pending.SetResult();
                 await managed;
@@ -100,6 +105,56 @@ internal static class Program
         app.Run();
     }
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    private static void CheckRepeatedDocumentWrappers(ChatPaneView pane)
+    {
+        var events = new Autodesk.Revit.UI.UIControlledApplication();
+        var state = new Autodesk.Revit.DB.DocumentState(); // unsaved document
+        var app = new Autodesk.Revit.UI.UIApplication { ActiveUIDocument = new(state) };
+        DocumentSessions.Initialize(events);
+        events.Activate(state);
+        var key = DocumentSessions.CurrentDocumentKey;
+        var workspace = DocumentSessions.CurrentWorkspace;
+        var input = (TextBox)pane.FindName("InputBox");
+        input.Text = "Сложное вложенное семейство / nested family";
+        var changes = 0;
+        void Changed(bool managed) => changes++;
+        DocumentSessions.Changed += Changed;
+        try
+        {
+            for (var i = 0; i < 30; i++)
+            {
+                events.Idle(app);
+                events.Activate(state);
+                Check(DocumentSessions.Key(app.ActiveUIDocument.Document) == key,
+                    "Same open document acquired a new key before copying the benchmark seed");
+            }
+            Check(changes == 0, "Repeated wrappers raised false document changes");
+            Check(ReferenceEquals(workspace, DocumentSessions.CurrentWorkspace), "Unsaved document workspace changed while typing");
+            Check(input.Text == "Сложное вложенное семейство / nested family", "Idling erased typed chat text");
+
+            state.PathName = "C:/fixtures/seed.rvt";
+            events.Idle(app);
+            Check(DocumentSessions.CurrentDocumentKey == key, "Saving changed the open document key");
+            changes = 0;
+            for (var i = 0; i < 10; i++) events.Idle(app);
+            Check(changes == 0 && DocumentSessions.CurrentDocumentKey == key, "Saved seed changed key on repeated access");
+            var wrapper = app.ActiveUIDocument.Document;
+            Check(!ReferenceEquals(wrapper, app.ActiveUIDocument.Document) &&
+                DocumentSessions.Same(wrapper, app.ActiveUIDocument.Document),
+                "Benchmark cleanup failed to recognize the active scratch document through another wrapper");
+            var different = new Autodesk.Revit.DB.DocumentState { PathName = state.PathName };
+            Check(DocumentSessions.Key(new(different)) != key, "Distinct documents with the same path/hash shared a key");
+            Check(!DocumentSessions.Same(wrapper, new(different)), "Benchmark cleanup would reactivate the seed after a real document switch");
+            var unsavedA = new Autodesk.Revit.DB.DocumentState();
+            var unsavedB = new Autodesk.Revit.DB.DocumentState();
+            Check(DocumentSessions.Key(new(unsavedA)) != DocumentSessions.Key(new(unsavedB)), "Distinct unsaved documents shared a key");
+            state.Valid = false;
+            Check(!DocumentSessions.Same(wrapper, new(state)) && DocumentSessions.Key(wrapper) == "none", "Closed document remained a valid target");
+            Check(DocumentSessions.Key(new(new() { PathName = state.PathName })) != key, "Reopened document reused a retired key");
+            Console.WriteLine("Document identity checks passed: repeated API wrappers, unsaved chat draft, saved benchmark seed, colliding hashes/paths and reopened documents.");
+        }
+        finally { DocumentSessions.Changed -= Changed; }
+    }
     private static async Task CheckBenchmark(string? output)
     {
         var window = new BenchmarkWindow();

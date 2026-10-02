@@ -306,7 +306,7 @@ public class ToolDispatcher : IExternalEventHandler
                 {
                     // A manually selected other document remains active. Otherwise restore the
                     // seed before closing the active temporary document (Revit forbids closing it).
-                    if (ReferenceEquals(app.ActiveUIDocument?.Document, fixture.Document))
+                    if (Services.DocumentSessions.Same(app.ActiveUIDocument?.Document, fixture.Document))
                         app.OpenAndActivateDocument(fixture.SeedPath);
                     if (fixture.Document.IsValidObject && !fixture.Document.Close(false))
                         throw new InvalidOperationException("Cannot close the benchmark scratch copy: " + fixture.Directory);

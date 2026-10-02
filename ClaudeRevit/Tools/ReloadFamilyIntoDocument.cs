@@ -81,7 +81,7 @@ public class ReloadFamilyIntoDocument : IRevitTool
         if (!srcDoc.IsFamilyDocument)
             throw new InvalidOperationException(
                 $"Source document '{srcDoc.Title}' is not a family document — open the family for editing first.");
-        if (ReferenceEquals(srcDoc, tgtDoc))
+        if (Services.DocumentSessions.Same(srcDoc, tgtDoc))
             throw new InvalidOperationException("Source and target resolve to the same document.");
 
         var loaded = srcDoc.LoadFamily(tgtDoc, new SilentOverwriteLoadOptions());
