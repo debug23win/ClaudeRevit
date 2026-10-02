@@ -4,7 +4,7 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
-**v3.7.2:** 29 benchmark tasks, including complex nested families and native reinforcement; separate quality, speed and total points. Tasks use independent copies of a saved scratch document. Fixes the unfiltered collector crash and selects the newest installed Codex CLI automatically, exposing available GPT-6.1 Sol models. The installer detects Revit on custom drives. [Benchmark guide](docs/benchmark.md).
+**v3.7.3:** fixes disappearing chat input and the benchmark's false “document changed before copying the seed” error. Repeated Revit document wrappers now share one native document identity; closing a benchmark copy also recognizes its active document correctly. Real document switches still stop queued work. Includes 29 benchmark tasks with separate quality, speed and total points, independent scratch copies, subscription model selection and GPT-6.1 Sol discovery. [Benchmark guide](docs/benchmark.md).
 
 **v3.7:** family nesting analysis and flex tests, native parametric forms and complex
 reinforcement, committed rollback previews, a catalog of 63 BIMStarter commands,

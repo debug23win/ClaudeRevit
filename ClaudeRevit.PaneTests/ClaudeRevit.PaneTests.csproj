@@ -17,5 +17,6 @@
     <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="ChatMessage.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="McpAgentSelection.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexModels.cs" Link="CodexModels.cs" />
+    <Compile Include="..\ClaudeRevit\Services\DocumentSessions.cs" Link="DocumentSessions.cs" />
   </ItemGroup>
 </Project>
