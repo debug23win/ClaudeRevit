@@ -14,6 +14,8 @@
     <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarterTools.json" LogicalName="ClaudeRevit.Standards.BimStarterTools.json" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <Compile Include="..\ClaudeRevit\Services\McpServer.cs" Link="McpServer.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CompactMcpTools.cs" Link="CompactMcpTools.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ToolSearchLogic.cs" Link="ToolSearchLogic.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="McpSchema.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSession.cs" Link="McpSession.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpClientState.cs" Link="McpClientState.cs" />

@@ -33,6 +33,8 @@ public class BenchmarkRunnerTests : IDisposable
         using var first = JsonDocument.Parse(lines[0]); using var second = JsonDocument.Parse(lines[1]);
         Assert.Equal(BenchmarkScoring.Version, first.RootElement.GetProperty("scoring_version").GetString());
         Assert.Equal(30, first.RootElement.GetProperty("reference_seconds").GetInt32());
+        Assert.Equal("api_progressive_v1", first.RootElement.GetProperty("execution_profile").GetString());
+        Assert.Equal(0.001, first.RootElement.GetProperty("phase_seconds").GetProperty("revit_execution_sum").GetDouble());
         Assert.True(second.RootElement.GetProperty("skipped").GetBoolean());
         Assert.False(second.RootElement.GetProperty("graded").GetBoolean());
     }

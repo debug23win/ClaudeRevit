@@ -11,9 +11,41 @@ namespace ClaudeRevit.Services;
 
 public static class CodexModelCatalog
 {
+    private static readonly SemaphoreSlim CacheGate = new(1, 1);
+    private static string? _cacheKey;
+    private static IReadOnlyList<CodexModel>? _cached;
+    private static DateTime _expires;
+
+    // Share discovery across modeller and judge tasks, while explicit Refresh always re-queries.
+    // File metadata invalidates on CLI/config/account changes; credentials are never read here.
+    public static async Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct, bool forceRefresh = false)
+    {
+        var resolved = CodexBackend.ResolveExecutable(exe)
+            ?? throw new IOException("Codex CLI not found. Set its path in Settings → MCP.");
+        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        if (string.IsNullOrWhiteSpace(codexHome)) codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+        static string Stamp(string path)
+        {
+            try { var file = new FileInfo(path); return file.Exists ? file.FullName + ":" + file.Length + ":" + file.LastWriteTimeUtc.Ticks : path + ":absent"; }
+            catch { return path + ":unavailable"; }
+        }
+        var key = Stamp(resolved) + "|" + Stamp(Path.Combine(codexHome, "auth.json")) + "|" + Stamp(Path.Combine(codexHome, "config.toml"));
+        await CacheGate.WaitAsync(ct);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!forceRefresh && _cached != null && _cacheKey == key && DateTime.UtcNow < _expires) return _cached;
+            // A failed explicit refresh must not leave stale entries available to the next run.
+            _cached = null;
+            var models = await DiscoverAsync(resolved, workDir, ct);
+            _cacheKey = key; _cached = models; _expires = DateTime.UtcNow.AddMinutes(5);
+            return models;
+        }
+        finally { CacheGate.Release(); }
+    }
     // Discovery starts no model turn and consumes no inference tokens. Use the user's ordinary
     // Codex home/login. Keep it separate from the Revit MCP server and its bearer token.
-    public static async Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct)
+    private static async Task<IReadOnlyList<CodexModel>> DiscoverAsync(string exe, string workDir, CancellationToken ct)
     {
         var resolved = CodexBackend.ResolveExecutable(exe);
         if (resolved == null || !CodexCli.LooksLikeCodexBinary(resolved))

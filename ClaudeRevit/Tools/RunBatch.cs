@@ -66,6 +66,8 @@ public class RunBatch : IRevitTool
 
         if (inner.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
             throw new InvalidOperationException("Code execution is disabled for that tool.");
+        if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(inner), StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The tool group is disabled: " + toolName);
 
         // Batching must not become a way around the user's Allow/Deny prompt: that prompt is raised
         // for the run_batch call itself, not for the wrapped tool, so a batched delete_elements

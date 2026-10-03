@@ -460,7 +460,7 @@ public partial class ChatPaneView : UserControl
         StatusText.Text = L("Loading models…", "Загрузка моделей…");
         try
         {
-            _codexModels = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), CancellationToken.None);
+            _codexModels = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), CancellationToken.None, forceRefresh: true);
             ApplyAgentChoices();
             StatusText.Text = L($"Codex: {_codexModels.Count} models", $"Codex: {_codexModels.Count} моделей");
         }
@@ -508,6 +508,7 @@ public partial class ChatPaneView : UserControl
         // not worth making the loop wait for the dispatcher.
         _service.OnRound = (r, max) => Dispatcher.BeginInvoke(new Action(() =>
             StatusText.Text = $"Working… round {r}/{max}"));
+        _service.OnStatus = phase => Dispatcher.BeginInvoke(new Action(() => StatusText.Text = phase));
 
         Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 

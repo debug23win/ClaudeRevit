@@ -29,6 +29,8 @@ public sealed class BenchmarkResult
     public long Tokens { get; init; }
     public string Time { get; init; } = "";         // "12.3s"
     public string Reason { get; init; } = "";
+    public TurnTimings Timings { get; init; } = new();
+    public string RevitTime => Timings.ModelAndToolsSeconds > 0 ? Timings.RevitExecutionSeconds.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "s" : "—";
 }
 
 // Runs the benchmark tasks against a chosen model and grades each with an independent chosen
@@ -60,9 +62,9 @@ public static class BenchmarkRunner
                 ct.ThrowIfCancellationRequested();
                 var documentKey = DocumentSessions.CurrentDocumentKey;
                 if (string.IsNullOrWhiteSpace(documentKey) || documentKey == "none") throw new InvalidOperationException("Open a disposable test model before running the benchmark.");
-                onStatus($"{task.Id} · {task.Title} · starting…");
+                onStatus($"{task.Id} · {task.Title} · checking seed document…");
                 using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var before = await StatsAsync(task, false, documentKey, ct);
+                var before = await StatsAsync(task, false, documentKey, ct, eligibilityOnly: resetBetweenTasks);
                 var skip = BenchmarkEligibility.SkipReason(task, before);
                 if (skip != null)
                 {
@@ -75,12 +77,15 @@ public static class BenchmarkRunner
                 {
                 if (resetBetweenTasks)
                 {
+                    onStatus($"{task.Id} · {task.Title} · opening fresh document copy…");
                     documentKey = await ToolDispatcher.Instance.BenchmarkScopeAsync(true, documentKey, ct);
                     scopeStarted = true;
+                    onStatus($"{task.Id} · {task.Title} · capturing initial evidence…");
                     before = await StatsAsync(task, false, documentKey, ct);
                 }
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed before the benchmark task.");
                 var chat = new ChatService(ephemeral: true) { SubscriptionMode = false };
+                chat.OnStatus = phase => onStatus($"{task.Id} · {task.Title} · {phase}");
                 var conversation = new ObservableCollection<ChatMessage> { new() { Role = "user", Text = task.Prompt +
                     "\nBenchmark: keep the current document active; do not save or close it, open another document, or change application/global settings. " +
                     "Use native tools and verify the actual result." } };
@@ -106,6 +111,7 @@ public static class BenchmarkRunner
                 var seconds = stopwatch.Elapsed.TotalSeconds;
                 var finalText = conversation.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the owned scratch copy is closed without saving.");
+                onStatus($"{task.Id} · {task.Title} · capturing final evidence…");
                 var after = await StatsAsync(task, true, documentKey, ct);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
@@ -113,6 +119,7 @@ public static class BenchmarkRunner
                 if (budgetStopped) verdict = verdict with { Reason = "[task budget reached] " + verdict.Reason };
                 if (scopeStarted)
                 {
+                    onStatus($"{task.Id} · {task.Title} · restoring seed document…");
                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                     await ToolDispatcher.Instance.BenchmarkScopeAsync(false, documentKey, cleanup.Token);
                     scopeStarted = false;
@@ -126,7 +133,7 @@ public static class BenchmarkRunner
                     Quality = points?.Quality, Speed = points?.Speed, Score = points?.Total,
                     Seconds = seconds, ReferenceSeconds = task.ReferenceSeconds,
                     Rounds = metrics?.Rounds ?? 0, Tokens = (metrics?.InputTokens ?? 0) + (metrics?.OutputTokens ?? 0),
-                    Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason
+                    Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason, Timings = chat.Timings
                 };
                 Append(row, execution, judge, runStamp, verdict.Pass, metrics?.InputTokens ?? 0, metrics?.OutputTokens ?? 0, row.Rounds, seconds, resultsPath, maxRoundsPerTask, maxSecondsPerTask, resetBetweenTasks);
                 onResult(row);
@@ -144,13 +151,13 @@ public static class BenchmarkRunner
         finally { ToolDispatcher.ForceSuppress = oldSuppression; Interlocked.Exchange(ref _running, 0); }
     }
 
-    private static async Task<string> StatsAsync(BenchmarkTask task, bool completed, string documentKey, CancellationToken ct)
+    private static async Task<string> StatsAsync(BenchmarkTask task, bool completed, string documentKey, CancellationToken ct, bool eligibilityOnly = false)
     {
         // Precise benchmark probe (counts rebar, DirectShapes, connections, wall lengths, level
         // elevations, floor areas…) — not the coarse get_model_statistics, which can't see those.
         try
         {
-            var raw = await ToolDispatcher.Instance.BenchmarkProbeAsync(ct);
+            var raw = await ToolDispatcher.Instance.BenchmarkProbeAsync(ct, eligibilityOnly);
             using var initial = JsonDocument.Parse(raw);
             if (initial.RootElement.TryGetProperty("probe_error", out _) || !task.FamilyDocument ||
                 !initial.RootElement.TryGetProperty("is_family_document", out var kind) || !kind.GetBoolean()) return raw;
@@ -265,7 +272,11 @@ public static class BenchmarkRunner
                 scoring_formula = "quality * (0.8 + 0.2 * min(1, reference_seconds / seconds))",
                 reference_seconds = r.ReferenceSeconds,
                 timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
-                task_suite_version = "v3.7.2",
+                execution_profile = execution.Backend == "api" ? "api_progressive_v1" : "compact_mcp_v1",
+                task_suite_version = "v3.7.4",
+                phase_seconds = new { catalog = r.Timings.CatalogSeconds, context = r.Timings.ContextSeconds,
+                    model_and_tools = r.Timings.ModelAndToolsSeconds, mcp_tool_wait_sum = r.Timings.ToolWaitSeconds,
+                    revit_queue_sum = r.Timings.QueueSeconds, revit_execution_sum = r.Timings.RevitExecutionSeconds },
                 max_rounds = maxRounds,
                 max_seconds = maxSeconds,
                 reset_model = reset,
