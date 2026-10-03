@@ -64,9 +64,10 @@ public static class McpSchema
         // Advisory, and not accepted in strict function schemas.
         node.Remove("default");
 
-        // Strict mode requires objects to forbid extra properties.
+        // Structured inputs forbid extras. An unstructured argument bag (run_batch items,
+        // gateway arguments) must retain arbitrary keys or the model can only send {}.
         if (node["type"]?.GetValue<string>() == "object" && node["additionalProperties"] == null)
-            node["additionalProperties"] = false;
+            node["additionalProperties"] = node["properties"] is not JsonObject;
 
         // Recurse everywhere a sub-schema can live.
         if (node["properties"] is JsonObject props)

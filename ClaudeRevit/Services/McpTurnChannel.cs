@@ -17,11 +17,20 @@ public sealed class McpTurnChannel
     public string Id { get; } = Guid.NewGuid().ToString("N");
     public string DocumentKey { get; set; }
     public CancellationToken Token { get; }
+    public bool CompactTools { get; }
+    private long _toolWaitTicks;
+    private long _queueTicks, _executionTicks;
+    public double ToolWaitSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _toolWaitTicks)).TotalSeconds;
+    public void RecordToolWait(TimeSpan elapsed) => Interlocked.Add(ref _toolWaitTicks, elapsed.Ticks);
+    public double QueueSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _queueTicks)).TotalSeconds;
+    public double ExecutionSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _executionTicks)).TotalSeconds;
+    public void RecordExecution(TimeSpan queue, TimeSpan execution)
+    { Interlocked.Add(ref _queueTicks, queue.Ticks); Interlocked.Add(ref _executionTicks, execution.Ticks); }
     public string Url(string baseUrl) => baseUrl + "?channel=" + Id;
-    public static McpTurnChannel Open(CancellationToken ct, string documentKey)
-    { var channel = new McpTurnChannel(ct, documentKey); Channels[channel.Id] = channel; return channel; }
-    private McpTurnChannel(CancellationToken ct, string key)
-    { _cts = CancellationTokenSource.CreateLinkedTokenSource(ct); Token = _cts.Token; DocumentKey = key; }
+    public static McpTurnChannel Open(CancellationToken ct, string documentKey, bool compactTools = false)
+    { var channel = new McpTurnChannel(ct, documentKey, compactTools); Channels[channel.Id] = channel; return channel; }
+    private McpTurnChannel(CancellationToken ct, string key, bool compactTools)
+    { _cts = CancellationTokenSource.CreateLinkedTokenSource(ct); Token = _cts.Token; DocumentKey = key; CompactTools = compactTools; }
     public static McpTurnChannel? Find(string id) => Channels.TryGetValue(id, out var channel) ? channel : null;
     private static TaskCompletionSource Completed() { var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); tcs.SetResult(); return tcs; }
     public IDisposable EnterCall()

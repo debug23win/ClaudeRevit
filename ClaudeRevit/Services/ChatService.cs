@@ -234,6 +234,8 @@ public class ChatService
 
     // Set by the chat pane: progress ping each tool-call round (current, max) for the status line.
     public Action<int, int>? OnRound;
+    public Action<string>? OnStatus;
+    public TurnTimings Timings { get; private set; } = new();
 
     // Claude Code (subscription) mode keeps the CLI's session id so follow-up messages continue the
     // same conversation via --resume. Reset on ClearHistory.
@@ -409,11 +411,11 @@ public class ChatService
     // Both CLI paths need the same framing the API path gets: the current document and selection,
     // so "this" / "the selected walls" resolve. The MCP session is long-lived, so this is prepended
     // fresh each message (instructions, which carry memory/standards, are sent once at connect).
-    private static async Task<string> BuildContextedPromptAsync(string prompt, CancellationToken ct)
+    private static async Task<string> BuildContextedPromptAsync(string prompt, string documentKey, CancellationToken ct)
     {
         try
         {
-            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+            var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct, documentKey);
             var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
             var sel = SelectionService.Current;
             if (sel.Ids.Count > 0)
@@ -427,8 +429,10 @@ public class ChatService
                     : "";
                 ctxHeader += $"\n\nCURRENT SELECTION: {sel.Description}{cats}. Element IDs: [{idList}]";
             }
+            else ctxHeader += "\n\nCURRENT SELECTION: empty.";
             return ctxHeader + "\n\n---\n\nUSER REQUEST:\n" + prompt;
         }
+        catch (OperationCanceledException) { throw; }
         catch { return prompt; }   // context is best-effort
     }
 
@@ -436,7 +440,7 @@ public class ChatService
     // Claude Code path there is no --mcp-config flag: Codex reads its servers from the user's own
     // config.toml (Settings shows the snippet), because CODEX_HOME also holds their credentials.
     private async Task SendViaCodexAsync(
-        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui, string documentKey,
         string? model, CancellationToken ct, string? effort = null,
         string? imageBase64 = null, string? imageMime = null)
     {
@@ -451,7 +455,10 @@ public class ChatService
             }
         }
 
-        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
+        OnStatus?.Invoke("reading Revit context…");
+        var contextWatch = System.Diagnostics.Stopwatch.StartNew();
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, documentKey, ct);
+        Timings.ContextSeconds = contextWatch.Elapsed.TotalSeconds;
 
         ChatMessage? bubble = null;
         void Append(string piece)
@@ -468,7 +475,7 @@ public class ChatService
         var sw = System.Diagnostics.Stopwatch.StartNew();
         string? imagePath = null;
         CodexBackend.Result res;
-        var channel = McpTurnChannel.Open(ct, DocumentSessions.CurrentDocumentKey);
+        var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
         try
         {
             if (!string.IsNullOrEmpty(imageBase64))
@@ -477,6 +484,7 @@ public class ChatService
                 imagePath = Path.Combine(McpServer.ClientWorkDir(), "image-" + Guid.NewGuid().ToString("N") + suffix);
                 await File.WriteAllBytesAsync(imagePath, Convert.FromBase64String(imageBase64), ct);
             }
+            OnStatus?.Invoke("running model · waiting for first tool/result…");
             res = await CodexBackend.RunAsync(
                 McpServer.DrivingRules + "\n\n" + contextedPrompt,
                 McpServer.ClientWorkDir(), channel.Url(McpServer.Url), SettingsStore.McpToken, _codexSessionId,
@@ -487,6 +495,10 @@ public class ChatService
         finally
         {
             await channel.CloseAsync();
+            Timings.ModelAndToolsSeconds = sw.Elapsed.TotalSeconds;
+            Timings.ToolWaitSeconds = channel.ToolWaitSeconds;
+            Timings.QueueSeconds = channel.QueueSeconds;
+            Timings.RevitExecutionSeconds = channel.ExecutionSeconds;
             if (imagePath != null) { try { File.Delete(imagePath); } catch { } }
         }
 
@@ -517,7 +529,7 @@ public class ChatService
 
     // the API — the work runs on the user's Claude Pro/Max subscription.
     private async Task SendViaClaudeCodeAsync(
-        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui,
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui, string documentKey,
         string? modelAlias, CancellationToken ct, string? effort = null)
     {
         if (!McpServer.IsRunning)
@@ -536,7 +548,10 @@ public class ChatService
         // Parity with the API path: give Claude Code the current document + selection so "this" /
         // "the selected walls" resolve. The MCP session is long-lived, so we prepend this fresh each
         // message (instructions, which carry memory/standards, are sent once at connect).
-        var contextedPrompt = await BuildContextedPromptAsync(prompt, ct);
+        OnStatus?.Invoke("reading Revit context…");
+        var contextWatch = System.Diagnostics.Stopwatch.StartNew();
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, documentKey, ct);
+        Timings.ContextSeconds = contextWatch.Elapsed.TotalSeconds;
 
         ChatMessage? bubble = null;
         void Append(string piece)
@@ -550,16 +565,26 @@ public class ChatService
         }
 
         var toolCount = 0;
-        var channel = McpTurnChannel.Open(ct, DocumentSessions.CurrentDocumentKey);
+        var runWatch = System.Diagnostics.Stopwatch.StartNew();
+        var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
         var config = McpServer.WriteClientConfig(channel.Url(McpServer.Url));
         ClaudeCodeBackend.Result res;
+        OnStatus?.Invoke("running model · waiting for first tool/result…");
         try { res = await ClaudeCodeBackend.RunAsync(
             exe, contextedPrompt, workDir, config, resumeSessionId: _claudeCodeSessionId,
             allowedToolsGlob: "mcp__clauderevit__*",
             onText: Append,
             onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
             ct, model: modelAlias, effort: effort); }
-        finally { await channel.CloseAsync(); try { File.Delete(config); } catch { } }
+        finally
+        {
+            await channel.CloseAsync();
+            Timings.ModelAndToolsSeconds = runWatch.Elapsed.TotalSeconds;
+            Timings.ToolWaitSeconds = channel.ToolWaitSeconds;
+            Timings.QueueSeconds = channel.QueueSeconds;
+            Timings.RevitExecutionSeconds = channel.ExecutionSeconds;
+            try { File.Delete(config); } catch { }
+        }
 
         _claudeCodeSessionId = res.SessionId ?? _claudeCodeSessionId;
         PersistClaudeCodeSession();
@@ -611,8 +636,10 @@ public class ChatService
         // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
         LastRunError = null;
+        Timings = new();
         var subscription = SubscriptionMode;
-        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection), ct);
+        var documentKey = DocumentSessions.CurrentDocumentKey;
+        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection, documentKey), ct);
     }
 
     private async Task SendCoreAsync(
@@ -623,7 +650,7 @@ public class ChatService
         string? imageBase64,
         string? imageMime,
         bool subscription,
-        McpAgentSelection? mcpSelection)
+        McpAgentSelection? mcpSelection, string documentKey)
     {
 
         // Subscription path: the local Claude Code CLI drives the Revit tools through our MCP server.
@@ -647,14 +674,17 @@ public class ChatService
             {
                 if (mcpSelection != null)
                 {
+                    OnStatus?.Invoke("checking model catalogue…");
+                    var catalogWatch = System.Diagnostics.Stopwatch.StartNew();
                     var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), ct);
+                    Timings.CatalogSeconds = catalogWatch.Elapsed.TotalSeconds;
                     var validated = CodexModels.Select(models, chosenModel, agent.Effort);
                     chosenModel = validated.Model;
                     agent = agent with { Effort = validated.Effort };
                 }
-                await SendViaCodexAsync(conversation, userText, ui, chosenModel, ct, agent.Effort, imageBase64, imageMime);
+                await SendViaCodexAsync(conversation, userText, ui, documentKey, chosenModel, ct, agent.Effort, imageBase64, imageMime);
             }
-            else await SendViaClaudeCodeAsync(conversation, userText, ui, chosenModel, ct, agent.Effort);
+            else await SendViaClaudeCodeAsync(conversation, userText, ui, documentKey, chosenModel, ct, agent.Effort);
             return;
         }
 

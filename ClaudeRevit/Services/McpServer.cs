@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -39,7 +40,22 @@ public static class McpServer
     // Also handed to the Claude Code CLI with --append-system-prompt on the subscription path: a
     // client is free to ignore a server's handshake instructions, and these rules are the
     // difference between driving Revit and guessing at it.
-    public static string DrivingRules => Instructions;
+    public static string DrivingRules => CompactInstructions;
+    private static McpTurnChannel? ExecutingChannel => McpSession.Executing?.ChannelId is { } id ? McpTurnChannel.Find(id) : null;
+
+    private const string CompactInstructions = StandardKnowledge.AgentRules + "\n\n" +
+        "Drive the live Revit document with native tools. The prompt supplies current document, level IDs/elevations, active view and selection. " +
+        "Use that context; query ONLY missing IDs/types or facts needed for this request. Never invent existing element IDs or types. " +
+        "A simple creation normally needs one creation call and at most one targeted verification; do not survey the entire project first. " +
+        "Trust native tool results for IDs/dimensions; inspect further only when required facts are missing or an error occurs. " +
+        "Use discover_revit_tools with an exact name or descriptive query to obtain schemas for specialised tools (families, rebar, views, sheets, schedules, export, standards). " +
+        "Then call invoke_revit_tool with that name and its arguments. Discovery is paginated; refine the query or increase offset for other matches. " +
+        "All enabled tools remain available this way. Prefer dedicated tools and run_batch for repeated operations. " +
+        "Parameter suffixes control units: _mm millimetres, _m2/_m3 square/cubic metres, _deg degrees; _ft and unsuffixed spatial values are feet. " +
+        "1 m = 3.280839895 ft. Do not convert _mm arguments to feet. " +
+        "Do not repeat a failed call unchanged. Code tools require the user's code opt-in. Preserve the active document unless explicitly asked to change it. " +
+        "Each MCP call has its own undo step; minimise destructive scope. For complex work plan briefly, build and verify a representative element, then batch. " +
+        "Finish concisely with changed IDs, dimensions and any failed checks. The pane already knows the selected driving model; no model-report call is needed.";
 
     private const string Instructions =
         StandardKnowledge.AgentRules + "\n\n" +
@@ -293,7 +309,8 @@ public static class McpServer
     // appears on the next reconnect.
     private static string BuildInstructions()
     {
-        var sb = new StringBuilder(Instructions);
+        var compact = ExecutingChannel?.CompactTools == true;
+        var sb = new StringBuilder(compact ? CompactInstructions : Instructions);
         var memory = MemoryStore.Load();
         if (!string.IsNullOrWhiteSpace(memory))
             sb.Append("\n\nSAVED MEMORY вЂ” user preferences and project standards; apply them:\n")
@@ -304,7 +321,7 @@ public static class McpServer
         // Full tool index in the handshake so the driving model knows every tool up front and can
         // call the right one directly вЂ” no discovery round-trips even when the client defers the
         // (180) tool schemas. Generated once, cached, and mirrored to a settings .md for the user.
-        sb.Append("\n\n").Append(ToolIndexMarkdown());
+        if (!compact) sb.Append("\n\n").Append(ToolIndexMarkdown());
         return sb.ToString();
     }
 
@@ -373,7 +390,9 @@ public static class McpServer
                 return (new JsonObject(), null);
 
             case "tools/list":
-                return (new JsonObject { ["tools"] = BuildToolList(McpSession.Executing?.ClientName) }, null);
+                var compact = ExecutingChannel?.CompactTools == true;
+                return (new JsonObject { ["tools"] = BuildToolList(McpSession.Executing?.ClientName,
+                    compact ? CompactMcpTools.DirectNames : null, compact) }, null);
 
             case "tools/call":
                 return await CallTool(prms, ct, documentKey);
@@ -383,13 +402,14 @@ public static class McpServer
         }
     }
 
-    private static JsonArray BuildToolList(string? clientName)
+    private static JsonArray BuildToolList(string? clientName, ISet<string>? names = null, bool discovery = false)
     {
         var allowCode = SettingsStore.AllowCodeExecution;
         var disabled = SettingsStore.DisabledToolGroups;
         var arr = new JsonArray();
         foreach (var t in ToolRegistry.Instance.All)
         {
+            if (names != null && !names.Contains(t.Name)) continue;
             if (t.RequiresCodeExecutionOptIn && !allowCode) continue; // hidden unless opted in
 
             // The groups the user switched off in Settings apply here too. They did not apply
@@ -420,17 +440,64 @@ public static class McpServer
                 ["inputSchema"] = schema
             });
         }
+        if (discovery)
+        {
+            arr.Add(JsonSerializer.SerializeToNode(new { name = "discover_revit_tools",
+                description = "Find enabled Revit tools by exact name or keywords (English/Russian), and return up to 5 input schemas. Use offset for the next page. Invoke a discovered tool with invoke_revit_tool.",
+                inputSchema = new { type = "object", properties = new { query = new { type = "string" }, offset = new { type = "integer" } }, required = new[] { "query" } } }));
+            arr.Add(JsonSerializer.SerializeToNode(new { name = "invoke_revit_tool",
+                description = "Run an enabled native Revit tool by name using arguments from discover_revit_tools. Same document binding, cancellation and code opt-in as direct tool calls.",
+                inputSchema = new { type = "object", properties = new { name = new { type = "string" }, arguments = new { type = "object", additionalProperties = true } }, required = new[] { "name", "arguments" } } }));
+        }
         return arr;
     }
 
 
     private static async Task<(JsonNode? value, JsonObject? error)> CallTool(JsonNode? prms, CancellationToken ct, string documentKey)
     {
+        try { return await CallToolCore(prms, ct, documentKey); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return (ToolResult("Error: " + ex.Message, true), null); }
+    }
+
+    private static async Task<(JsonNode? value, JsonObject? error)> CallToolCore(JsonNode? prms, CancellationToken ct, string documentKey)
+    {
         var name = prms?["name"]?.GetValue<string>();
         if (string.IsNullOrEmpty(name)) return (null, ErrObj(-32602, "Missing tool name"));
 
+        var channel = ExecutingChannel;
+        var arguments = prms?["arguments"];
+        if (channel?.CompactTools == true && name == "discover_revit_tools")
+        {
+            var query = arguments?["query"]?.GetValue<string>() ?? "";
+            var offset = Math.Max(0, arguments?["offset"]?.GetValue<int>() ?? 0);
+            var enabled = ToolRegistry.Instance.All.Where(t =>
+                (!t.RequiresCodeExecutionOptIn || SettingsStore.AllowCodeExecution) &&
+                !SettingsStore.DisabledToolGroups.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase));
+            var matches = CompactMcpTools.Search(enabled.Select(t => new ToolSearchLogic.ToolInfo(t.Name, t.Description, Tools.ToolCatalog.CategoryOf(t), false)), query);
+            var selected = matches.Skip(offset).Take(5).ToHashSet(StringComparer.Ordinal);
+            var descriptors = BuildToolList(McpSession.Executing?.ClientName, selected).ToDictionary(t => t!["name"]!.GetValue<string>());
+            var ordered = new JsonArray();
+            foreach (var match in matches.Skip(offset).Take(5)) ordered.Add(descriptors[match]!.DeepClone());
+            var answer = new JsonObject { ["total_matches"] = matches.Count, ["offset"] = offset,
+                ["next_offset"] = offset + selected.Count < matches.Count ? JsonValue.Create(offset + selected.Count) : null,
+                ["tools"] = ordered };
+            return (ToolResult(answer.ToJsonString(), false), null);
+        }
+        if (channel?.CompactTools == true && name == "invoke_revit_tool")
+        {
+            name = arguments?["name"]?.GetValue<string>();
+            arguments = arguments?["arguments"];
+            if (string.IsNullOrWhiteSpace(name) || arguments is not JsonObject)
+                return (ToolResult("Provide a native tool name and an arguments object from discover_revit_tools.", true), null);
+        }
+        var target = ToolRegistry.Instance.All.FirstOrDefault(t => t.Name == name);
+        if (target == null || (target.RequiresCodeExecutionOptIn && !SettingsStore.AllowCodeExecution) ||
+            SettingsStore.DisabledToolGroups.Contains(Tools.ToolCatalog.CategoryOf(target), StringComparer.OrdinalIgnoreCase))
+            return (ToolResult("Tool is unknown or disabled: " + name, true), null);
+
         var args = new Dictionary<string, JsonElement>();
-        if (prms?["arguments"] is JsonObject argObj)
+        if (arguments is JsonObject argObj)
             foreach (var kv in argObj)
             {
                 using var doc = JsonDocument.Parse(kv.Value?.ToJsonString() ?? "null");
@@ -440,6 +507,7 @@ public static class McpServer
         // Auto-resolve Revit warning/error dialogs for the span of this call вЂ” the MCP client
         // (Claude Code) drives unattended, so a modal would otherwise stall the whole session.
         ToolDispatcher.PushSuppress();
+        var toolWait = Stopwatch.StartNew();
         try
         {
             // A modal dialog in Revit (or a genuinely stuck tool) would otherwise hold this HTTP
@@ -466,7 +534,7 @@ public static class McpServer
             // MCP convention: tool failures are a normal result with isError=true, not a protocol error.
             return (ToolResult("Error: " + ex.Message, true), null);
         }
-        finally { ToolDispatcher.PopSuppress(); }
+        finally { channel?.RecordToolWait(toolWait.Elapsed); ToolDispatcher.PopSuppress(); }
     }
 
     private static JsonObject ToolResult(string text, bool isError) => new()

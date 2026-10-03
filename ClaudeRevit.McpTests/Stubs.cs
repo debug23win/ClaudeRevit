@@ -10,7 +10,7 @@ namespace ClaudeRevit.Services
         public static string McpToken => "isolated-test-token";
         public static bool McpEnabled => true;
         public static bool AllowCodeExecution => false;
-        public static IReadOnlyList<string> DisabledToolGroups => Array.Empty<string>();
+        public static IReadOnlyList<string> DisabledToolGroups { get; set; } = Array.Empty<string>();
     }
     public static class DocumentSessions
     {
@@ -32,19 +32,22 @@ namespace ClaudeRevit.Tools
         public Dictionary<string, JsonElement>? Properties => new() { ["count"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 1 }) };
         public string[]? Required => new[] { "count" };
     }
-    public sealed class TestTool(string name)
+    public sealed class TestTool(string name, string category = "Test", bool code = false)
     {
         public string Name => name;
         public string Description => "An isolated test tool.";
-        public bool RequiresCodeExecutionOptIn => false;
+        public string Category => category;
+        public bool RequiresCodeExecutionOptIn => code;
         public TestSchema InputSchema => new();
     }
     public sealed class ToolRegistry
     {
         public static ToolRegistry Instance { get; } = new();
-        public IEnumerable<TestTool> All => new[] { new TestTool("probe"), new TestTool("wait") };
+        public IEnumerable<TestTool> All => CompactMcpTools.DirectNames.Select(n => new TestTool(n))
+            .Concat(new[] { new TestTool("probe"), new TestTool("wait"), new TestTool("execute_csharp", "Code", true) })
+            .Concat(Enumerable.Range(0, 130).Select(i => new TestTool("rebar_tool_" + i, "Rebar")));
     }
-    public static class ToolCatalog { public static string CategoryOf(TestTool tool) => "Test"; }
+    public static class ToolCatalog { public static string CategoryOf(TestTool tool) => tool.Category; }
     // Only the Revit dispatcher is replaced. HTTP parsing, session headers, schemas,
     // cancellation routing and turn binding use the real production server.
     public sealed class ToolDispatcher
@@ -58,7 +61,7 @@ namespace ClaudeRevit.Tools
         {
             if (name == "wait") { Started.TrySetResult(); await Task.Delay(TimeSpan.FromMinutes(1), ct); }
             if (name == "probe" && input.TryGetValue("model", out var model)) McpSession.ReportModel(model.GetString());
-            return JsonSerializer.Serialize(new { client = McpSession.ClientName, model = McpSession.ReportedModel, document = documentKey });
+            return JsonSerializer.Serialize(new { client = McpSession.ClientName, model = McpSession.ReportedModel, document = documentKey, arguments = input });
         }
     }
 }

@@ -71,7 +71,7 @@ public partial class BenchmarkWindow : Window
         {
             System.Collections.Generic.IReadOnlyList<CodexModel> codex = System.Array.Empty<CodexModel>();
             if (Backend(BackendBox) == "codex" || Backend(JudgeBackendBox) == "codex")
-                codex = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), _lifetime.Token);
+                codex = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), _lifetime.Token, forceRefresh: true);
             if (version != _loading || _lifetime.IsCancellationRequested) return;
             void Fill(ComboBox backend, ComboBox box)
             {

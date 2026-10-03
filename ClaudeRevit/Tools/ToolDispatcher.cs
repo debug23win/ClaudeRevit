@@ -85,11 +85,11 @@ public class ToolDispatcher : IExternalEventHandler
         return operation.Task;
     }
 
-    public Task<string> GetProjectContextAsync(CancellationToken ct = default)
+    public Task<string> GetProjectContextAsync(CancellationToken ct = default, string? documentKey = null)
     {
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => tcs.TrySetCanceled(ct));
-        _queue.Enqueue(new GetContextJob(tcs));
+        _queue.Enqueue(new GetContextJob(tcs, documentKey ?? Services.DocumentSessions.CurrentDocumentKey));
         _event.Raise();
         return tcs.Task;
     }
@@ -118,11 +118,11 @@ public class ToolDispatcher : IExternalEventHandler
     // columns, beams, rebar / area-rebar / path-rebar, doors, DirectShapes + their bounding boxes,
     // structural connections, materials). Far more discriminating than get_model_statistics, which
     // can't see rebar, DirectShapes or connections — the reason those tasks were mis-graded.
-    public Task<string> BenchmarkProbeAsync(CancellationToken ct = default)
+    public Task<string> BenchmarkProbeAsync(CancellationToken ct = default, bool eligibilityOnly = false)
     {
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => tcs.TrySetCanceled(ct));
-        _queue.Enqueue(new ProbeJob(tcs));
+        _queue.Enqueue(new ProbeJob(tcs, eligibilityOnly));
         _event.Raise();
         return tcs.Task;
     }
@@ -169,6 +169,14 @@ public class ToolDispatcher : IExternalEventHandler
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) { job.Tcs.TrySetResult("{\"no_document\":true}"); return; }
+
+            if (job.EligibilityOnly)
+            {
+                var nested = doc.IsFamilyDocument ? new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
+                    .Where(s => s.Family.IsEditable && !s.Family.IsInPlace).Take(200).Select(s => s.Id.Value).ToArray() : Array.Empty<long>();
+                job.Tcs.TrySetResult(Services.Json.Serialize(new { is_family_document = doc.IsFamilyDocument, nested_seed_types = nested }));
+                return;
+            }
 
             const double ftToM = 0.3048;
             int CountClass(Type t)
@@ -407,6 +415,9 @@ public class ToolDispatcher : IExternalEventHandler
             return;
         }
 
+        var queueTime = System.Diagnostics.Stopwatch.GetElapsedTime(job.QueuedAt);
+        var executionWatch = System.Diagnostics.Stopwatch.StartNew();
+
         // Log before running so, if a tool corrupts the model and Revit crashes on the
         // next redraw, the log's last line names the culprit tool and its arguments.
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
@@ -567,6 +578,8 @@ public class ToolDispatcher : IExternalEventHandler
             }
             catch (Exception ex) { Services.Log.Error("Document context update failed", ex); }
             finally { ToolContext.Clear(); }
+            job.Channel?.RecordExecution(queueTime, executionWatch.Elapsed);
+            Services.Log.Info($"tool timing {job.Name}: queue={queueTime.TotalSeconds:0.000}s execution={executionWatch.Elapsed.TotalSeconds:0.000}s");
         }
         if (cancelled) job.Tcs.TrySetCanceled(job.Ct);
         else if (completedError != null) job.Tcs.TrySetException(completedError);
@@ -603,14 +616,14 @@ public class ToolDispatcher : IExternalEventHandler
                 return;
             }
 
+            if (Services.DocumentSessions.Key(doc) != job.DocumentKey)
+                throw new InvalidOperationException("The active document changed before reading context. Retry in the intended document.");
             var allLevels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
-                .OrderBy(l => l.Elevation).Select(l => l.Name).ToList();
+                .OrderBy(l => l.Elevation).ToList();
             // This context trails EVERY request uncached — keep it small. A tower with hundreds of
             // levels would otherwise re-bill the whole list every round; cap it and let the model
             // call get_levels for the full set when it actually needs them.
-            var levels = allLevels.Count > 40
-                ? allLevels.Take(40).Append($"… +{allLevels.Count - 40} more (call get_levels)").ToList()
-                : allLevels;
+            var levels = allLevels.Take(40).Select(l => new { id = l.Id.Value, name = l.Name, elevation_ft = l.Elevation, elevation_mm = l.Elevation * Units.MmPerFoot }).ToArray();
 
             string units;
             try
@@ -625,10 +638,13 @@ public class ToolDispatcher : IExternalEventHandler
             var info = new
             {
                 title = doc.Title,
+                is_family_document = doc.IsFamilyDocument,
                 active_view = doc.ActiveView?.Name,
+                active_view_id = doc.ActiveView?.Id.Value,
                 length_units = units,
                 level_count = allLevels.Count,
                 levels,
+                levels_truncated = allLevels.Count > levels.Length,
                 standards = GetProjectStandards.ContextSummary(doc),
                 project_notes = string.IsNullOrWhiteSpace(projectNotes) ? null : projectNotes
             };
@@ -647,13 +663,15 @@ public class ToolDispatcher : IExternalEventHandler
         IReadOnlyDictionary<string, JsonElement> Input,
         Services.QueuedOperation<string> Operation, string DocumentKey, Services.McpClientState? Session) : Job
     {
+        public long QueuedAt { get; } = System.Diagnostics.Stopwatch.GetTimestamp();
+        public Services.McpTurnChannel? Channel { get; } = Session?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
         public TaskCompletionSource<string> Tcs => Operation.Completion;
         public CancellationToken Ct => Operation.Token;
     }
-    private sealed record GetContextJob(TaskCompletionSource<string> Tcs) : Job;
+    private sealed record GetContextJob(TaskCompletionSource<string> Tcs, string DocumentKey) : Job;
     private sealed record FocusElementJob(long Id, TaskCompletionSource<bool> Tcs) : Job;
     private sealed record AllIdsJob(TaskCompletionSource<List<long>> Tcs) : Job;
-    private sealed record ProbeJob(TaskCompletionSource<string> Tcs) : Job;
+    private sealed record ProbeJob(TaskCompletionSource<string> Tcs, bool EligibilityOnly) : Job;
     private sealed record BenchmarkScopeJob(bool Begin, string DocumentKey, CancellationToken Ct, TaskCompletionSource<string> Tcs) : Job;
 
     // Collects the text of Revit's failure messages during a transaction commit so they can

@@ -89,6 +89,13 @@
                 <DataGridTextColumn Header="Rounds" Binding="{Binding Rounds}" Width="60" />
                 <DataGridTextColumn Header="Tokens" Binding="{Binding Tokens}" Width="80" />
                 <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="60" />
+                <DataGridTextColumn Header="Revit" Binding="{Binding RevitTime}" Width="60">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Summed Revit dispatcher execution, including transactions. Total Time also includes model/setup and queue waits. Detailed phase timings are saved to JSONL. Available for subscription runs." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Judge reason" Binding="{Binding Reason}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>

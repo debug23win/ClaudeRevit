@@ -16,6 +16,8 @@ namespace ClaudeRevit.Services
         public ChatService(bool ephemeral) { }
         public bool SubscriptionMode { get; set; }
         public Action<int, int>? OnRound { get; set; }
+        public Action<string>? OnStatus { get; set; }
+        public TurnTimings Timings { get; } = new() { ModelAndToolsSeconds = 0.01, ToolWaitSeconds = 0.004, QueueSeconds = 0.002, RevitExecutionSeconds = 0.001 };
         public string? LastRunError => null;
         public sealed record TaskMetrics(string Model, int Rounds, long InputTokens, long OutputTokens);
         public TaskMetrics? LastTask => new("test-model", 2, 100, 20);
@@ -51,7 +53,7 @@ namespace ClaudeRevit.Tools
             }
             return Task.FromResult(ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey);
         }
-        public Task<string> BenchmarkProbeAsync(CancellationToken ct)
+        public Task<string> BenchmarkProbeAsync(CancellationToken ct, bool eligibilityOnly = false)
         { ct.ThrowIfCancellationRequested(); return Task.FromResult(JsonSerializer.Serialize(new { is_family_document = Family, total = 0, nested_seed_types = Array.Empty<object>() })); }
         public Task<string> ExecuteAsync(string name, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey)
         {

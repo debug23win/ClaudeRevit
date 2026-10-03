@@ -33,6 +33,8 @@
     <Compile Include="..\ClaudeRevit\Services\CodexBackend.cs" Link="src\CodexBackend.cs" />
     <Compile Include="..\ClaudeRevit\Services\PatternArchive.cs" Link="src\PatternArchive.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolSearchLogic.cs" Link="src\ToolSearchLogic.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CompactMcpTools.cs" Link="src\CompactMcpTools.cs" />
+    <Compile Include="..\ClaudeRevit\Services\TurnTimings.cs" Link="src\TurnTimings.cs" />
     <Compile Include="..\ClaudeRevit\Tools\Units.cs" Link="src\Units.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="src\McpSchema.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultAging.cs" Link="src\ToolResultAging.cs" />

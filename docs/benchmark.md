@@ -38,6 +38,43 @@ quality/speed/total, reference time, formula version, modelling seconds, rounds,
 tokens and reason. `score` is the total in v3.7.2; older records used it for
 quality. Use `scoring_version=quality-speed-v1` to distinguish new records.
 
+## Latency and subscription tool discovery (v3.7.4)
+
+The pane and benchmark CLI use `execution_profile=compact_mcp_v1`: 13 common
+native tools plus `discover_revit_tools` and `invoke_revit_tool`. Discovery
+returns up to five matching input schemas with a next-page offset; the gateway
+uses the ordinary document-bound dispatcher, code opt-in and cancellation.
+Specialised family/rebar/standards tools remain available. Ordinary external MCP
+clients still receive the full catalogue. API mode uses its existing progressive
+group loading and records `api_progressive_v1`.
+
+The prompt supplies actual level IDs/elevations, active view and selection.
+Agents query only missing facts instead of surveying the whole project for every
+simple creation. Native results can establish success without repeated broad
+statistics calls. This is shared chat behaviour, not task-specific answers.
+Codex discovery is cached for five minutes; Refresh always queries the account.
+CLI/config/account file metadata changes invalidate the cache. Each CLI launch
+still checks subscription authentication; no API fallback is enabled.
+
+Progress separates checking the seed, opening its copy, reading evidence,
+checking the model catalogue, reading context, running the model, grading and
+restoring the seed. "Waiting for first tool/result" includes CLI/auth startup
+and inference; it does not mean Revit has spent that time creating an element.
+
+The **Revit** column is summed dispatcher execution time for subscription calls,
+including transaction handling and document updates. JSONL `phase_seconds`
+contains `catalog`, `context`, `model_and_tools`, `mcp_tool_wait_sum`,
+`revit_queue_sum` and `revit_execution_sum`. Queue time measures waiting for
+Revit's API callback. MCP waits include queue and execution and may overlap for
+parallel calls; do not subtract their sum from total time to infer model time.
+Total modelling time/scoring keeps including setup/context/model/tools and
+excluding independent evidence, judge and reset. API native timings are not
+instrumented and its Revit column is unavailable.
+
+Compare the same execution profile and suite version. The reduced catalogue and
+better level/grid evidence can affect both latency and judge scores relative to
+v3.7.3; an older run is not an equivalent model-only comparison.
+
 ## Documents and reset
 
 Run project tasks in a disposable **RVT**. Run F1–F5 in an already open ordinary
@@ -114,7 +151,7 @@ position or absence of clashes. Sampled centerlines and quantity evidence are
 useful checks, not a complete engineering compliance audit. The grader is a
 model and can vary; keep it fixed and review its cited reasons.
 
-152 pure tests and isolated real-WPF/MCP/CLI checks cover scoring, filtering
+159 pure tests and isolated real-WPF/MCP/CLI checks cover scoring, filtering
 evidence, independent flex dispatch, prerequisites, cancellation/copy cleanup ordering,
 document changes, displayed averages and version-based CLI selection. Builds
 target the matching Revit APIs for 2025–2027. The new geometry scenarios and

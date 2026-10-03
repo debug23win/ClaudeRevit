@@ -31,6 +31,8 @@ internal static class BenchmarkModelProbe
             }
             catch (Exception ex) { errors.Add(name + ": " + ex.Message); }
         }
+        Collect<Level>("level_elements", l => new { id = l.Id.Value, name = l.Name, elevation_m = l.Elevation * 0.3048 });
+        Collect<Grid>("grid_elements", g => new { id = g.Id.Value, name = g.Name, curve = Curve(g.Curve) });
         Collect<Wall>("wall_elements", w => new { id = w.Id.Value, type_id = w.GetTypeId().Value, level_id = w.LevelId.Value,
             curve = w.Location is LocationCurve lc ? Curve(lc.Curve) : null, comments = w.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() });
         Collect<Floor>("floor_elements", f => new { id = f.Id.Value, type_id = f.GetTypeId().Value, level_id = f.LevelId.Value,

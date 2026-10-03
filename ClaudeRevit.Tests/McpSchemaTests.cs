@@ -117,6 +117,20 @@ public class McpSchemaTests
     }
 
     [Fact]
+    public void PreservesFreeFormBatchAndGatewayArguments()
+    {
+        var schema = JsonNode.Parse("""
+        { "type": "object", "properties": {
+          "arguments": { "type": "object", "additionalProperties": true },
+          "items": { "type": "array", "items": { "type": "object" } }
+        } }
+        """)!.AsObject();
+        McpSchema.MakePortable(schema);
+        Assert.True(schema["properties"]!["arguments"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.True(schema["properties"]!["items"]!["items"]!["additionalProperties"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public void DropsDefaultAndLeavesSupportedKeywordsAlone()
     {
         var schema = JsonNode.Parse("""

@@ -13,11 +13,14 @@ internal static class Program
         var root = Path.Combine(Path.GetTempPath(), "clauderevit-cli-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var exe = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "codex.exe" : "codex");
-        var names = new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "OPENAI_API_KEY", "CODEX_API_KEY", "CLAUDEREVIT_TEST_MODE", "CLAUDEREVIT_TEST_AUTH", "PATH" };
+        var names = new[] { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "OPENAI_API_KEY", "CODEX_API_KEY", "CLAUDEREVIT_TEST_MODE", "CLAUDEREVIT_TEST_AUTH", "PATH", "CODEX_HOME", "CLAUDEREVIT_TEST_CATALOG_COUNT" };
         var saved = names.ToDictionary(n => n, Environment.GetEnvironmentVariable);
         try
         {
             foreach (var key in names.Take(8)) Environment.SetEnvironmentVariable(key, "dummy-test-value");
+            Environment.SetEnvironmentVariable("CODEX_HOME", root);
+            var counter = Path.Combine(root, "catalog-count.txt");
+            Environment.SetEnvironmentVariable("CLAUDEREVIT_TEST_CATALOG_COUNT", counter);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             var ct = timeout.Token;
             if (OperatingSystem.IsWindows())
@@ -36,6 +39,8 @@ internal static class Program
             }
             var catalog = await CodexModelCatalog.ReadAsync(exe, root, ct);
             Check(catalog.Count == 2, "Model discovery failed");
+            await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => CodexModelCatalog.ReadAsync(exe, root, ct)));
+            Check(File.ReadAllLines(counter).Length == 1, "Repeated model reads restarted app-server");
             foreach (var model in new[] { "gpt-test-a", "gpt-test-b" })
             {
                 var raw = await CodexBackend.CompleteAsync("Reply to test", root, ct, model, "low", exe);
@@ -43,6 +48,21 @@ internal static class Program
                 Check(result.RootElement.GetProperty("model").GetString() == model, "Codex judge ignored selected model");
                 Check(!result.RootElement.GetProperty("args").EnumerateArray().Any(a => a.GetString()!.Contains("mcp_servers")), "Judge received MCP");
             }
+            Check(File.ReadAllLines(counter).Length == 1, "Judge restarted model discovery for every task");
+            await CodexModelCatalog.ReadAsync(exe, root, ct, forceRefresh: true);
+            Check(File.ReadAllLines(counter).Length == 2, "Refresh returned the cache");
+            File.WriteAllText(Path.Combine(root, "auth.json"), "test account metadata");
+            await CodexModelCatalog.ReadAsync(exe, root, ct);
+            Check(File.ReadAllLines(counter).Length == 3, "Account change retained cached models");
+            File.WriteAllText(Path.Combine(root, "config.toml"), "test config metadata");
+            await CodexModelCatalog.ReadAsync(exe, root, ct);
+            Check(File.ReadAllLines(counter).Length == 4, "Config change retained cached models");
+            Environment.SetEnvironmentVariable("CLAUDEREVIT_TEST_MODE", "catalog-error");
+            try { await CodexModelCatalog.ReadAsync(exe, root, ct, forceRefresh: true); throw new Exception("Discovery error ignored"); }
+            catch (IOException) { }
+            Environment.SetEnvironmentVariable("CLAUDEREVIT_TEST_MODE", null);
+            await CodexModelCatalog.ReadAsync(exe, root, ct);
+            Check(File.ReadAllLines(counter).Length == 6, "Failed refresh left stale cache available");
             foreach (var model in new[] { "sonnet", "opus" })
             {
                 var raw = await ClaudeCodeBackend.CompleteAsync(exe, "Привет, тест", root, ct, model, "medium");
@@ -93,6 +113,9 @@ internal static class Program
         {
             Check(Environment.GetEnvironmentVariable("OPENAI_API_KEY") == null && Environment.GetEnvironmentVariable("CODEX_API_KEY") == null, "Codex received API credentials");
             if (args[0] == "login") { Console.Error.WriteLine(Environment.GetEnvironmentVariable("CLAUDEREVIT_TEST_AUTH") == "api" ? "Logged in using an API key" : "Logged in using ChatGPT"); return 0; }
+            if (Environment.GetEnvironmentVariable("CLAUDEREVIT_TEST_CATALOG_COUNT") is { } counter) File.AppendAllText(counter, "discovery\n");
+            if (Environment.GetEnvironmentVariable("CLAUDEREVIT_TEST_MODE") == "catalog-error")
+            { Console.WriteLine("{\"id\":1,\"error\":{\"message\":\"test discovery failure\"}}"); return 0; }
             while (await Console.In.ReadLineAsync() is { } line)
             {
                 using var request = JsonDocument.Parse(line); var r = request.RootElement;

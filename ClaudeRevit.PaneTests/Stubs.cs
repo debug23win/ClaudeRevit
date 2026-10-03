@@ -24,6 +24,7 @@ namespace ClaudeRevit.Services
         public bool SubscriptionMode { get; set; }
         public Func<string, string, Task<bool>>? ConfirmToolAsync;
         public Action<int, int>? OnRound;
+        public Action<string>? OnStatus;
         public static McpAgentSelection? SentSelection;
         public static TaskCompletionSource? Pending;
         public Task SendAsync(ObservableCollection<ChatMessage> messages, string model, CancellationToken ct,
@@ -41,7 +42,7 @@ namespace ClaudeRevit.Services
     }
     public static class CodexModelCatalog
     {
-        public static Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct) =>
+        public static Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct, bool forceRefresh = false) =>
             Task.FromResult<IReadOnlyList<CodexModel>>(new[] {
                 new CodexModel("gpt-test", "Test model", "medium", new[] { "low", "medium", "high" }, true),
                 new CodexModel("gpt-other", "Other model", "low", new[] { "low" }, false)
@@ -76,6 +77,7 @@ namespace ClaudeRevit.Services
     public static class TextUtil { public static string Truncate(string text, int limit) => text.Length > limit ? text[..limit] : text; }
     public sealed class BenchmarkResult
     {
+        public string RevitTime => "0.01s";
         public string TaskId { get; set; } = ""; public string Model { get; set; } = ""; public string Title { get; set; } = "";
         public string Verdict { get; set; } = "?"; public string Time { get; set; } = "0s"; public long Tokens { get; set; }
         public int? Quality { get; set; } public double? Speed { get; set; } public double? Score { get; set; } public double Seconds { get; set; }
