@@ -10,6 +10,8 @@ public class ChatMessage : INotifyPropertyChanged
 
     public string Role { get; init; } = "user";
     public string? ToolName { get; init; }
+    public IReadOnlyList<Services.ChatAttachment> Attachments { get; init; } = Array.Empty<Services.ChatAttachment>();
+    public string AttachmentDisplay => string.Join("\n", Attachments.Select(a => "📎 " + a.Display));
 
     // The label shown for assistant messages. Points at whatever model is actually
     // answering — "Claude" on the Anthropic path, or the alt model id (e.g. "grok-4.3")

@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:ClaudeRevit.UI"
+             AllowDrop="True" PreviewDragOver="Pane_PreviewDragOver" PreviewDrop="Pane_PreviewDrop"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="380"
              FontFamily="Segoe UI" FontSize="13">
@@ -155,6 +156,7 @@
                                 <TextBlock Text="{Binding RoleDisplay}"
                                            FontWeight="SemiBold" FontSize="11"
                                            Foreground="#555" Margin="0,0,0,3" />
+                                <TextBlock Text="{Binding AttachmentDisplay}" TextWrapping="Wrap" Foreground="#1565C0" FontSize="11" />
                                 <ContentControl Content="{Binding}">
                                     <ContentControl.Style>
                                         <Style TargetType="ContentControl">
@@ -221,7 +223,22 @@
                        FontFamily="Consolas" />
         </Grid>
 
-        <Grid Grid.Row="4" Margin="8">
+        <StackPanel Grid.Row="4" Margin="8">
+        <Border x:Name="AttachmentBorder" Visibility="Collapsed" Background="#E3F2FD" CornerRadius="4" Padding="5" Margin="0,0,0,5">
+            <ScrollViewer MaxHeight="110" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="AttachmentList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="0,2">
+                                <Button DockPanel.Dock="Right" Content="×" Width="22" Height="22" Tag="{Binding}" Click="RemoveAttachment_Click" ToolTip="Remove attachment / Удалить вложение" />
+                                <TextBlock Text="{Binding Display}" ToolTip="{Binding Tooltip}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -230,7 +247,7 @@
             <Button Grid.Column="0" x:Name="AttachButton"
                     Content="📎" Width="34" MinHeight="60" FontSize="15" Margin="0,0,6,0"
                     Click="AttachButton_Click" VerticalAlignment="Stretch"
-                    ToolTip="Attach an image for the model to see (needs a vision-capable model)." />
+                    ToolTip="Attach multiple documents or images. You can also drop files here. / Прикрепить документы или изображения; можно перетащить несколько файлов." />
             <TextBox x:Name="InputBox" Grid.Column="1"
                      AcceptsReturn="True" TextWrapping="Wrap"
                      MinHeight="60" MaxHeight="180"
@@ -238,9 +255,11 @@
                      Padding="8" BorderBrush="#CCC"
                      ToolTip="Enter — send, Shift+Enter — new line"
                      PreviewKeyDown="InputBox_PreviewKeyDown" />
-            <Button Grid.Column="2" x:Name="SendButton"
-                    Content="Send" Width="72" Margin="6,0,0,0"
-                    Click="SendButton_Click" />
+            <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                <Button x:Name="SendButton" Content="Send" Width="80" MinHeight="30" Click="SendButton_Click" />
+                <Button x:Name="StopButton" Content="Stop" Width="80" Height="26" Margin="0,4,0,0" Visibility="Collapsed" Click="StopButton_Click" />
+            </StackPanel>
         </Grid>
+        </StackPanel>
     </Grid>
 </UserControl>

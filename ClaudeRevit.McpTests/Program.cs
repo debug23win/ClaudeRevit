@@ -28,6 +28,7 @@ internal static class Program
             Check(aSchema.Contains("\"minimum\":1"), "Claude lost its full schema after Codex connected");
             Check(!bSchema.Contains("\"minimum\":1"), "Codex did not receive portable schemas");
             await CheckCompact(b, bSchema);
+            await CheckAttachmentsAndUpdates(root, b);
             McpSession.Select(b);
             var aProbe = await Rpc(a, 3, "tools/call", new { name = "probe", arguments = new { model = "claude-a" } });
             var bProbe = await Rpc(b, 3, "tools/call", new { name = "probe", arguments = new { model = "gpt-b" } });
@@ -57,7 +58,7 @@ internal static class Program
             if (OperatingSystem.IsWindows()) await CheckBridge(root);
             using (var deleted = await Send(a, null, method: HttpMethod.Delete)) Check(deleted.IsSuccessStatusCode, "Session DELETE failed");
             Check(McpSession.Find(a) == null && McpSession.Find(b) != null, "Deleting a session affected another client");
-            Console.WriteLine("MCP checks passed: two live HTTP clients, independent schemas/model reports/directives, scoped cancellation, turn draining, late-call rejection, session DELETE, concurrent stdio bridge.");
+            Console.WriteLine("MCP checks passed: two live HTTP clients, scoped attachment reading/live supplements, independent schemas/model reports/directives, cancellation, turn draining, late-call rejection, session DELETE and stdio bridge.");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
@@ -72,7 +73,7 @@ internal static class Program
             var small = await Rpc(session, 20, "tools/list", channel: channel.Id);
             Check(small.Length * 4 < fullSchema.Length, "Compact endpoint still shipped the full catalogue");
             var names = JsonNode.Parse(small)!["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()).ToArray();
-            Check(names.Length == 15 && names.Contains("create_level") && names.Contains("discover_revit_tools") && !names.Contains("rebar_tool_0"), "Compact tool surface is not bounded");
+            Check(names.Length == 16 && names.Contains("read_attachment") && names.Contains("create_level") && names.Contains("discover_revit_tools") && !names.Contains("rebar_tool_0"), "Compact tool surface is not bounded");
             var found = await Rpc(session, 21, "tools/call", new { name = "discover_revit_tools", arguments = new { query = "арматура" } }, channel.Id);
             var discovered = ToolText(found);
             Check(discovered["total_matches"]!.GetValue<int>() == 130 && discovered["tools"]!.AsArray().Count == 5 && discovered["next_offset"]!.GetValue<int>() == 5, "Russian search or discovery bounds failed");
@@ -105,6 +106,36 @@ internal static class Program
             Check(stopped.StatusCode == HttpStatusCode.Accepted && channel.ToolWaitSeconds > 0, "Gateway lost cancellation/draining/timings");
         }
         finally { SettingsStore.DisabledToolGroups = Array.Empty<string>(); if (McpTurnChannel.Find(channel.Id) != null) await channel.CloseAsync(); }
+    }
+    private static async Task CheckAttachmentsAndUpdates(string root, string external)
+    {
+        var scope = Guid.NewGuid().ToString("N");
+        var path = Path.Combine(root, "Требования.txt"); File.WriteAllText(path, "Высота колонны 3500 мм");
+        var attachment = await AttachmentStore.ImportAsync(path, root: Path.Combine(root, "attachments"));
+        AttachmentStore.Authorize(scope, new[] { attachment });
+        var channel = McpTurnChannel.Open(default, "attachment-document", compactTools: true);
+        channel.AttachmentScope = scope;
+        var pending = "Дополнение: материал бетон";
+        channel.TakeUserUpdate = () => Interlocked.Exchange(ref pending, null);
+        var session = await Initialize("Codex", channel.Id);
+        try
+        {
+            var unrelated = ToolText(await Rpc(external, 61, "tools/call", new { name = "probe", arguments = new { } }));
+            Check(unrelated["user_update"] == null, "Supplement leaked to another client");
+            var first = ToolText(await Rpc(session, 62, "tools/call", new { name = "read_attachment", arguments = new { attachment_id = attachment.Id } }, channel.Id));
+            Check(first["text"]!.GetValue<string>().Contains("3500") && first["user_update"]!.GetValue<string>().Contains("бетон"), "Attachment or live supplement was not delivered");
+            var second = ToolText(await Rpc(session, 63, "tools/call", new { name = "read_attachment", arguments = new { attachment_id = attachment.Id } }, channel.Id));
+            Check(second["user_update"] == null, "Supplement was delivered twice");
+            var inaccessible = await Rpc(external, 64, "tools/call", new { name = "read_attachment", arguments = new { attachment_id = attachment.Id } });
+            Check(inaccessible.Contains("\"isError\":true"), "Another client read a pane attachment");
+            var imagePath = Path.Combine(root, "reference.png"); File.WriteAllBytes(imagePath, new byte[] { 1, 2, 3 });
+            var imageFile = await AttachmentStore.ImportAsync(imagePath, root: Path.Combine(root, "attachments"));
+            AttachmentStore.Authorize(scope, new[] { imageFile });
+            var imageResult = JsonNode.Parse(await Rpc(session, 65, "tools/call", new { name = "read_attachment", arguments = new { attachment_id = imageFile.Id } }, channel.Id))!;
+            var image = imageResult["result"]!["content"]!.AsArray().Single(c => c!["type"]!.GetValue<string>() == "image")!;
+            Check(image["data"]!.GetValue<string>() == "AQID" && image["mimeType"]!.GetValue<string>() == "image/png", "Scoped attachment image did not reach native MCP content");
+        }
+        finally { await channel.CloseAsync(); }
     }
     private static JsonNode ToolText(string response) => JsonNode.Parse(JsonNode.Parse(response)!["result"]!["content"]![0]!["text"]!.GetValue<string>())!;
     private static async Task CheckBridge(string root)

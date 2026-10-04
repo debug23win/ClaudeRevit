@@ -38,7 +38,8 @@ copying credentials. The Revit MCP connection is configured for that process
 automatically. The MCP token is passed only in the child's environment. The
 process uses a read-only filesystem sandbox, shell access is disabled, and
 Revit model edits go through MCP tools. No API key or manual MCP registration is
-needed for this pane route. Attached images are passed to Codex as local image input.
+needed for this pane route. Attached files are listed in a short manifest; `read_attachment`
+returns paged text or native image content through MCP. [File support and live request updates](chat-attachments.md).
 
 Selection is locked while a turn runs. **Clear** resets both CLI conversations.
 Saved replies keep their original agent labels when the agent changes.

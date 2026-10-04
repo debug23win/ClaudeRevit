@@ -26,7 +26,9 @@ public partial class ChatPaneView : UserControl
         public ObservableCollection<ChatMessage> Messages = new();
         public CancellationTokenSource? Cancellation;
         public string Draft = "", Status = "", Agent = SettingsStore.ChatAgent, Model = "auto";
-        public string? Image, Mime;
+        public ObservableCollection<ChatAttachment> Attachments = new();
+        public int LoadingFiles;
+        public readonly SemaphoreSlim FileGate = new(1, 1);
         public Dictionary<string,McpAgentSelection> Choices = new()
         { ["codex"] = SettingsStore.GetAgentSelection("codex"), ["claudecode"] = SettingsStore.GetAgentSelection("claudecode") };
     }
@@ -46,14 +48,12 @@ public partial class ChatPaneView : UserControl
         (SettingsStore.UiLanguage == "ru" || (SettingsStore.UiLanguage.Length == 0 && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru"))
             ? russian : english;
 
-    // An image attached for the next message (base64 + MIME), downscaled on attach.
-    private string? _pendingImageBase64;
-    private string? _pendingImageMime;
-
     public ChatPaneView()
     {
         _sessions[_session.Key] = _session;
         InitializeComponent();
+        RefreshAttachments();
+        RefreshSendControls();
         _choicesReady = true;
         _settingChoices = true;
         _selectedAgent = SettingsStore.ChatAgent;
@@ -191,7 +191,6 @@ public partial class ChatPaneView : UserControl
         CaptureTypedModel();
         _session.Draft = InputBox.Text; _session.Status = StatusText.Text;
         _session.Agent = _selectedAgent; _session.Model = _selectedModel;
-        _session.Image = _pendingImageBase64; _session.Mime = _pendingImageMime;
         if (_selectedAgent != "api") _session.Choices[_selectedAgent] = SettingsStore.GetAgentSelection(_selectedAgent);
         _service.SaveHistory(Messages);
         if (!_sessions.TryGetValue(key,out var session))
@@ -210,15 +209,13 @@ public partial class ChatPaneView : UserControl
         _settingChoices = false; ApplyAgentChoices(); UpdateAssistantLabel();
         MessagesList.ItemsSource = Messages;
         InputBox.Text = session.Draft; StatusText.Text = session.Status;
-        _pendingImageBase64 = session.Image; _pendingImageMime = session.Mime;
-        AttachButton.Content = session.Image == null ? "📎" : "📎✓";
-        SendButton.Content = _cts == null ? "Send" : "Cancel";
+        RefreshAttachments(); RefreshSendControls();
         SetAgentControlsEnabled(_cts == null);
     }
 
     private void CopyLogButton_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(TaskJournal.ReadRecent(_session.Key) + "\n\n" + Log.ReadTail() + "\n\n" + string.Join("\n\n",Messages.Select(m=>$"{m.Role}: {m.Text}"))); StatusText.Text = L("Log copied", "Журнал скопирован"); }
+        try { Clipboard.SetText(TaskJournal.ReadRecent(_session.Key) + "\n\n" + Log.ReadTail() + "\n\n" + string.Join("\n\n",Messages.Select(m=>$"{m.Role}: {m.Text}\n{m.AttachmentDisplay}"))); StatusText.Text = L("Log copied", "Журнал скопирован"); }
         catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
@@ -267,15 +264,32 @@ public partial class ChatPaneView : UserControl
         if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
         {
             e.Handled = true;
-            if (_cts == null) _ = SendAsync();
+            _ = SendAsync();
         }
+        else if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && Clipboard.ContainsFileDropList())
+        { e.Handled = true; _ = AttachFilesAsync(Clipboard.GetFileDropList().Cast<string>()); }
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_cts != null) { StatusText.Text = L("Stopping… waiting for Revit", "Остановка… ожидание Revit"); _cts.Cancel(); }
-        else _ = SendAsync();
+        _ = SendAsync();
     }
+    private void StopButton_Click(object sender, RoutedEventArgs e)
+    { if (_cts != null) { StatusText.Text = L("Stopping… waiting for Revit", "Остановка… ожидание Revit"); _cts.Cancel(); } }
+    private void RefreshSendControls()
+    {
+        SendButton.Content = _cts == null ? L("Send", "Отправить") : L("Add", "Дополнить");
+        SendButton.IsEnabled = !_refreshingModels && _session.LoadingFiles == 0;
+        StopButton.Content = L("Stop", "Стоп"); StopButton.Visibility = _cts == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+    private void RefreshAttachments()
+    { AttachmentList.ItemsSource = _session.Attachments; AttachmentBorder.Visibility = _session.Attachments.Count == 0 ? Visibility.Collapsed : Visibility.Visible; }
+    private void RemoveAttachment_Click(object sender, RoutedEventArgs e)
+    { if (sender is Button { Tag: ChatAttachment attachment }) { _session.Attachments.Remove(attachment); RefreshAttachments(); } }
+    private void Pane_PreviewDragOver(object sender, DragEventArgs e)
+    { if (e.Data.GetDataPresent(DataFormats.FileDrop)) { e.Effects = DragDropEffects.Copy; e.Handled = true; } }
+    private void Pane_PreviewDrop(object sender, DragEventArgs e)
+    { if (e.Data.GetData(DataFormats.FileDrop) is string[] files) { e.Handled = true; _ = AttachFilesAsync(files); } }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
     {
@@ -287,48 +301,42 @@ public partial class ChatPaneView : UserControl
         InputBox.Focus();
     }
 
-    private void AttachButton_Click(object sender, RoutedEventArgs e)
+    private async void AttachButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_cts != null) return;
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Attach an image",
-            Filter = "Images|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp"
+            Title = L("Attach documents", "Прикрепить документы"), Multiselect = true,
+            Filter = "All files|*.*|Documents|*.pdf;*.docx;*.xlsx;*.pptx;*.txt;*.csv;*.json;*.xml;*.zip|Images|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tif;*.tiff|BIM and CAD|*.rfa;*.rvt;*.rte;*.ifc;*.dwg;*.dxf"
         };
         if (dlg.ShowDialog() != true) return;
+        await AttachFilesAsync(dlg.FileNames);
+    }
+    private async Task AttachFilesAsync(IEnumerable<string> paths, string? storageRoot = null)
+    {
+        var session = _session; var errors = new List<string>();
+        session.LoadingFiles++; RefreshSendControls();
+        await session.FileGate.WaitAsync();
         try
         {
-            _pendingImageBase64 = LoadDownscaledJpeg(dlg.FileName);
-            _pendingImageMime = "image/jpeg";
-            AttachButton.Content = "📎✓";
-            StatusText.Text = "Image attached — it goes with your next message.";
+            foreach (var path in paths)
+            {
+                try
+                {
+                    if (session.Attachments.Count >= AttachmentStore.MaxFiles) throw new IOException(L("Up to 20 files per message.", "До 20 файлов в одном сообщении."));
+                    var size = new FileInfo(path).Length;
+                    if (session.Attachments.Sum(a => a.Size) + size > AttachmentStore.MaxBatchBytes) throw new IOException(L("Attachments exceed 200 MB.", "Общий размер вложений превышает 200 МБ."));
+                    session.Status = L("Reading ", "Читаю ") + Path.GetFileName(path);
+                    if (ReferenceEquals(_session, session)) StatusText.Text = session.Status;
+                    var attachment = await AttachmentStore.ImportAsync(path, root: storageRoot);
+                    session.Attachments.Add(attachment);
+                    if (ReferenceEquals(_session, session)) RefreshAttachments();
+                }
+                catch (Exception ex) { errors.Add(Path.GetFileName(path) + ": " + ex.Message); }
+            }
+            session.Status = errors.Count > 0 ? string.Join("\n", errors) : L("Files attached to your next message.", "Файлы прикреплены к следующему сообщению.");
+            if (ReferenceEquals(_session, session)) StatusText.Text = session.Status;
         }
-        catch (Exception ex)
-        {
-            StatusText.Text = "Couldn't read image: " + ex.Message;
-        }
-    }
-
-    // Load an image, downscale so the longest side is ≤ 1568px (Anthropic's guidance), and
-    // re-encode as JPEG — keeps the base64 small so it doesn't blow the token budget.
-    private static string LoadDownscaledJpeg(string path)
-    {
-        var src = new BitmapImage();
-        src.BeginInit();
-        src.CacheOption = BitmapCacheOption.OnLoad;
-        src.UriSource = new Uri(path);
-        src.EndInit();
-
-        var longest = Math.Max(src.PixelWidth, src.PixelHeight);
-        BitmapSource bmp = longest > 1568
-            ? new TransformedBitmap(src, new ScaleTransform(1568.0 / longest, 1568.0 / longest))
-            : src;
-
-        var enc = new JpegBitmapEncoder { QualityLevel = 85 };
-        enc.Frames.Add(BitmapFrame.Create(bmp));
-        using var ms = new MemoryStream();
-        enc.Save(ms);
-        return Convert.ToBase64String(ms.ToArray());
+        finally { session.FileGate.Release(); session.LoadingFiles--; if (ReferenceEquals(_session, session)) RefreshSendControls(); }
     }
 
     private void RunToolButton_Click(object sender, RoutedEventArgs e)
@@ -512,7 +520,7 @@ public partial class ChatPaneView : UserControl
             StatusText.Text = L($"Codex: {_codexModels.Count} models", $"Codex: {_codexModels.Count} моделей");
         }
         catch (Exception ex) { StatusText.Text = "Codex: " + ex.Message; }
-        finally { _refreshingModels = false; SetAgentControlsEnabled(true); SendButton.IsEnabled = true; }
+        finally { _refreshingModels = false; SetAgentControlsEnabled(true); RefreshSendControls(); }
     }
 
     private void SetAgentControlsEnabled(bool enabled)
@@ -534,21 +542,26 @@ public partial class ChatPaneView : UserControl
     {
         var session = _session; var service = session.Service; var messages = session.Messages;
         var text = InputBox.Text.Trim();
-        if ((string.IsNullOrEmpty(text) && _pendingImageBase64 == null) || _cts != null || _refreshingModels) return;
+        if ((string.IsNullOrEmpty(text) && session.Attachments.Count == 0) || _refreshingModels || session.LoadingFiles > 0) return;
+        var attachments = session.Attachments.ToArray();
+        if (string.IsNullOrEmpty(text)) text = L("Please inspect the attached documents.", "Посмотри приложенные документы.");
+        var request = new ChatRequest(text, attachments);
+        if (_cts != null)
+        {
+            if (_cts.IsCancellationRequested || !service.Supplement(request))
+            { StatusText.Text = L("The turn is finishing; your draft is preserved. Send it when finished.", "Ответ завершается; черновик сохранён. Отправьте его после завершения."); return; }
+            messages.Add(new ChatMessage { Role = "user", Text = text, Attachments = attachments });
+            session.Attachments.Clear(); RefreshAttachments(); InputBox.Clear(); session.Draft = "";
+            service.SaveHistory(messages);
+            StatusText.Text = L("Additional request sent; applied at the next model/tool boundary.", "Уточнение отправлено; агент получит его между вызовами.");
+            return;
+        }
         CaptureTypedModel();
         var selection = _selectedAgent == "api" ? null : SettingsStore.GetAgentSelection(_selectedAgent);
-        if (string.IsNullOrEmpty(text)) text = "(see attached image)";
-
-        // Take and clear the pending image so it rides with THIS message only.
         var assistantName=ChatMessage.AssistantLabel;
-        var image = _pendingImageBase64;
-        var imageMime = _pendingImageMime;
-        _pendingImageBase64 = null;
-        _pendingImageMime = null;
-        AttachButton.Content = "📎";
+        session.Attachments.Clear(); RefreshAttachments();
 
         InputBox.Text = "";
-        SendButton.Content = "Cancel";
         StatusText.Text = "Sending...";
 
         // Live round counter so long jobs show progress toward the per-message cap.
@@ -560,14 +573,15 @@ public partial class ChatPaneView : UserControl
         service.OnRound = (r,max) => Status($"Working… round {r}/{max}");
         service.OnStatus = Status;
 
-        messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
+        messages.Add(new ChatMessage { Role = "user", Text = text, Attachments = attachments });
 
         service.SubscriptionMode = false;
         var cancellation = new CancellationTokenSource(); session.Cancellation = cancellation;
+        RefreshSendControls();
         SetAgentControlsEnabled(false);
         try
         {
-            await service.SendAsync(messages, _selectedModel, cancellation.Token, image, imageMime, selection);
+            await service.SendAsync(messages, _selectedModel, cancellation.Token, mcpSelection: selection, attachments: attachments);
             Status("");
         }
         catch (OperationCanceledException)
@@ -584,7 +598,7 @@ public partial class ChatPaneView : UserControl
             service.SaveHistory(messages);
             cancellation.Dispose(); session.Cancellation = null;
             if (ReferenceEquals(_session,session))
-            { SwitchDocumentHistory(); SendButton.Content = "Send"; SetAgentControlsEnabled(true); InputBox.Focus(); }
+            { SwitchDocumentHistory(); RefreshSendControls(); SetAgentControlsEnabled(true); InputBox.Focus(); }
         }
     }
 }

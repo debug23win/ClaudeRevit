@@ -14,10 +14,19 @@ History and CLI session files are replaced atomically. Legacy global conversatio
 files remain on disk; they are not automatically attributed to an arbitrary project.
 Clearing a conversation clears that scope's history/session IDs.
 
-Switching tabs saves/restores each document's transcript, draft, attachment and agent/model/effort choices. A busy task continues in its bound document; another tab can run its own task. Native writes are serialized on Revit's API thread; UI-only operations require their document tab to be active. Closing the document cancels its task. A tool
+Switching tabs saves/restores each document's transcript, draft, pending attachments and agent/model/effort choices. A busy task continues in its bound document; another tab can run its own task. Native writes are serialized on Revit's API thread; UI-only operations require their document tab to be active. Closing the document cancels its task. A tool
 that deliberately activates a family/document can continue its own task. Its messages
 stay in the originating conversation; the next prompt starts in the new document's
 scope. A queued operation checks its intended document again before it executes.
+
+## Request supplements (v3.8.1)
+
+**Дополнить** sends text/files while a task works; **Stop** remains separate.
+Updates belong to the initiating project and reach the next API iteration or MCP
+tool result. Updates after the final tool continue the same conversation as another
+turn. A running Revit operation finishes before the update can affect later actions.
+Unsent drafts survive task completion. Stop retains updates not yet handed off
+for the next explicit request. [Attachments and limits](chat-attachments.md).
 
 ## What Stop does
 

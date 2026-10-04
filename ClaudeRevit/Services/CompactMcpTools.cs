@@ -12,7 +12,7 @@ public static class CompactMcpTools
     {
         "query_elements", "get_levels", "get_element_parameters", "get_element_locations",
         "get_element_bounding_box", "create_level", "create_grid", "create_wall", "create_floor",
-        "create_material", "set_parameter", "rename_element", "run_batch"
+        "create_material", "set_parameter", "rename_element", "run_batch", "read_attachment"
     };
 
     public static List<string> Search(IEnumerable<ToolSearchLogic.ToolInfo> tools, string query)

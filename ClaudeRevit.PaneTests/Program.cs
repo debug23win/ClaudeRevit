@@ -49,20 +49,60 @@ internal static class Program
                 var pending = (Task)send.Invoke(pane, null)!;
                 Check(!agent.IsEnabled && !model.IsEnabled && !effort.IsEnabled, "Selection stayed enabled during a turn");
                 Check(!((Button)pane.FindName("SettingsButton")).IsEnabled, "Settings stayed enabled during a turn");
+                var attachmentRoot = Path.Combine(Path.GetTempPath(), "ClaudeRevit-pane-attachments-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(attachmentRoot);
+                var firstFile = Path.Combine(attachmentRoot, "Первый.txt"); var secondFile = Path.Combine(attachmentRoot, "Second.csv");
+                File.WriteAllText(firstFile, "Размер 3500 мм"); File.WriteAllText(secondFile, "diameter,16");
+                var imageFile = Path.Combine(attachmentRoot, "reference.png");
+                var visual = new DrawingVisual();
+                using (var drawing = visual.RenderOpen()) drawing.DrawRectangle(Brushes.Blue, null, new Rect(0, 0, 2000, 1000));
+                var sourceImage = new RenderTargetBitmap(2000, 1000, 96, 96, PixelFormats.Pbgra32); sourceImage.Render(visual);
+                var imageEncoder = new PngBitmapEncoder(); imageEncoder.Frames.Add(BitmapFrame.Create(sourceImage));
+                using (var imageStream = File.Create(imageFile)) imageEncoder.Save(imageStream);
+                var encodedImage = await Task.Run(() => AttachmentImage.EncodePng(imageFile));
+                using (var imageStream = new MemoryStream(encodedImage))
+                {
+                    var image = new PngBitmapDecoder(imageStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+                    Check(image.PixelWidth == 1568 && image.PixelHeight == 784, "Attached image was not resized/encoded for vision");
+                }
+                var noise = new byte[1568 * 1568 * 4]; new Random(17).NextBytes(noise);
+                for (var i = 3; i < noise.Length; i += 4) noise[i] = 255;
+                var noisyImage = BitmapSource.Create(1568, 1568, 96, 96, PixelFormats.Bgra32, null, noise, 1568 * 4);
+                var noisyEncoder = new PngBitmapEncoder(); noisyEncoder.Frames.Add(BitmapFrame.Create(noisyImage));
+                var noisePath = Path.Combine(attachmentRoot, "noise.png");
+                using (var output = File.Create(noisePath)) noisyEncoder.Save(output);
+                Check(new FileInfo(noisePath).Length > 5_000_000, "Dense image fixture did not exercise the image size cap");
+                var smallNoise = await Task.Run(() => AttachmentImage.EncodePng(noisePath));
+                Check(smallNoise.Length <= 5_000_000, "Dense attachment PNG exceeded the native image content cap");
+                var attach = typeof(ChatPaneView).GetMethod("AttachFilesAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                await (Task)attach.Invoke(pane, new object[] { new[] { firstFile, secondFile }, Path.Combine(attachmentRoot, "stage") })!;
+                Check(((ItemsControl)pane.FindName("AttachmentList")).Items.Count == 2, "Multiple attachments were not staged during a turn");
+                Check(((Button)pane.FindName("SendButton")).IsEnabled && ((Button)pane.FindName("StopButton")).Visibility == Visibility.Visible, "Supplement and Stop controls were not separate");
+                ((TextBox)pane.FindName("InputBox")).Text = "Дополнение: высота 3500";
+                await (Task)send.Invoke(pane, null)!;
+                Check(!pending.IsCompleted, "Supplement cancelled or restarted the active turn");
+                var paneService = (ChatService)typeof(ChatPaneView).GetProperty("_service", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(pane)!;
+                Check(paneService.Supplements.Single().Attachments.Count == 2 && paneService.Supplements.Single().Text.Contains("3500"), "Supplement lost its documents or text");
+                Check(((ItemsControl)pane.FindName("AttachmentList")).Items.Count == 0, "Sent attachments remained in the draft");
+                ((TextBox)pane.FindName("InputBox")).Text = "Unsent draft";
                 for (var i = 0; i < 20; i++) DocumentHarness.Change("a", false);
                 Check(!pending.IsCompleted, "Repeated document wrappers cancelled the active chat turn");
                 ChatService.Pending.SetResult();
                 await pending;
+                Check(((TextBox)pane.FindName("InputBox")).Text == "Unsent draft", "Completing a turn erased an unsent supplement");
                 Check(agent.IsEnabled && model.IsEnabled && effort.IsEnabled, "Selection was not restored after a turn");
                 pane.Messages.Clear();
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project A" });
+                await (Task)attach.Invoke(pane, new object[] { new[] { firstFile }, Path.Combine(attachmentRoot, "stage") })!;
                 DocumentHarness.Change("b", false);
+                Check(((ItemsControl)pane.FindName("AttachmentList")).Items.Count == 0, "A's attachments leaked into B");
                 Check(pane.Messages.Count == 0, "Another project's transcript was shown in B");
                 agent.SelectedIndex=1;
                 model.SelectedValue="sonnet";
                 effort.SelectedValue="low";
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project B" });
                 DocumentHarness.Change("a", false);
+                Check(((ItemsControl)pane.FindName("AttachmentList")).Items.Count == 1, "Returning to A lost its pending attachment");
                 Check(pane.Messages.Single().Text == "Project A", "Returning to A lost its transcript");
                 Check((string)model.SelectedValue=="gpt-test" && (string)effort.SelectedValue=="high","A's selected model/effort leaked from B");
                 agent.SelectedIndex=1;
@@ -91,6 +131,12 @@ internal static class Program
                 ChatService.Pending = null;
                 if (args.Length > 0)
                 {
+                    await (Task)attach.Invoke(pane, new object[] { new[] { firstFile, secondFile }, Path.Combine(attachmentRoot, "stage") })!;
+                    ChatService.Pending = new();
+                    ((TextBox)pane.FindName("InputBox")).Text = "Проверь документы и подготовь семейство";
+                    var visualTurn = (Task)send.Invoke(pane, null)!;
+                    await (Task)attach.Invoke(pane, new object[] { new[] { firstFile, secondFile }, Path.Combine(attachmentRoot, "stage") })!;
+                    ((TextBox)pane.FindName("InputBox")).Text = "Дополнение: высота 3500 мм";
                     Directory.CreateDirectory(args[0]);
                     foreach (var width in new[] { 380, 280 })
                     {
@@ -107,8 +153,10 @@ internal static class Program
                         using var stream = File.Create(Path.Combine(args[0], $"pane-{width}.png"));
                         encoder.Save(stream);
                     }
+                    ChatService.Pending.SetResult(); await visualTurn; ChatService.Pending = null;
                 }
-                Console.WriteLine("Pane checks passed: agent selection, saved choices, busy controls, project history switching, independent runs across document tabs, managed family transition, narrow layout.");
+                Directory.Delete(attachmentRoot, true);
+                Console.WriteLine("Pane checks passed: agent selection, multiple attachments, image decoding/resizing, live supplements, separate Stop, draft preservation, project isolation, independent runs and narrow layout.");
                 await CheckBenchmark(args.FirstOrDefault());
                 app.Shutdown(0);
             }
