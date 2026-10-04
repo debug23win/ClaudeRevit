@@ -1,10 +1,10 @@
-# Project conversations and MCP cancellation (v3.6)
+# Project conversations and MCP cancellation (v3.8.0)
 
 The pane stores a separate conversation and separate Claude Code/Codex session IDs
 for each document. Saved files use their normalized path; workshared projects use
 the central GUID; cloud projects use the cloud project/model GUIDs. Unsaved documents
 use an identity valid for this Revit process, so two unrelated `Project1` documents
-cannot inherit each other's chat. Saving an unsaved document establishes a new scope.
+cannot inherit each other's chat. Saving/Save As establishes a new storage scope and migrates the open conversation/session IDs to it.
 
 Storage is under `%AppData%\ClaudeRevit\conversations\<project hash>\<slot>\`.
 An exclusive lease prevents two running Revit instances from sharing a slot. A later
@@ -14,8 +14,7 @@ History and CLI session files are replaced atomically. Legacy global conversatio
 files remain on disk; they are not automatically attributed to an arbitrary project.
 Clearing a conversation clears that scope's history/session IDs.
 
-Switching to another document manually cancels a busy pane task. The old conversation
-is saved before the new one loads; draft text and attached images are cleared. A tool
+Switching tabs saves/restores each document's transcript, draft, attachment and agent/model/effort choices. A busy task continues in its bound document; another tab can run its own task. Native writes are serialized on Revit's API thread; UI-only operations require their document tab to be active. Closing the document cancels its task. A tool
 that deliberately activates a family/document can continue its own task. Its messages
 stay in the originating conversation; the next prompt starts in the new document's
 scope. A queued operation checks its intended document again before it executes.
@@ -61,7 +60,7 @@ independent proof of which model the client runs. MCP cannot switch a client's m
 
 The automated suite covers project/instance leases, restart restoration, atomic files,
 queued versus running cancellation, typed request IDs and per-client model directives.
-The WPF pane suite covers switching history while busy and controlled family activation.
+The WPF pane suite covers independent tasks/drafts/provider choices while switching tabs and controlled family activation.
 The transport suite starts the real HTTP server and a real Windows PowerShell bridge,
 with two independent clients and cancellation during a pending call. Its dispatcher is
 a test double: actual transaction rollback must still be exercised in a supported Revit

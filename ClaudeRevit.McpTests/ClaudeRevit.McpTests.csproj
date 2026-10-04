@@ -7,6 +7,9 @@
     <RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\TaskJournal.cs" Link="TaskJournal.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ViewImageStore.cs" Link="ViewImageStore.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="ToolResult.cs" />
     <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="StandardKnowledge.cs" />
     <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="SharedParameterCatalog.cs" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />

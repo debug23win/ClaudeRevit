@@ -28,7 +28,7 @@ public class SaveDocument : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         if (input.TryGetValue("save_as_path", out var sa) && sa.ValueKind == JsonValueKind.String)

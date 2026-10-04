@@ -39,7 +39,7 @@ public class DiagnoseModel : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var top = input.TryGetValue("top", out var t) ? Math.Max(1, t.GetInt32()) : 10;

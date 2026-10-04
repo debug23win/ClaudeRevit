@@ -34,7 +34,7 @@ public sealed class ColorElementsByParameter : IRevitTool
         var doc = NativeToolUtil.Doc(app);
         var view = input.TryGetValue("view_id", out var vi) ? NativeToolUtil.Element(doc, vi.GetInt64()) as View : doc.ActiveView;
         if (view == null || view.IsTemplate || !view.AreGraphicsOverridesAllowed()) throw new ToolInputException("Select a view that allows graphics overrides.");
-        var ids = input.TryGetValue("element_ids", out var ei) ? NativeToolUtil.Ids(ei) : app.ActiveUIDocument.Selection.GetElementIds().ToList();
+        var ids = input.TryGetValue("element_ids", out var ei) ? NativeToolUtil.Ids(ei) : ToolContext.UiDocument(app).Selection.GetElementIds().ToList();
         if (ids.Count is < 1 or > 10000) throw new ToolInputException("Select 1..10000 elements.");
         var rows = new List<Row>(); var missing = new List<long>();
         foreach (var id in ids)

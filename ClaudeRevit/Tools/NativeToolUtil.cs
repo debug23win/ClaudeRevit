@@ -11,7 +11,7 @@ internal static class NativeToolUtil
     public static JsonElement Any(string description) => JsonSerializer.SerializeToElement(new { description });
     public static JsonElement Array(string type, string description) => JsonSerializer.SerializeToElement(new { type = "array", items = new { type }, description });
     public static InputSchema Schema(Dictionary<string, JsonElement> fields, params string[] required) => new() { Properties = fields, Required = required.ToList() };
-    public static Document Doc(UIApplication app) => app.ActiveUIDocument?.Document ?? throw new InvalidOperationException("No active document.");
+    public static Document Doc(UIApplication app) => ToolContext.UiDocument(app)?.Document ?? throw new InvalidOperationException("No active document.");
     public static string Text(IReadOnlyDictionary<string, JsonElement> input, string name, string fallback = "") =>
         input.TryGetValue(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? fallback : fallback;
     public static bool Preview(IReadOnlyDictionary<string, JsonElement> input) => !input.TryGetValue("preview", out var v) || v.ValueKind == JsonValueKind.Null || ToolInput.Flag(input, "preview");

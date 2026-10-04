@@ -24,7 +24,7 @@ public class GetActiveViewInfo : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document;
+        var doc = ToolContext.UiDocument(app)?.Document;
         if (doc == null)
             return Services.Json.Serialize(new { error = "No document is open." });
 

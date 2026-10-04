@@ -42,5 +42,8 @@ public interface IRevitTool
     // model working from a catalog that no longer matches the document.
     bool InvalidatesCatalog => IsScriptTool;
 
+    // Runs before any transaction; rejects/compiles input without editing the document.
+    void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) { }
+
     string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app);
 }

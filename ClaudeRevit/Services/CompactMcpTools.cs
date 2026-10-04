@@ -18,9 +18,15 @@ public static class CompactMcpTools
     public static List<string> Search(IEnumerable<ToolSearchLogic.ToolInfo> tools, string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return new();
+        var available=tools.ToArray();
+        var exact=available.FirstOrDefault(t=>string.Equals(t.Name,query.Trim(),StringComparison.OrdinalIgnoreCase));
+        if(!string.IsNullOrEmpty(exact.Name))return new(){exact.Name};
+        // A guessed identifier is not a keyword query. Returning 100 irrelevant schemas
+        // encouraged repeated discovery loops instead of acknowledging a missing operation.
+        if(query.Contains('_')&&!query.Any(char.IsWhiteSpace))return new();
         var terms = query.ToLowerInvariant().Split(new[] { ' ', '_', '-', ',', '/', '.', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         var groups = ToolSearchLogic.Prewarm(query);
-        return tools.Select(t =>
+        return available.Select(t =>
         {
             var name = t.Name.ToLowerInvariant();
             var description = t.Description.ToLowerInvariant();

@@ -34,7 +34,7 @@ public class PickPointInView : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var uidoc = app.ActiveUIDocument
+        var uidoc = ToolContext.UiDocument(app)
             ?? throw new InvalidOperationException("No document is open.");
 
         var prompt = input.TryGetValue("prompt", out var p) && p.ValueKind == JsonValueKind.String

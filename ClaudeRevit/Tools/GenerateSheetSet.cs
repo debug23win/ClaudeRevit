@@ -69,7 +69,7 @@ public class GenerateSheetSet : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var viewType = input.TryGetValue("view_type", out var vt) ? vt.GetString() ?? "floor_plan" : "floor_plan";

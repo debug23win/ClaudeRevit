@@ -32,6 +32,7 @@ internal static class CategoryResolve
 
     private static IEnumerable<string> Candidates(string raw)
     {
+        if(raw.StartsWith("OST_",StringComparison.OrdinalIgnoreCase))yield return raw[4..];
         yield return raw;                       // "Walls" -> OST_Walls
         yield return raw.Replace(" ", "");      // "Structural Columns" -> OST_StructuralColumns
         if (Synonyms.TryGetValue(raw, out var syn)) yield return syn;
@@ -49,5 +50,10 @@ internal static class CategoryResolve
         ["Reinforcement"] = "Rebar",
         ["Slab"] = "Floors",
         ["Slabs"] = "Floors",
+        ["Generic Models"] = "GenericModel",
+        ["GenericModels"] = "GenericModel",
+        ["Обобщенные модели"] = "GenericModel",
+        ["Обобщённые модели"] = "GenericModel",
+        ["Raster Images"] = "RasterImages",
     };
 }

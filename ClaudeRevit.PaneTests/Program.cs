@@ -58,15 +58,27 @@ internal static class Program
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project A" });
                 DocumentHarness.Change("b", false);
                 Check(pane.Messages.Count == 0, "Another project's transcript was shown in B");
+                agent.SelectedIndex=1;
+                model.SelectedValue="sonnet";
+                effort.SelectedValue="low";
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project B" });
                 DocumentHarness.Change("a", false);
                 Check(pane.Messages.Single().Text == "Project A", "Returning to A lost its transcript");
+                Check((string)model.SelectedValue=="gpt-test" && (string)effort.SelectedValue=="high","A's selected model/effort leaked from B");
+                agent.SelectedIndex=1;
+                Check((string)model.SelectedValue=="opus" && (string)effort.SelectedValue=="medium","A's other provider choices leaked from B");
+                agent.SelectedIndex=2;
                 ChatService.Pending = new();
                 ((TextBox)pane.FindName("InputBox")).Text = "Pending A turn";
                 var cancelled = (Task)send.Invoke(pane, null)!;
+                var pendingA=ChatService.Pending;
                 DocumentHarness.Change("b", false);
-                await cancelled;
-                Check(pane.Messages.Single().Text == "Project B", "Cancelled A turn was saved into B");
+                Check(!cancelled.IsCompleted,"Switching tabs cancelled A");
+                Check(((ComboBox)pane.FindName("AgentPicker")).IsEnabled,"A's busy state blocked B");
+                ((TextBox)pane.FindName("InputBox")).Text="Draft B";
+                pendingA.SetResult();await cancelled;
+                Check(((TextBox)pane.FindName("InputBox")).Text=="Draft B","A's completion erased B's draft");
+                Check(pane.Messages.Single().Text == "Project B", "A turn was saved into B");
                 Check(ChatService.Saved["file:A"].Any(m => m.Text == "Pending A turn"), "A's cancelled transcript was lost");
                 ChatService.Pending = new();
                 ((TextBox)pane.FindName("InputBox")).Text = "Open family from B";
@@ -96,7 +108,7 @@ internal static class Program
                         encoder.Save(stream);
                     }
                 }
-                Console.WriteLine("Pane checks passed: agent selection, saved choices, busy controls, project history switching, cancellation on manual document change, managed family transition, narrow layout.");
+                Console.WriteLine("Pane checks passed: agent selection, saved choices, busy controls, project history switching, independent runs across document tabs, managed family transition, narrow layout.");
                 await CheckBenchmark(args.FirstOrDefault());
                 app.Shutdown(0);
             }

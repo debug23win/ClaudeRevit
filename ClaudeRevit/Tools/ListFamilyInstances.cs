@@ -47,7 +47,7 @@ public class ListFamilyInstances : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var filter = input.TryGetValue("family_filter", out var f) && f.ValueKind == JsonValueKind.String

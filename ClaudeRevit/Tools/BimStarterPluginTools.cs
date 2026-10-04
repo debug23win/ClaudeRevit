@@ -91,7 +91,7 @@ public sealed class RunBimStarterCommand : IRevitTool
         if (!preview)
         {
             if (ToolDispatcher.ForceSuppress) throw new ToolInputException("Interactive plugin commands cannot run in an unattended benchmark. Use the native workflow.");
-            var uidoc = app.ActiveUIDocument ?? throw new ToolInputException("Open a model before posting a plugin command.");
+            var uidoc = ToolContext.UiDocument(app) ?? throw new ToolInputException("Open a model before posting a plugin command.");
             if (input.TryGetValue("element_ids", out var e))
             {
                 var ids = NativeToolUtil.Ids(e, 5000);

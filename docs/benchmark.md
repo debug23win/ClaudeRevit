@@ -159,3 +159,9 @@ fresh-copy opening/activation/closing still require execution validation inside 
 `test_revit_connection` now contains a separate unsaved native fixture checking
 instance/type collection and nested group rollback; it does not modify the user
 document. Compilation and isolated tests do not establish live native success.
+
+## Evidence and prerequisites (v3.8.0)
+
+The judge receives actual DirectShape mesh triangle counts and sampled surface points, solid face/volume evidence, rebar centerlines/layout/hosts, native joint member IDs and source annotations. Metadata alone does not prove geometry. R1/R3 skip without points if the seed has neither a concrete column type nor a valid column rebar host. An empty bar catalog can be populated by `create_rebar_type`; R2 uses native structural floors and native area/path reinforcement. A generic structural connection is a logical link, not a detailed plate/bolt joint.
+
+`usage_scope` distinguishes Codex per-turn accounting from cumulative fallback. Cached input and reasoning are subsets, so they must not be added again to input/output totals. Delegated Codex usage is marked parent-only; child-agent consumption is not included in that counter. Comparisons must use the same task set, seed, judge and effort. This release changes evidence and prerequisites, not the quality/speed formula.

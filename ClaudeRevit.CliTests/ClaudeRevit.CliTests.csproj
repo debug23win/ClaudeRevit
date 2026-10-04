@@ -5,6 +5,7 @@
     <AssemblyName>codex</AssemblyName><RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\CodexUsage.cs" Link="CodexUsage.cs" />
     <Compile Include="..\ClaudeRevit\Services\ClaudeCodeBackend.cs" Link="ClaudeCodeBackend.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexBackend.cs" Link="CodexBackend.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexCli.cs" Link="CodexCli.cs" />

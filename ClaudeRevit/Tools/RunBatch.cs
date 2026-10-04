@@ -80,7 +80,7 @@ public class RunBatch : IRevitTool
         if (!input.TryGetValue("items", out var itemsEl) || itemsEl.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("'items' must be an array of argument objects (one per call).");
 
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var results = new List<object>();
@@ -88,7 +88,7 @@ public class RunBatch : IRevitTool
         foreach (var item in itemsEl.EnumerateArray())
         {
             // Stop (or an MCP timeout) should end the batch here, not after every remaining item.
-            ToolContext.ThrowIfCancelled();
+            ToolContext.ReportProgress(index,itemsEl.GetArrayLength(),toolName);
 
             index++;
             if (item.ValueKind != JsonValueKind.Object)

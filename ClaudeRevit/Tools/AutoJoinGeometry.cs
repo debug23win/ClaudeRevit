@@ -55,7 +55,7 @@ public class AutoJoinGeometry : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var unjoin = input.TryGetValue("unjoin", out var uj) && uj.ValueKind == JsonValueKind.True;

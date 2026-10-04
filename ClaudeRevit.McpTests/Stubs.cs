@@ -44,7 +44,7 @@ namespace ClaudeRevit.Tools
     {
         public static ToolRegistry Instance { get; } = new();
         public IEnumerable<TestTool> All => CompactMcpTools.DirectNames.Select(n => new TestTool(n))
-            .Concat(new[] { new TestTool("probe"), new TestTool("wait"), new TestTool("execute_csharp", "Code", true) })
+            .Concat(new[] { new TestTool("probe"), new TestTool("wait"), new TestTool("export_image"), new TestTool("execute_csharp", "Code", true) })
             .Concat(Enumerable.Range(0, 130).Select(i => new TestTool("rebar_tool_" + i, "Rebar")));
     }
     public static class ToolCatalog { public static string CategoryOf(TestTool tool) => tool.Category; }
@@ -61,6 +61,11 @@ namespace ClaudeRevit.Tools
         {
             if (name == "wait") { Started.TrySetResult(); await Task.Delay(TimeSpan.FromMinutes(1), ct); }
             if (name == "probe" && input.TryGetValue("model", out var model)) McpSession.ReportModel(model.GetString());
+            if(name=="export_image")
+            {
+                var id=ViewImageStore.Register(new byte[]{1,2,3},documentKey,McpSession.Executing?.ChannelId);
+                return JsonSerializer.Serialize(new {image_id=id,verified=true});
+            }
             return JsonSerializer.Serialize(new { client = McpSession.ClientName, model = McpSession.ReportedModel, document = documentKey, arguments = input });
         }
     }

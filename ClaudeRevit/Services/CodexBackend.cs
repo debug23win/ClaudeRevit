@@ -18,8 +18,10 @@ public static class CodexBackend
         public string? SessionId;
         public string? Error;
         public string Text = "";
-        public long InputTokens, OutputTokens;
+        public long InputTokens, OutputTokens, CachedInputTokens, ReasoningTokens;
+        public string UsageScope = "session_cumulative";
         public bool Completed;
+        public int SubagentCalls;
     }
 
     public static string? ResolveExecutable(string? requestedExe = null)
@@ -91,8 +93,10 @@ public static class CodexBackend
         string? model = null, string? effort = null)
     {
         var args = new List<string> { "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
-            "--sandbox", "read-only", "-c", "features.shell_tool=false", "-c", "features.multi_agent=false",
-            "-c", "web_search=\"disabled\"", "-c",
+            "--sandbox", "read-only", "-c", "features.shell_tool=false", "-c", "features.multi_agent=true",
+            "-c", "agents.enabled=true", "-c", "agents.max_concurrent_threads_per_session=3",
+            "-c", "web_search=\"disabled\"", "-c", "model_auto_compact_token_limit=48000",
+            "-c", "tool_output_token_limit=4000", "-c",
             "mcp_servers.clauderevit={url=" + JsonSerializer.Serialize(url) +
             ",bearer_token_env_var=\"CLAUDEREVIT_MCP_TOKEN\",required=true,tool_timeout_sec=120,default_tools_approval_mode=\"approve\"}" };
         if (!string.IsNullOrWhiteSpace(model)) args.AddRange(new[] { "--model", model.Trim() });
@@ -138,6 +142,7 @@ public static class CodexBackend
             if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Sign in to Codex with ChatGPT first. This subscription mode does not use an OpenAI API key.");
         }
+        var startedUtc = DateTime.UtcNow;
         using var process = Start(exe, Arguments(url, sessionId, imagePath, model, effort), workDir, token);
         using var cancel = ct.Register(() => { try { process.Kill(true); } catch { } });
         var errors = process.StandardError.ReadToEndAsync(ct); // drain concurrently to avoid pipe deadlock
@@ -152,6 +157,13 @@ public static class CodexBackend
             var error = await errors;
             if (process.ExitCode != 0 || !result.Completed)
                 result.Error ??= string.IsNullOrWhiteSpace(error) ? "Codex did not complete the turn." : TextUtil.Truncate(error.Trim(), 1800);
+            result.SessionId ??= sessionId;
+            if (result.SessionId is { } id && CodexUsage.ReadTurn(id, startedUtc) is { } usage)
+            {
+                result.InputTokens = usage.Input; result.OutputTokens = usage.Output;
+                result.CachedInputTokens = usage.Cached; result.ReasoningTokens = usage.Reasoning; result.UsageScope = usage.Scope;
+            }
+            if(result.SubagentCalls>0)result.UsageScope+="_parent_only";
             return result;
         }
         catch { try { process.Kill(true); } catch { } throw; }
@@ -189,6 +201,11 @@ public static class CodexBackend
                     result.Text += text;
                     onText(text);
                 }
+                else if (type == "item.started" && itemType is "collab_tool_call" or "collab_agent_tool_call")
+                {
+                    result.SubagentCalls++;
+                    onTool("subagent");
+                }
                 else if (type == "item.started" && itemType == "mcp_tool_call")
                     onTool(item.TryGetProperty("tool", out var tool) ? tool.GetString() ?? "Revit" : "Revit");
             }
@@ -215,7 +232,7 @@ public static class CodexBackend
         var models = await CodexModelCatalog.ReadAsync(exe, workDir, ct);
         var choice = CodexModels.Select(models, model, effort);
         var args = new List<string> { "exec", "--json", "--ignore-user-config", "--skip-git-repo-check", "--sandbox", "read-only",
-            "-c", "features.shell_tool=false", "-c", "features.multi_agent=false", "-c", "web_search=\"disabled\"", "--model", choice.Model };
+            "-c", "features.shell_tool=false", "-c", "features.multi_agent=false", "-c", "agents.enabled=false", "-c", "web_search=\"disabled\"", "--model", choice.Model };
         if (choice.Effort != null) CodexConfiguration.Add(args, "model_reasoning_effort", choice.Effort);
         args.Add("-");
         using var process = Start(exe, args, workDir);

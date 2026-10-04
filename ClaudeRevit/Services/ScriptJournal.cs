@@ -43,40 +43,22 @@ public static class ScriptJournal
     // every committed transaction, including the ones a Python script manages itself.
     public static void OnDocumentChanged(object? sender, DocumentChangedEventArgs e)
     {
+        try { Tools.ModelChangeCapture.Changed(e); } catch(Exception ex) { Log.Error("Change capture failed",ex); }
         if (!_recording) return;
         try
         {
             var doc = e.GetDocument();
 
-            // This runs inside the commit event, so it is on the critical path of every
-            // transaction. A category lookup per element is fine for a normal edit but not after
-            // something like create_rebar_batch, which commits tens of thousands of elements at
-            // once. Resolve categories for a bounded prefix and merely COUNT the rest — the
-            // breakdown stays representative and the tail costs nothing.
-            const int CategoryScanCap = 500;
-            var scanned = 0;
-
+            // Capture every category. The task journal also records final deltas after rollback.
             foreach (var id in e.GetAddedElementIds())
             {
-                if (scanned < CategoryScanCap)
-                {
-                    var cat = doc.GetElement(id)?.Category?.Name ?? "(no category)";
-                    Added[cat] = Added.GetValueOrDefault(cat) + 1;
-                    scanned++;
-                }
-                else Added["(not sampled)"] = Added.GetValueOrDefault("(not sampled)") + 1;
-
-                if (AddedIds.Count < 50) AddedIds.Add(id.Value);
+                var cat=doc.GetElement(id)?.Category?.Name ?? "(no category)";
+                Added[cat]=Added.GetValueOrDefault(cat)+1;AddedIds.Add(id.Value);
             }
             foreach (var id in e.GetModifiedElementIds())
             {
-                if (scanned < CategoryScanCap)
-                {
-                    var cat = doc.GetElement(id)?.Category?.Name ?? "(no category)";
-                    Modified[cat] = Modified.GetValueOrDefault(cat) + 1;
-                    scanned++;
-                }
-                else Modified["(not sampled)"] = Modified.GetValueOrDefault("(not sampled)") + 1;
+                var cat=doc.GetElement(id)?.Category?.Name ?? "(no category)";
+                Modified[cat]=Modified.GetValueOrDefault(cat)+1;
             }
             _deleted += e.GetDeletedElementIds().Count;
         }

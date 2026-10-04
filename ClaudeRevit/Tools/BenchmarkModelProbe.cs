@@ -31,6 +31,11 @@ internal static class BenchmarkModelProbe
             }
             catch (Exception ex) { errors.Add(name + ": " + ex.Message); }
         }
+        result["resources"] = Resources(doc);
+        Collect<DirectShape>("direct_shape_geometry",e=>new { id=e.Id.Value,bounds=Bounds(e),geometry=Geometry(e),provenance=ModelProvenance.Read(e),comments=e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() });
+        Collect<StructuralConnectionHandler>("connection_elements",e=>new { id=e.Id.Value,connected_element_ids=e.GetConnectedElementIds().Select(i=>i.Value).ToArray(),geometry=Geometry(e),provenance=ModelProvenance.Read(e) });
+        Collect<AreaReinforcement>("area_reinforcement_elements",e=>new { id=e.Id.Value,host_id=e.GetHostId().Value,bounds=Bounds(e) });
+        Collect<PathReinforcement>("path_reinforcement_elements",e=>new { id=e.Id.Value,host_id=e.GetHostId().Value,bounds=Bounds(e) });
         Collect<Level>("level_elements", l => new { id = l.Id.Value, name = l.Name, elevation_m = l.Elevation * 0.3048 });
         Collect<Grid>("grid_elements", g => new { id = g.Id.Value, name = g.Name, curve = Curve(g.Curve) });
         Collect<Wall>("wall_elements", w => new { id = w.Id.Value, type_id = w.GetTypeId().Value, level_id = w.LevelId.Value,
@@ -90,6 +95,54 @@ internal static class BenchmarkModelProbe
                     placement = s.Family.FamilyPlacementType.ToString() }).ToArray();
         }
         result["evidence_errors"] = errors;
+    }
+
+    public static object Resources(Document doc)
+    {
+        var concrete=new List<long>();var validHosts=new List<long>();
+        foreach(var symbol in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).OfCategory(BuiltInCategory.OST_StructuralColumns).Cast<FamilySymbol>())
+        {
+            if(symbol.Family.StructuralMaterialType==StructuralMaterialType.Concrete){ concrete.Add(symbol.Id.Value);continue; }
+            var material=doc.GetElement(symbol.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)?.AsElementId()??ElementId.InvalidElementId) as Material;
+            if(material?.StructuralAssetId is { } id && doc.GetElement(id) is PropertySetElement asset && asset.GetStructuralAsset().StructuralAssetClass==StructuralAssetClass.Concrete)concrete.Add(symbol.Id.Value);
+        }
+        foreach(var e in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralColumns).WhereElementIsNotElementType())
+            if(RebarHostData.GetRebarHostData(e)?.IsValidHost()==true)validHosts.Add(e.Id.Value);
+        return new { rebar_bar_types=new FilteredElementCollector(doc).OfClass(typeof(RebarBarType)).GetElementCount(),
+            concrete_column_type_ids=concrete,valid_rebar_column_ids=validHosts,
+            structural_framing_types=new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).OfCategory(BuiltInCategory.OST_StructuralFraming).GetElementCount() };
+    }
+    private static object Geometry(Element e)
+    {
+        var samples=new List<double[]>();var meshes=0;var triangles=0;var faces=0;var solids=0;var errors=new List<string>();
+        var components=new List<object>();
+        void Mesh(Mesh mesh)
+        {
+            meshes++;triangles+=mesh.NumTriangles;
+            for(var i=0;i<mesh.NumTriangles&&samples.Count<96;i+=Math.Max(1,mesh.NumTriangles/32))
+                for(var k=0;k<3&&samples.Count<96;k++)samples.Add(NativeToolUtil.Mm(mesh.get_Triangle(i).get_Vertex(k)));
+        }
+        void Visit(IEnumerable<GeometryObject> objects,int depth)
+        {
+            if(depth>6){errors.Add("Geometry nesting exceeds 6.");return;}
+            foreach(var obj in objects)
+            {
+                switch(obj)
+                {
+                    case GeometryInstance instance: Visit(instance.GetInstanceGeometry(),depth+1);break;
+                    case Mesh mesh: Mesh(mesh);break;
+                    case Solid solid:
+                        solids++;faces+=solid.Faces.Size;
+                        if(components.Count<32)components.Add(new { volume_mm3=solid.Volume*Math.Pow(Units.MmPerFoot,3),face_count=solid.Faces.Size,
+                            face_kinds=solid.Faces.Cast<Face>().GroupBy(f=>f.GetType().Name).ToDictionary(g=>g.Key,g=>g.Count()) });
+                        foreach(Face face in solid.Faces)Mesh(face.Triangulate());break;
+                }
+            }
+        }
+        try { var geometry=e.get_Geometry(new Options { DetailLevel=ViewDetailLevel.Fine,IncludeNonVisibleObjects=false });if(geometry==null)errors.Add("No geometry.");else Visit(geometry,0); }
+        catch(Exception ex){errors.Add(ex.Message);}
+        return new { solid_count=solids,face_count=faces,mesh_count=meshes,triangle_count=triangles,surface_samples_mm=samples,
+            samples_truncated=triangles*3>samples.Count,components,components_truncated=solids>components.Count,errors };
     }
 
     private static object Curve(Autodesk.Revit.DB.Curve c) => new { kind = c.GetType().Name, length_mm = c.Length * Units.MmPerFoot,

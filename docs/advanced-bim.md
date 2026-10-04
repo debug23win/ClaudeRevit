@@ -18,7 +18,7 @@ transaction to expose Revit validation, then roll back their transaction group.
 Preview IDs for newly created objects are omitted. After reviewing the result, repeat
 with `preview=false` to apply. These tools have their own undo boundaries; a family
 inspection/document transition can create separate undo entries. Ordinary API
-groups cover one callback only; no transaction/group spans asynchronous inference.
+operations have one Undo boundary per completed call/batch; no transaction/group spans asynchronous inference.
 
 ## Complex families
 

@@ -34,11 +34,12 @@ namespace ClaudeRevit.Services
             return Pending?.Task.WaitAsync(ct) ?? Task.CompletedTask;
         }
         public bool WorkspaceIsCurrent => _scope == DocumentSessions.CurrentWorkspace.Identity;
-        public void SwitchWorkspace() => _scope = DocumentSessions.CurrentWorkspace.Identity;
+        public void SwitchWorkspace(bool preserveHistory = false) => _scope = DocumentSessions.CurrentWorkspace.Identity;
         public List<ChatMessage> LoadUiMessages() => Saved.TryGetValue(_scope, out var saved) ? new(saved) : new();
         public void SaveHistory(IEnumerable<ChatMessage> messages) => Saved[_scope] = messages.ToList();
         public void ClearHistory() { }
         public void RecreateClient() { }
+        public void Activate() { }
     }
     public static class CodexModelCatalog
     {
@@ -92,7 +93,7 @@ namespace ClaudeRevit.Services
             bool resetBetweenTasks, int maxRoundsPerTask, int maxSecondsPerTask, Action<string> onStatus, Action<BenchmarkResult> onResult, CancellationToken ct)
         { Execution = execution; Judge = judge; Status = onStatus; Result = onResult; return Pending.Task.WaitAsync(ct); }
     }
-    public static class Log { public static void Error(string message, Exception ex) => Console.Error.WriteLine(message + ": " + ex.Message); }
+    public static class Log { public static string ReadTail()=>"test log"; public static void Error(string message, Exception ex) => Console.Error.WriteLine(message + ": " + ex.Message); }
 }
 namespace ClaudeRevit.Tools
 {

@@ -19,6 +19,22 @@ public static class Log
     public static void Info(string message) => Write("INFO", message, null);
     public static void Error(string message, Exception? ex = null) => Write("ERROR", message, ex);
 
+    public static string ReadTail()
+    {
+        try
+        {
+            lock (Gate)
+            {
+                if (!File.Exists(FilePath)) return "ClaudeRevit: no diagnostic log yet.";
+                using var stream = new FileStream(FilePath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite);
+                if (stream.Length>200_000) stream.Seek(-200_000,SeekOrigin.End);
+                using var reader = new StreamReader(stream); var text=reader.ReadToEnd();
+                return System.Text.RegularExpressions.Regex.Replace(text,@"(?i)(bearer\s+|(?:api[_-]?key|token)\s*[:=]\s*""?)[^\s"",}]+","$1[redacted]");
+            }
+        }
+        catch (Exception ex) { return "Log unavailable: " + ex.Message; }
+    }
+
     private static void Write(string level, string message, Exception? ex)
     {
         try

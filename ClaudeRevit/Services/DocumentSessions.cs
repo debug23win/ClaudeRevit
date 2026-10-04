@@ -23,6 +23,7 @@ public static class DocumentSessions
     public static string CurrentDocumentKey => System.Threading.Volatile.Read(ref _documentKey);
     public static ConversationWorkspace CurrentWorkspace { get; private set; } = Workspace("idle:" + ProcessId);
     public static event Action<bool>? Changed;
+    public static event Action<string>? Closed;
 
     private static ConversationWorkspace Workspace(string identity)
     {
@@ -52,7 +53,8 @@ public static class DocumentSessions
     public static string Key(Document? document)
     {
         for (var i = Identities.Count - 1; i >= 0; i--)
-            if (!Identities[i].Document.IsValidObject) Identities.RemoveAt(i);
+            if (!Identities[i].Document.IsValidObject)
+            { var key=Identities[i].Id;Identities.RemoveAt(i);Closed?.Invoke(key); }
         if (document == null || !document.IsValidObject) return "none";
         foreach (var identity in Identities)
             if (Same(identity.Document, document)) return identity.Id;
@@ -60,6 +62,9 @@ public static class DocumentSessions
         Identities.Add(new(document, id));
         return id;
     }
+    // API thread only. Bound jobs never fall back to whichever tab happens to be active.
+    public static Document? Find(string key) => Identities.FirstOrDefault(i => i.Id == key && i.Document.IsValidObject)?.Document;
+
     private static string Identity(Document document, string key)
     {
         if (document.IsModelInCloud)

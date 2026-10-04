@@ -75,7 +75,16 @@ internal static class Program
                 Check(!argv.Contains("--bare"), "Bare would disable OAuth");
             }
             var run = await ClaudeCodeBackend.RunAsync(exe, "test", root, "mcp.json", null, "mcp__clauderevit__*", _ => { }, _ => { }, ct, "sonnet", "high");
-            using (var result = JsonDocument.Parse(run.Text)) Check(result.RootElement.GetProperty("args").EnumerateArray().Any(a => a.GetString() == "--mcp-config"), "Modeller lost its MCP configuration");
+            using (var result = JsonDocument.Parse(run.Text))
+            {
+                var argv=result.RootElement.GetProperty("args").EnumerateArray().Select(a=>a.GetString()).ToArray();
+                Check(argv.Contains("--mcp-config"), "Modeller lost its MCP configuration");
+                Check(argv[Array.IndexOf(argv,"--tools")+1]=="Agent" && argv.Contains("--agents"),"Claude modeller has no subagents");
+                using var agents=JsonDocument.Parse(argv[Array.IndexOf(argv,"--agents")+1]!);
+                Check(agents.RootElement.GetProperty("revit_planner").GetProperty("tools").GetArrayLength()==0,"Planner gained mutation tools");
+            }
+            var codexArgs=CodexBackend.Arguments("http://localhost/mcp","test-session");
+            Check(codexArgs.Contains("agents.enabled=true") && codexArgs.Contains("agents.max_concurrent_threads_per_session=3"),"Codex modeller has no bounded subagents");
             Environment.SetEnvironmentVariable("CLAUDEREVIT_TEST_AUTH", "api");
             await Reject(() => ClaudeCodeBackend.CompleteAsync(exe, "test", root, ct), "Claude API auth accepted as subscription");
             await Reject(() => CodexBackend.CompleteAsync("test", root, ct, executable: exe), "Codex API auth accepted as subscription");

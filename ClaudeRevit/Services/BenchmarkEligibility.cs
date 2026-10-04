@@ -20,6 +20,9 @@ public static class BenchmarkEligibility
                 !nodes.EnumerateArray().Any(n => n.GetProperty("depth").GetInt32() >= 2))
                 return "Requires an existing nested assembly with at least two child levels.";
         }
+        if(task.Id is "R1" or "R3" && root.TryGetProperty("resources",out var resources) &&
+            resources.GetProperty("concrete_column_type_ids").GetArrayLength()==0 && resources.GetProperty("valid_rebar_column_ids").GetArrayLength()==0)
+            return "Load a concrete structural column family/type into the seed RVT (or a valid rebar column host). Steel-only column seeds cannot run R1/R3; no points assigned.";
         return null;
     }
 }

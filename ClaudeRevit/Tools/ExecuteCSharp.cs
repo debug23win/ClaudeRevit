@@ -25,7 +25,7 @@ public class ExecuteCSharp : IRevitTool
     // prelude and the tool description so they cannot drift.
     private static readonly string[] Namespaces =
     [
-        "System", "System.Linq", "System.Collections.Generic",
+        "System", "System.Linq", "System.Collections.Generic", "System.Text.Json", "ClaudeRevit.Tools",
         "Autodesk.Revit.DB", "Autodesk.Revit.DB.Structure",
         "Autodesk.Revit.DB.Architecture", "Autodesk.Revit.UI"
     ];
@@ -39,12 +39,12 @@ public class ExecuteCSharp : IRevitTool
         "them and do NOT use uidoc.Document/__revit__ to fetch them: 'uiapp' (UIApplication), " +
         "'uidoc' (UIDocument) and 'doc' (active Document). Write STATEMENTS (the snippet becomes a method body — no " +
         "top-level classes, no bare trailing expressions) and end with 'return <expr>;' to " +
-        "report a result (it is ToString()'d); 'return doc.Title;' is a good smoke test. " +
+        "report JSON-serializable data; 'return doc.Title;' is a good smoke test. " +
         "The snippet already runs inside a transaction that rolls back if it throws — do NOT " +
         "open your own Transaction (SubTransactions are fine). Imported namespaces: " +
         string.Join(", ", Namespaces) + ". " +
         "Runs require the user's code-execution opt-in (plus per-run confirmation if the " +
-        "user enabled it in settings).";
+        "user enabled it in settings). Use ScriptRuntime.CheckCancellation() and ReportProgress(done,total,stage) inside long loops. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
 
     public InputSchema InputSchema => new()
     {
@@ -63,6 +63,8 @@ public class ExecuteCSharp : IRevitTool
     public bool RequiresConfirmation => true;
     public bool RequiresCodeExecutionOptIn => true;
     public bool IsScriptTool => true;
+
+    private static bool LooksJson(string value) { try { using var json = JsonDocument.Parse(value); return true; } catch (JsonException) { return false; } }
 
     // Emitted assembly bytes keyed by full source — see Execute.
     private static readonly Dictionary<string, byte[]> CompileCache = new();
@@ -87,16 +89,8 @@ public class ExecuteCSharp : IRevitTool
         @"(?:doc|uidoc|uiapp)\s*=[^;\n]*;[ \t]*$",
         System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
+    private static byte[] Prepare(string code)
     {
-        var code = input["code"].GetString();
-        if (string.IsNullOrWhiteSpace(code))
-            throw new InvalidOperationException("code is empty.");
-
-        var uidoc = app.ActiveUIDocument
-            ?? throw new InvalidOperationException("No document is open.");
-        var doc = uidoc.Document;
-
         code = BootstrapLine.Replace(code, "");
         var source = Prelude + code + "\nreturn null;\n    }\n}\n";
         var preludeLines = Prelude.Count(c => c == '\n');
@@ -132,6 +126,23 @@ public class ExecuteCSharp : IRevitTool
             CompileCache[source] = assemblyBytes;
         }
 
+        return assemblyBytes;
+    }
+
+    public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => Prepare(input["code"].GetString() ?? "");
+
+    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
+    {
+        var code = input["code"].GetString();
+        if (string.IsNullOrWhiteSpace(code))
+            throw new InvalidOperationException("code is empty.");
+
+        var uidoc = ToolContext.UiDocument(app)
+            ?? throw new InvalidOperationException("No document is open.");
+        var doc = uidoc.Document;
+
+        var assemblyBytes = Prepare(code);
+
         var alc = new AssemblyLoadContext("ClaudeScript", isCollectible: true);
         try
         {
@@ -147,6 +158,7 @@ public class ExecuteCSharp : IRevitTool
             catch (TargetInvocationException tie)
             {
                 var inner = tie.InnerException ?? tie;
+                if(inner is System.OperationCanceledException) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(inner).Throw();
                 throw new InvalidOperationException(
                     $"The snippet threw {inner.GetType().Name}: {inner.Message}");
             }
@@ -154,11 +166,11 @@ public class ExecuteCSharp : IRevitTool
             // ToString() before the load context is unloaded so no live references remain.
             // Relaxed encoder: script output is often Cyrillic-heavy — keep it readable and
             // cheap in tokens instead of \uXXXX-escaping every character.
-            return Services.Json.Serialize(new
+            return JsonSerializer.Serialize(new
             {
                 ok = true,
-                result = result?.ToString() ?? "(no return value)"
-            });
+                result = result is string text && LooksJson(text) ? JsonSerializer.Deserialize<JsonElement>(text) : result
+            },new JsonSerializerOptions { Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
         }
         finally
         {
