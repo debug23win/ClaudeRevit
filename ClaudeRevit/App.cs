@@ -245,6 +245,7 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new ExecuteCSharp());
             ToolRegistry.Instance.Register(new RunDynamoPython());
             ToolRegistry.Instance.Register(new RunPython());
+            ToolRegistry.Instance.Register(new ReadAttachment());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

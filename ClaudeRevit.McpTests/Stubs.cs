@@ -59,6 +59,14 @@ namespace ClaudeRevit.Tools
         public async Task<string> ExecuteAsync(string name, IReadOnlyDictionary<string, JsonElement> input,
             CancellationToken ct, string documentKey)
         {
+            if (name == "read_attachment")
+            {
+                var channel = McpSession.Executing?.ChannelId is { } id ? McpTurnChannel.Find(id) : null;
+                var read = JsonNode.Parse(await AttachmentStore.ReadAsync(channel?.AttachmentScope, input, ct))!;
+                if (read["kind"]?.GetValue<string>() == "image")
+                    read["image_id"] = ViewImageStore.Register(new byte[] { 1, 2, 3 }, documentKey, channel?.Id);
+                return read.ToJsonString();
+            }
             if (name == "wait") { Started.TrySetResult(); await Task.Delay(TimeSpan.FromMinutes(1), ct); }
             if (name == "probe" && input.TryGetValue("model", out var model)) McpSession.ReportModel(model.GetString());
             if(name=="export_image")

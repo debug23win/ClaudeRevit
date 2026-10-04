@@ -27,10 +27,12 @@ namespace ClaudeRevit.Services
         public Action<string>? OnStatus;
         public static McpAgentSelection? SentSelection;
         public static TaskCompletionSource? Pending;
+        public readonly List<ChatRequest> Supplements = new();
+        public bool Supplement(ChatRequest request) { Supplements.Add(request); return true; }
         public Task SendAsync(ObservableCollection<ChatMessage> messages, string model, CancellationToken ct,
-            string? image, string? mime, McpAgentSelection? selection)
+            string? image = null, string? mime = null, McpAgentSelection? mcpSelection = null, IReadOnlyList<ChatAttachment>? attachments = null)
         {
-            SentSelection = selection;
+            SentSelection = mcpSelection;
             return Pending?.Task.WaitAsync(ct) ?? Task.CompletedTask;
         }
         public bool WorkspaceIsCurrent => _scope == DocumentSessions.CurrentWorkspace.Identity;

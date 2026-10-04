@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <Compile Include="..\ClaudeRevit\Services\AttachmentReader.cs" Link="AttachmentReader.cs" />
+    <Compile Include="..\ClaudeRevit\Services\AttachmentStore.cs" Link="AttachmentStore.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ChatRequestInbox.cs" Link="ChatRequestInbox.cs" />
     <Compile Include="..\ClaudeRevit\Services\TaskJournal.cs" Link="TaskJournal.cs" />
     <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="src\SharedParameterCatalog.cs" />
     <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="src\StandardKnowledge.cs" />

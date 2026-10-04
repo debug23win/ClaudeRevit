@@ -20,6 +20,8 @@ public sealed class McpTurnChannel
     public CancellationToken Token { get; }
     public bool CompactTools { get; }
     public Action<string>? Progress { get; set; }
+    public string? AttachmentScope { get; set; }
+    public Func<string?>? TakeUserUpdate { get; set; }
     private long _toolWaitTicks;
     private long _queueTicks, _executionTicks;
     public double ToolWaitSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _toolWaitTicks)).TotalSeconds;

@@ -3,7 +3,8 @@ using System.IO;
 
 namespace ClaudeRevit.Services;
 
-// Only native export registers images. MCP cannot use this store to read arbitrary paths.
+// Native exports and scoped user attachments register images. MCP cannot use
+// this store to read arbitrary paths.
 public static class ViewImageStore
 {
     public sealed record Entry(string Base64,string DocumentKey,string? ChannelId,DateTime Expires);

@@ -73,6 +73,27 @@ public class ToolDispatcher : IExternalEventHandler
         IReadOnlyDictionary<string, JsonElement> input,
         CancellationToken ct = default, string? documentKey = null)
     {
+        if (name == "read_attachment" && _registry.Get(name) is ReadAttachment attachmentTool)
+        {
+            if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(attachmentTool), StringComparer.OrdinalIgnoreCase))
+                return Task.FromResult(Services.ToolResult.Failure("tool_disabled", "Attachment reading is disabled in Settings."));
+            var channel = Services.McpSession.Executing?.ChannelId is { } channelId ? Services.McpTurnChannel.Find(channelId) : null;
+            var scope = channel?.AttachmentScope ?? Services.AttachmentStore.CurrentScope;
+            var boundKey = documentKey ?? Services.DocumentSessions.CurrentDocumentKey;
+            return Task.Run(async () =>
+            {
+                ct.ThrowIfCancellationRequested();
+                var raw = await Services.AttachmentStore.ReadAsync(scope, input, ct);
+                var value = System.Text.Json.Nodes.JsonNode.Parse(raw)!.AsObject();
+                if (value["kind"]?.GetValue<string>() == "image")
+                {
+                    var bytes = Services.AttachmentImage.EncodePng(value["local_path"]!.GetValue<string>());
+                    value["image_id"] = Services.ViewImageStore.Register(bytes, boundKey, channel?.Id);
+                    value["mime_type"] = "image/png";
+                }
+                return Services.ToolResult.Complete(value.ToJsonString(Services.ToolResult.Options));
+            }, ct);
+        }
         var operation = new Services.QueuedOperation<string>(ct);
         // The token travels WITH the job: cancelling only the TCS would leave the job queued, and it
         // would still run on the next Idling — mutating the model after the user hit Stop.
@@ -378,6 +399,7 @@ public class ToolDispatcher : IExternalEventHandler
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
         using var operation = job.Operation;
         using var sessionContext = Services.McpSession.Enter(job.Session);
+        using var attachmentScope = job.AttachmentScope == null ? null : Services.AttachmentStore.EnterScope(job.AttachmentScope);
         var boundDocument = Services.DocumentSessions.Find(job.DocumentKey);
         ToolContext.Set(job.Ct, boundDocument, job.Channel?.Progress);
         var warnings = new List<string>();
@@ -625,6 +647,7 @@ public class ToolDispatcher : IExternalEventHandler
         private readonly string? _taskId = Services.TaskJournal.CurrentId;
         public long QueuedAt { get; } = System.Diagnostics.Stopwatch.GetTimestamp();
         public Services.McpTurnChannel? Channel { get; } = Session?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
+        public string? AttachmentScope { get; } = (Session?.ChannelId is { } scopeChannel ? Services.McpTurnChannel.Find(scopeChannel)?.AttachmentScope : null) ?? Services.AttachmentStore.CurrentScope;
         public TaskCompletionSource<string> Tcs => Operation.Completion;
         public CancellationToken Ct => Operation.Token;
     }

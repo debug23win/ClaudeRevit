@@ -7,6 +7,9 @@
     <RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <Compile Include="..\ClaudeRevit\Services\AttachmentReader.cs" Link="AttachmentReader.cs" />
+    <Compile Include="..\ClaudeRevit\Services\AttachmentStore.cs" Link="AttachmentStore.cs" />
     <Compile Include="..\ClaudeRevit\Services\TaskJournal.cs" Link="TaskJournal.cs" />
     <Compile Include="..\ClaudeRevit\Services\ViewImageStore.cs" Link="ViewImageStore.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="ToolResult.cs" />

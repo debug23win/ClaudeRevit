@@ -19,6 +19,7 @@ public static class ToolSearchLogic
     // omitted here isn't lost, it just costs one find_tools round the first time it's needed.
     public static readonly HashSet<string> CoreToolNames = new(StringComparer.Ordinal)
     {
+        "read_attachment",
         // Query / inspection
         "get_selection", "query_elements", "filter_elements", "get_element_parameters", "get_type_parameters",
         "get_element_locations", "get_element_bounding_box", "get_levels", "get_model_statistics",
