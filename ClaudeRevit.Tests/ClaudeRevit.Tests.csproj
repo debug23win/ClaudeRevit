@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\TaskJournal.cs" Link="TaskJournal.cs" />
     <Compile Include="..\ClaudeRevit\Services\SharedParameterCatalog.cs" Link="src\SharedParameterCatalog.cs" />
     <Compile Include="..\ClaudeRevit\Services\StandardKnowledge.cs" Link="src\StandardKnowledge.cs" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\Workflows.json" LogicalName="ClaudeRevit.Standards.Workflows.json" />
@@ -19,6 +20,7 @@
     <EmbeddedResource Include="..\ClaudeRevit\Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <EmbeddedResource Include="..\ClaudeRevit\Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -27,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="src\ToolResult.cs" />
+    <Compile Include="..\ClaudeRevit\Tools\ScriptCompiler.cs" Link="src\ScriptCompiler.cs" />
+    <Compile Include="..\ClaudeRevit\Services\GeometryPreflight.cs" Link="src\GeometryPreflight.cs" />
+    <Compile Include="..\ClaudeRevit\Services\CodexUsage.cs" Link="src\CodexUsage.cs" />
     <!-- Compile the pure-logic sources directly (they use only System.*), so the tests need no
          Revit runtime. Keep this list to files with no Autodesk.Revit dependency. -->
     <Compile Include="..\ClaudeRevit\Services\OpenAIResponses.cs" Link="src\OpenAIResponses.cs" />

@@ -85,3 +85,9 @@ References: [Codex app-server](https://learn.chatgpt.com/docs/app-server),
 [MCP configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
 [Responses migration](https://developers.openai.com/api/docs/guides/migrate-to-responses),
 [Claude Code CLI](https://code.claude.com/docs/en/cli-reference).
+
+## Subagents (v3.8.0)
+
+Codex MCP enables native agent tools and caps concurrent spawned threads at three. Claude Code MCP exposes the native Agent tool and two tool-free roles, `revit_planner` and `revit_checker`, and instructs the coordinator to use at most three workers. On complex requests they can independently prepare/check supplied parameters and evidence; the parent performs all Revit mutations in dependency order. Current subscription CLIs and a model that supports delegation are required. The judge disables agents and all model-changing tools. API chat does not gain a delegation tool in this release.
+
+Request parallel planning/checking explicitly when useful. Subagents consume subscription allowance; they do not parallelize Revit's single-threaded native API and do not guarantee faster simple operations. Each project tab keeps its own provider choices and CLI conversation.

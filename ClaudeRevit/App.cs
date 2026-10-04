@@ -197,6 +197,15 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new AddSharedFamilyParameter());
             ToolRegistry.Instance.Register(new PlaceNestedFamilyInstance());
             ToolRegistry.Instance.Register(new CreateRebarGeometry());
+            ToolRegistry.Instance.Register(new CreateRebarType());
+            ToolRegistry.Instance.Register(new CreateStructuralConnection());
+            ToolRegistry.Instance.Register(new ListStructuralConnectionTypes());
+            ToolRegistry.Instance.Register(new ValidateCSharp());
+            ToolRegistry.Instance.Register(new GenerateFloorStack());
+            ToolRegistry.Instance.Register(new GenerateFacadeGrid());
+            ToolRegistry.Instance.Register(new GenerateSpire());
+            ToolRegistry.Instance.Register(new SetModelProvenance());
+            ToolRegistry.Instance.Register(new AuditModelProvenance());
             ToolRegistry.Instance.Register(new GetRebarConstraints());
             ToolRegistry.Instance.Register(new SetRebarConstraint());
             ToolRegistry.Instance.Register(new CreateRebarCoupler());

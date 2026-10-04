@@ -42,7 +42,7 @@ public class ListReferencePlanes : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var axisFilter = input.TryGetValue("axis", out var a) && a.ValueKind == JsonValueKind.String

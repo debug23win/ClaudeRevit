@@ -15,9 +15,11 @@ public sealed class McpTurnChannel
     private int _active;
     private bool _closed;
     public string Id { get; } = Guid.NewGuid().ToString("N");
+    public string? TaskId { get; } = TaskJournal.CurrentId;
     public string DocumentKey { get; set; }
     public CancellationToken Token { get; }
     public bool CompactTools { get; }
+    public Action<string>? Progress { get; set; }
     private long _toolWaitTicks;
     private long _queueTicks, _executionTicks;
     public double ToolWaitSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _toolWaitTicks)).TotalSeconds;

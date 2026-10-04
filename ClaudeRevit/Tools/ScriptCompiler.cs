@@ -41,7 +41,14 @@ internal static class ScriptCompiler
         foreach (var group in referenceable
                      .GroupBy(a => a.GetName().Name))
         {
-            try { refs.Add(MetadataReference.CreateFromFile(group.First().Location)); }
+            try
+            {
+                var assembly = group.First();
+                var clone = assembly.GetName().Name != "Newtonsoft.Json" &&
+                    assembly.GetType("Newtonsoft.Json.JsonConvert", throwOnError: false) != null;
+                var properties = clone ? MetadataReferenceProperties.Assembly.WithAliases(["OtherJson"]) : MetadataReferenceProperties.Assembly;
+                refs.Add(MetadataReference.CreateFromFile(assembly.Location, properties));
+            }
             catch { /* vanished/unreadable file — skip this assembly */ }
         }
 

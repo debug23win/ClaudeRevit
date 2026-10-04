@@ -39,16 +39,20 @@ public class CreateFloor : IRevitTool
                 }
             }),
             ["level_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Name of the host level (must match exactly)." }),
-            ["floor_type_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional floor type name. Defaults to first available floor type." })
+            ["floor_type_name"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional floor type name. Defaults to first available floor type." }),
+            ["structural"] = JsonSerializer.SerializeToElement(new { type = "boolean", description = "Native structural slab flag, default false. Required for reinforcement hosts." })
         },
         Required = ["points", "level_name"]
     };
 
     public bool RequiresTransaction => true;
 
+    public void Preflight(IReadOnlyDictionary<string,JsonElement> input,UIApplication app) =>
+        Services.GeometryPreflight.Contour(input["points"].EnumerateArray().Select(p=>new Services.PlanPoint(p.GetProperty("x").GetDouble()*Units.MmPerFoot,p.GetProperty("y").GetDouble()*Units.MmPerFoot)),NativeToolUtil.Doc(app).Application.ShortCurveTolerance*Units.MmPerFoot);
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var levelName = input["level_name"].GetString()!;
@@ -62,6 +66,8 @@ public class CreateFloor : IRevitTool
                 p.GetProperty("y").GetDouble(),
                 0))
             .ToList();
+
+        if(pts.Count>3 && pts[0].DistanceTo(pts[^1])<1e-9)pts.RemoveAt(pts.Count-1);
 
         if (pts.Count < 3)
             throw new InvalidOperationException($"Floor requires at least 3 points (got {pts.Count}).");
@@ -98,7 +104,7 @@ public class CreateFloor : IRevitTool
             loop.Append(Line.CreateBound(a, b));
         }
 
-        var floor = Floor.Create(doc, new List<CurveLoop> { loop }, floorType.Id, level.Id);
+        var floor = Floor.Create(doc, new List<CurveLoop> { loop }, floorType.Id, level.Id,ToolInput.Flag(input,"structural"),null,0);
 
         return Services.Json.Serialize(new
         {

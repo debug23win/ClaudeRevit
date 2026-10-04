@@ -43,6 +43,7 @@ public class ChatService
         "with a short query (e.g. find_tools(\"section view\"), find_tools(\"place rebar\"), find_tools(\"tag " +
         "doors\")) — the matching tools load instantly and you call them on the next step. Search FIRST; " +
         "don't fall back to execute_csharp for something a dedicated tool covers.\n\n" +
+        "PERFORMANCE: For table-driven geometry use generate_floor_stack, generate_facade_grid and generate_spire. Use export_image to inspect a view, never screen capture. Before long C# work call validate_csharp. Preview tools roll back unless preview=false; verify committed IDs. Record uncertain dimensions with set_model_provenance, distinguish DirectShape from native BIM.\n\n" +
         "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, the " +
         "DEFAULT escape hatch is execute_csharp: C# directly against the Revit API, no Dynamo dependency, " +
         "runs inside a managed transaction that rolls back automatically on error. Use run_dynamo_python " +
@@ -100,8 +101,8 @@ public class ChatService
         "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
         "since, re-query the live model instead.\n\n" +
         "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
-        "If a tool returns an error, read it and adjust. All edits within one user prompt are bundled into a " +
-        "single undo entry, so the user can ⌃Z to revert.\n\n" +
+        "If a tool returns an error, read it and adjust. Each completed batch/tool call has one undo entry. " +
+        "No transaction stays open between calls.\n\n" +
         "BE CONCISE: output tokens are billed and are the same price whatever the task. Do the work through " +
         "tool calls; don't narrate a play-by-play. Skip preambles like 'Начинаю моделировать…' / 'Let me…' and " +
         "don't restate the plan before each step or re-summarize what a tool just did — the user sees the tool " +
@@ -173,7 +174,8 @@ public class ChatService
     // Metrics of the most recently completed SendAsync — the benchmark reads these; the chat pane
     // shows them as the per-task diagnostics line. Populated even when the diagnostics UI is off.
     public sealed record TaskMetrics(
-        string Model, int Rounds, long InputTokens, long OutputTokens, int AdvisorConsults, double Seconds);
+        string Model, int Rounds, long InputTokens, long OutputTokens, int AdvisorConsults, double Seconds,
+        string UsageScope = "turn", long CachedInputTokens = 0, long ReasoningTokens = 0);
     public TaskMetrics? LastTask { get; private set; }
 
     // Active auto-promotion: the system prompt already asks the model to turn a repeated
@@ -202,6 +204,11 @@ public class ChatService
     // session), and the pane keeps its instance private; benchmark runs are ephemeral and must not
     // become "the" session.
     public static ChatService? Current { get; private set; }
+    public void Activate() => Current = this;
+    private SelectionService.SelectionInfo _selection = SelectionService.Current;
+    private string _documentKey = DocumentSessions.CurrentDocumentKey;
+    private string _assistantName = ChatMessage.AssistantLabel;
+    private string ClientDirectory => _workspace == null ? McpServer.ClientWorkDir() : Path.Combine(_workspace.ClientDirectory, "ccwork");
 
     public ChatService(bool ephemeral)
     {
@@ -268,10 +275,12 @@ public class ChatService
     private string CodexSessionFile => _workspace!.CodexSessionPath;
     public bool WorkspaceIsCurrent => ReferenceEquals(_workspace, DocumentSessions.CurrentWorkspace);
     public List<ChatMessage> LoadUiMessages() => _workspace == null ? new() : HistoryStore.LoadUiMessages(_workspace);
-    public void SwitchWorkspace()
+    public void SwitchWorkspace(bool preserveHistory = false)
     {
         if (_ephemeral || WorkspaceIsCurrent) return;
         _workspace = DocumentSessions.CurrentWorkspace;
+        _documentKey = DocumentSessions.CurrentDocumentKey;
+        if (preserveHistory) { PersistClaudeCodeSession(); PersistCodexSession(); return; }
         _history.Clear();
         _history.AddRange(HistoryStore.LoadApiHistory(_workspace));
         _claudeCodeSessionId = ReadSession(ClaudeCodeSessionFile);
@@ -411,13 +420,13 @@ public class ChatService
     // Both CLI paths need the same framing the API path gets: the current document and selection,
     // so "this" / "the selected walls" resolve. The MCP session is long-lived, so this is prepended
     // fresh each message (instructions, which carry memory/standards, are sent once at connect).
-    private static async Task<string> BuildContextedPromptAsync(string prompt, string documentKey, CancellationToken ct)
+    private async Task<string> BuildContextedPromptAsync(string prompt, string documentKey, CancellationToken ct)
     {
         try
         {
             var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct, documentKey);
             var ctxHeader = "CURRENT DOCUMENT:\n" + contextJson;
-            var sel = SelectionService.Current;
+            var sel = _selection;
             if (sel.Ids.Count > 0)
             {
                 var idList = sel.Ids.Count > 30
@@ -466,7 +475,7 @@ public class ChatService
             if (string.IsNullOrEmpty(piece)) return;
             ui.InvokeAsync(() =>
             {
-                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", Text = "" }; conversation.Add(bubble); }
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" }; conversation.Add(bubble); }
                 bubble.Text += piece;
             });
         }
@@ -476,18 +485,19 @@ public class ChatService
         string? imagePath = null;
         CodexBackend.Result res;
         var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
+        channel.Progress = phase => OnStatus?.Invoke(phase);
         try
         {
             if (!string.IsNullOrEmpty(imageBase64))
             {
                 var suffix = imageMime == "image/png" ? ".png" : ".jpg";
-                imagePath = Path.Combine(McpServer.ClientWorkDir(), "image-" + Guid.NewGuid().ToString("N") + suffix);
+                imagePath = Path.Combine(ClientDirectory, "image-" + Guid.NewGuid().ToString("N") + suffix);
                 await File.WriteAllBytesAsync(imagePath, Convert.FromBase64String(imageBase64), ct);
             }
             OnStatus?.Invoke("running model · waiting for first tool/result…");
             res = await CodexBackend.RunAsync(
                 McpServer.DrivingRules + "\n\n" + contextedPrompt,
-                McpServer.ClientWorkDir(), channel.Url(McpServer.Url), SettingsStore.McpToken, _codexSessionId,
+                ClientDirectory, channel.Url(McpServer.Url), SettingsStore.McpToken, _codexSessionId,
                 onText: Append,
                 onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
                 ct, imagePath: imagePath, model: model, effort: effort, executable: SettingsStore.CodexExe);
@@ -509,7 +519,7 @@ public class ChatService
         // was recorded as 0 rounds / 0 tokens, which reads as "the run did nothing".
         LastTask = new TaskMetrics(
             "codex" + (model != null ? ":" + model : ""),
-            toolCount, res.InputTokens, res.OutputTokens, 0, sw.Elapsed.TotalSeconds);
+            toolCount, res.InputTokens, res.OutputTokens, 0, sw.Elapsed.TotalSeconds, res.UsageScope, res.CachedInputTokens, res.ReasoningTokens);
 
         if (!string.IsNullOrEmpty(res.Error))
         {
@@ -523,7 +533,7 @@ public class ChatService
         {
             var tok = res.InputTokens + res.OutputTokens;
             Append($"\n\n— codex{(model != null ? " (" + model + ")" : "")} · {toolCount} tool calls" +
-                   (tok > 0 ? $" · {tok:N0} tokens" : ""));
+                   (tok > 0 ? $" · {tok:N0} tokens ({res.UsageScope})" : ""));
         }
     }
 
@@ -542,7 +552,7 @@ public class ChatService
                     "Settings → MCP and try again. (" + ex.Message + ")");
             }
         }
-        var workDir = McpServer.ClientWorkDir();
+        var workDir = ClientDirectory;
         var exe = SettingsStore.ClaudeCodeExe;
 
         // Parity with the API path: give Claude Code the current document + selection so "this" /
@@ -559,7 +569,7 @@ public class ChatService
             if (string.IsNullOrEmpty(piece)) return;
             ui.InvokeAsync(() =>
             {
-                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", Text = "" }; conversation.Add(bubble); }
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" }; conversation.Add(bubble); }
                 bubble.Text += piece;
             });
         }
@@ -567,6 +577,7 @@ public class ChatService
         var toolCount = 0;
         var runWatch = System.Diagnostics.Stopwatch.StartNew();
         var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
+        channel.Progress = phase => OnStatus?.Invoke(phase);
         var config = McpServer.WriteClientConfig(channel.Url(McpServer.Url));
         ClaudeCodeBackend.Result res;
         OnStatus?.Invoke("running model · waiting for first tool/result…");
@@ -635,11 +646,25 @@ public class ChatService
         // Captured HERE, on the UI thread — CurrentDispatcher inside the Task.Run would create a
         // dispatcher for a pool thread that nothing ever pumps, and every UI update would hang.
         var ui = Dispatcher.CurrentDispatcher;
-        LastRunError = null;
+        LastRunError = null; LastTask = null; _selection = SelectionService.Current; _assistantName = ChatMessage.AssistantLabel;
         Timings = new();
         var subscription = SubscriptionMode;
-        var documentKey = DocumentSessions.CurrentDocumentKey;
-        return Task.Run(() => SendCoreAsync(conversation, model, ui, ct, imageBase64, imageMime, subscription, mcpSelection, documentKey), ct);
+        var documentKey = _ephemeral ? DocumentSessions.CurrentDocumentKey : _documentKey;
+        Directory.CreateDirectory(ClientDirectory);
+        return Task.Run(async () =>
+        {
+            using var task = TaskJournal.Start(documentKey);var taskId=TaskJournal.CurrentId;var watch=System.Diagnostics.Stopwatch.StartNew();
+            try { await SendCoreAsync(conversation,model,ui,ct,imageBase64,imageMime,subscription,mcpSelection,documentKey); }
+            finally
+            {
+                var measured=TaskJournal.ReadTimings(taskId);
+                Timings.QueueSeconds=measured.Queue; Timings.RevitExecutionSeconds=measured.Execution;
+                TaskJournal.Append(new { kind="task_completed",utc=DateTime.UtcNow,task_id=taskId,document_key=documentKey,wall_seconds=watch.Elapsed.TotalSeconds,
+                    model=LastTask?.Model,rounds=LastTask?.Rounds,input_tokens=LastTask?.InputTokens,output_tokens=LastTask?.OutputTokens,
+                    usage_scope=LastTask?.UsageScope,cached_input_tokens=LastTask?.CachedInputTokens,reasoning_tokens=LastTask?.ReasoningTokens,
+                    timings=Timings,cancelled=ct.IsCancellationRequested,error=LastRunError });
+            }
+        },ct);
     }
 
     private async Task SendCoreAsync(
@@ -676,7 +701,7 @@ public class ChatService
                 {
                     OnStatus?.Invoke("checking model catalogue…");
                     var catalogWatch = System.Diagnostics.Stopwatch.StartNew();
-                    var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), ct);
+                    var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, ClientDirectory, ct);
                     Timings.CatalogSeconds = catalogWatch.Elapsed.TotalSeconds;
                     var validated = CodexModels.Select(models, chosenModel, agent.Effort);
                     chosenModel = validated.Model;
@@ -717,9 +742,9 @@ public class ChatService
         ToolResultAging.AgeAll(_history);
 
         // Dynamic-per-turn context (current document + selection). NOT cached — trails the prompt.
-        var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct);
+        var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct,documentKey);
         var dynamicContext = "CURRENT DOCUMENT:\n" + contextJson;
-        var sel = SelectionService.Current;
+        var sel = _selection;
         if (sel.Ids.Count > 0)
         {
             var idList = sel.Ids.Count > 30
@@ -824,7 +849,7 @@ public class ChatService
         var taskRounds = 0;
         var modelsUsed = new HashSet<string>(StringComparer.Ordinal);
 
-        await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct);
+        await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct,documentKey);
         try
         {
             for (int iter = 0; ; iter++)
@@ -833,7 +858,7 @@ public class ChatService
                 {
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
-                        Role = "assistant",
+                        Role = "assistant", AssistantName = _assistantName,
                         Text = $"[Stopped after {maxIterations} tool-call rounds in one prompt. " +
                                "Say \"continue\" to keep going, or raise the limit in Settings (gear icon).]"
                     }));
@@ -872,7 +897,7 @@ public class ChatService
                     Log.Error("Turn stream failed mid-loop", ex);
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
-                        Role = "assistant",
+                        Role = "assistant", AssistantName = _assistantName,
                         Text = $"[The model call failed on this step: {Truncate(ex.Message, 200)} — stopping here. " +
                                "Say \"continue\" to resume.]"
                     }));
@@ -923,7 +948,7 @@ public class ChatService
                     {
                         await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                         {
-                            Role = "assistant",
+                            Role = "assistant", AssistantName = _assistantName,
                             Text = "[The model returned no text — possibly a safety refusal. " +
                                    "Try rephrasing or switching the model.]"
                         }));
@@ -968,7 +993,7 @@ public class ChatService
                 // Deliberately skipped: find_tools (handled in-process below) and anything gated by
                 // the confirmation prompt, which must be answered before the tool may run.
                 var started = new Dictionary<string, Task<string>>(StringComparer.Ordinal);
-                if (toolUses.Count > 1)
+                if (toolUses.Count > 1 && !toolUses.Any(u=>u.Name is "open_family_editor" or "reload_family_into_document"))
                 {
                     foreach (var use in toolUses)
                     {
@@ -977,7 +1002,7 @@ public class ChatService
                         if (pre == null) continue;
                         if (SettingsStore.ConfirmOperations &&
                             ToolRegistry.Instance.Get(use.Name)?.RequiresConfirmation == true) continue;
-                        try { started[use.Id] = ToolDispatcher.Instance.ExecuteAsync(use.Name, pre, ct); }
+                        try { started[use.Id] = ToolDispatcher.Instance.ExecuteAsync(use.Name, pre, ct,documentKey); }
                         catch { /* fall back to the inline call below */ }
                     }
                 }
@@ -1071,7 +1096,8 @@ public class ChatService
                     {
                         content = started.TryGetValue(use.Id, out var pending)
                             ? await pending
-                            : await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct);
+                            : await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct, documentKey);
+                        if(name is "open_family_editor" or "reload_family_into_document") documentKey=DocumentSessions.CurrentDocumentKey;
                         var display = FormatInput(inp) + "\n→ " + Truncate(FormatResult(content), 400);
                         await ui.InvokeAsync(() => toolMsg.Text = display);
                     }
@@ -1116,6 +1142,12 @@ public class ChatService
                     }
 
                     resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, content, isError));
+                    if(name=="export_image"&&!isError)
+                    {
+                        using var imageResult=JsonDocument.Parse(content);
+                        if(imageResult.RootElement.TryGetProperty("image_id",out var imageId)&&ViewImageStore.Find(imageId.GetString()??"",documentKey,null) is { } image)
+                            resultTurn.Blocks.Add(new ChatImageBlock("image/png",image.Base64));
+                    }
                     if (!isError && (name == "save_tool" || name == "delete_tool"))
                     {
                         toolSetChanged = true;
@@ -1213,7 +1245,7 @@ public class ChatService
                 {
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
-                        Role = "assistant",
+                        Role = "assistant", AssistantName = _assistantName,
                         Text = "[Stopped: the same tool call kept repeating with no progress. Either the task " +
                                "is already done, or the approach isn't working — check the model and take a " +
                                "different step, or switch to Claude for this one (it handles long builds better).]"
@@ -1359,7 +1391,7 @@ public class ChatService
             {
                 if (assistantBubble == null)
                 {
-                    var bubble = new ChatMessage { Role = "assistant", Text = "" };
+                    var bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" };
                     assistantBubble = bubble;
                     await ui.InvokeAsync(() => conversation.Add(bubble));
                 }
@@ -1463,7 +1495,7 @@ public class ChatService
         {
             if (assistantBubble == null)
             {
-                assistantBubble = new ChatMessage { Role = "assistant", Text = "" };
+                assistantBubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" };
                 conversation.Add(assistantBubble);
             }
             assistantBubble.Text += piece;

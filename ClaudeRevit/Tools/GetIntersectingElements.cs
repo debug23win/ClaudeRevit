@@ -36,7 +36,7 @@ public class GetIntersectingElements : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var min = new XYZ(input["min_x_ft"].GetDouble(), input["min_y_ft"].GetDouble(), input["min_z_ft"].GetDouble());

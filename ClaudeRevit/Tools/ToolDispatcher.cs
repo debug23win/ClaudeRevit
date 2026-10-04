@@ -28,10 +28,8 @@ public class ToolDispatcher : IExternalEventHandler
     private readonly ToolRegistry _registry;
     private ExternalEvent _event = null!;
     private readonly ConcurrentQueue<Job> _queue = new();
-    private TransactionGroup? _activeGroup;
     private BenchmarkFixture? _benchmarkFixture;
     private sealed record BenchmarkFixture(Document Document, string SeedPath, string Directory);
-    private string _turnLabel = "Claude";
 
     // Dialog/failure suppression. Revit shows modal warning dialogs (and task dialogs) on
     // transaction commit — fine when a user is present, but they STALL unattended automation
@@ -42,22 +40,21 @@ public class ToolDispatcher : IExternalEventHandler
     //                   runs its own transaction with no per-tool failure preprocessor).
     //   ForceSuppress — held true by the benchmark across the whole run (covers the gaps between
     //                   turns, e.g. the reset-between-tasks deletions).
-    private static volatile bool _suppressTurn;
     public static volatile bool ForceSuppress;
     //   _suppressCount — scoped suppression for callers with no turn (the MCP server): Push before
     //                    a tool call, Pop after, so dialogs are auto-resolved for that call too.
     private static int _suppressCount;
     public static void PushSuppress() => System.Threading.Interlocked.Increment(ref _suppressCount);
     public static void PopSuppress() => System.Threading.Interlocked.Decrement(ref _suppressCount);
-    public static bool Suppressing => _suppressTurn || ForceSuppress || _suppressCount > 0;
+    public static bool Suppressing => ForceSuppress || _suppressCount > 0;
 
     private ToolDispatcher(ToolRegistry registry) => _registry = registry;
 
-    public Task BeginTurnAsync(string label, CancellationToken ct = default)
+    public Task BeginTurnAsync(string label, CancellationToken ct = default, string? documentKey = null)
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         ct.Register(() => tcs.TrySetCanceled(ct));
-        _queue.Enqueue(new BeginTurnJob(label, tcs, ct, Services.DocumentSessions.CurrentDocumentKey));
+        _queue.Enqueue(new BeginTurnJob(label, tcs, ct, documentKey ?? Services.DocumentSessions.CurrentDocumentKey));
         _event.Raise();
         return tcs.Task;
     }
@@ -138,8 +135,6 @@ public class ToolDispatcher : IExternalEventHandler
 
     public void Execute(UIApplication app)
     {
-        try
-        {
         while (_queue.TryDequeue(out var job))
         {
             switch (job)
@@ -154,13 +149,6 @@ public class ToolDispatcher : IExternalEventHandler
                 case BenchmarkScopeJob b: HandleBenchmarkScope(app, b); break;
             }
         }
-        }
-        finally
-        {
-            // Revit requires every transaction/group to end before an event handler returns.
-            // A turn may span multiple callbacks; only jobs drained in THIS callback share undo.
-            CloseTurnGroup();
-        }
     }
 
     private void HandleProbe(UIApplication app, ProbeJob job)
@@ -174,7 +162,7 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 var nested = doc.IsFamilyDocument ? new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
                     .Where(s => s.Family.IsEditable && !s.Family.IsInPlace).Take(200).Select(s => s.Id.Value).ToArray() : Array.Empty<long>();
-                job.Tcs.TrySetResult(Services.Json.Serialize(new { is_family_document = doc.IsFamilyDocument, nested_seed_types = nested }));
+                job.Tcs.TrySetResult(Services.Json.Serialize(new { is_family_document = doc.IsFamilyDocument, nested_seed_types = nested, resources=BenchmarkModelProbe.Resources(doc) }));
                 return;
             }
 
@@ -290,7 +278,7 @@ public class ToolDispatcher : IExternalEventHandler
             if (job.Begin)
             {
                 job.Ct.ThrowIfCancellationRequested();
-                if (_benchmarkFixture != null || _activeGroup != null || _suppressTurn) throw new InvalidOperationException("Another operation is running.");
+                if (_benchmarkFixture != null) throw new InvalidOperationException("Another operation is running.");
                 var doc = NativeToolUtil.Doc(app);
                 if (Services.DocumentSessions.Key(doc) != job.DocumentKey) throw new InvalidOperationException("Benchmark document changed before copying the seed.");
                 if (doc.IsModified || string.IsNullOrWhiteSpace(doc.PathName) || !System.IO.File.Exists(doc.PathName) || doc.IsWorkshared || doc.IsModelInCloud)
@@ -309,7 +297,6 @@ public class ToolDispatcher : IExternalEventHandler
             }
             else
             {
-                CloseTurnGroup();
                 if (_benchmarkFixture is { } fixture)
                 {
                     // A manually selected other document remains active. Otherwise restore the
@@ -354,37 +341,13 @@ public class ToolDispatcher : IExternalEventHandler
         if (job.Ct.IsCancellationRequested || job.Tcs.Task.IsCompleted) return;
         try
         {
-            if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
-                throw new InvalidOperationException("The active document changed before the turn started. Send the request again in the intended document.");
-            _suppressTurn = true;
-            _turnLabel = job.Label;
-            var doc = app.ActiveUIDocument?.Document;
-            if (doc != null && _activeGroup == null)
-            {
-                _activeGroup = new TransactionGroup(doc, job.Label);
-                _activeGroup.Start();
-            }
+            if (Services.DocumentSessions.Find(job.DocumentKey)==null) throw new InvalidOperationException("The bound document was closed.");
             job.Tcs.TrySetResult(true);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
     }
 
-    private void HandleEndTurn(EndTurnJob job)
-    {
-        try
-        {
-            CloseTurnGroup();
-            job.Tcs.TrySetResult(true);
-        }
-        catch (Exception ex) { job.Tcs.TrySetException(ex); }
-        finally
-        {
-            // Must run even if Assimilate threw. Otherwise the group leaks AND _suppressTurn stays
-            // true for the rest of the session, silently swallowing Revit's own warnings to the
-            // user — a failure they would have no way to notice.
-            _suppressTurn = false;
-        }
-    }
+    private void HandleEndTurn(EndTurnJob job) => job.Tcs.TrySetResult(true);
 
     private static void DeleteBenchmarkDirectory(string directory)
     {
@@ -394,14 +357,6 @@ public class ToolDispatcher : IExternalEventHandler
             !Guid.TryParseExact(info.Name, "N", out _) || info.LinkTarget != null)
             throw new InvalidOperationException("Unexpected benchmark cleanup path.");
         if (info.Exists) info.Delete(true);
-    }
-
-    private void CloseTurnGroup()
-    {
-        var group = _activeGroup; _activeGroup = null;
-        if (group == null) return;
-        try { if (group.GetStatus() == TransactionStatus.Started) group.Assimilate(); }
-        finally { group.Dispose(); }
     }
 
     private void HandleTool(UIApplication app, ToolJob job)
@@ -423,39 +378,30 @@ public class ToolDispatcher : IExternalEventHandler
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
         using var operation = job.Operation;
         using var sessionContext = Services.McpSession.Enter(job.Session);
-        ToolContext.Set(job.Ct);
+        var boundDocument = Services.DocumentSessions.Find(job.DocumentKey);
+        ToolContext.Set(job.Ct, boundDocument, job.Channel?.Progress);
+        var warnings = new List<string>();
+        ModelChangeCapture? changes = null;
+        ToolDispatcher.PushSuppress();
         string? completedResult = null;
         Exception? completedError = null;
         bool cancelled = false;
         try
         {
-            if (Services.DocumentSessions.Key(app.ActiveUIDocument?.Document) != job.DocumentKey)
-                throw new InvalidOperationException("The active document changed while this operation was queued. No changes were made; retry in the intended document.");
-            if (_suppressTurn && job.Session != null)
-                throw new InvalidOperationException("The chat pane is running a grouped API turn. Retry this MCP operation after it finishes.");
-            var tool = _registry.Get(job.Name)
-                ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
+            if (boundDocument == null) throw new InvalidOperationException("The bound document was closed. No changes were made.");
+            var tool = _registry.Get(job.Name) ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
+            var activeOnly = new HashSet<string> { "OpenFamilyEditor","ReloadFamilyIntoDocument","BimStarterPluginTools","ColorElementsByParameter","GetMaterialQuantities","GetSelection","PickPointInView","SelectSimilar","SetActiveView" };
+            if ((activeOnly.Contains(tool.GetType().Name) || tool.IsScriptTool && job.Input.TryGetValue("code",out var script) && script.GetString()?.Contains("uiapp.ActiveUIDocument") == true) &&
+                !Services.DocumentSessions.Same(boundDocument,app.ActiveUIDocument?.Document))
+                throw new InvalidOperationException("This UI operation requires its document tab to be active. Activate the intended tab and retry.");
+            if(tool.Name.StartsWith("create_",StringComparison.Ordinal)||tool.Name=="rename_element")
+                foreach(var key in new[]{"name","new_name"})if(job.Input.TryGetValue(key,out var value)&&value.ValueKind==JsonValueKind.String)Services.GeometryPreflight.Name(value.GetString()??"");
+            if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
+                throw new InvalidOperationException("Code execution is disabled. Enable it in Settings before running this tool.");
+            tool.Preflight(job.Input,app);
+            changes = new ModelChangeCapture(boundDocument,job.DocumentKey);
             if (_benchmarkFixture != null && job.Name is "open_family_editor" or "reload_family_into_document")
                 throw new InvalidOperationException("Benchmark tasks must keep the scratch copy active; run family tasks from a saved RFA seed.");
-
-            if (tool.RequiresNoTurnGroup && _activeGroup != null)
-            {
-                try { _activeGroup.Assimilate(); }
-                finally { _activeGroup.Dispose(); _activeGroup = null; }
-            }
-            else if (!tool.RequiresNoTurnGroup && _suppressTurn && _activeGroup == null &&
-                     (tool.RequiresTransaction || tool.IsScriptTool) && app.ActiveUIDocument?.Document is { } turnDoc)
-            {
-                _activeGroup = new TransactionGroup(turnDoc, _turnLabel);
-                _activeGroup.Start();
-            }
-
-            // Defence in depth: even if a gated tool is somehow requested while the setting
-            // is off, refuse rather than run arbitrary code.
-            if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
-                throw new InvalidOperationException(
-                    "Code execution is disabled. The user must tick 'Allow Claude to run code' in " +
-                    "the settings (gear icon) before this tool can run.");
 
             // Learning mode: script escape hatches are journaled together with the model
             // delta they produce (via DocumentChanged), so proven snippets can be reused
@@ -467,14 +413,13 @@ public class ToolDispatcher : IExternalEventHandler
                     job.Input.TryGetValue("code", out var codeEl) ? codeEl.GetString() ?? "" : "",
                     job.Input.TryGetValue("engine", out var engEl) && engEl.ValueKind == JsonValueKind.String
                         ? engEl.GetString() : null,
-                    app.ActiveUIDocument?.Document?.Title);
+                    boundDocument?.Title);
             }
 
             string result;
             if (tool.RequiresTransaction)
             {
-                var doc = app.ActiveUIDocument?.Document
-                    ?? throw new InvalidOperationException("No active document.");
+                var doc = boundDocument;
                 using var tx = new Transaction(doc, $"Claude: {tool.Name}");
                 tx.Start();
 
@@ -507,8 +452,7 @@ public class ToolDispatcher : IExternalEventHandler
                     // Committed, but Revit reported warnings — pass them along so the model
                     // can verify the result rather than assume it was clean.
                     if (failures.Messages.Count > 0)
-                        result += "\n\n[Revit reported during this operation: "
-                                  + string.Join("; ", failures.Messages) + "]";
+                        warnings.AddRange(failures.Messages);
                 }
                 catch
                 {
@@ -520,7 +464,7 @@ public class ToolDispatcher : IExternalEventHandler
             {
                 // Script tools manage their own transactions. An outer group can roll those
                 // back when cancellation arrives while synchronous code is executing.
-                var doc = app.ActiveUIDocument?.Document;
+                var doc = boundDocument;
                 using var group = tool.IsScriptTool && doc != null ? new TransactionGroup(doc, "Claude script") : null;
                 group?.Start();
                 try
@@ -544,7 +488,7 @@ public class ToolDispatcher : IExternalEventHandler
                 GetProjectCatalog.Invalidate();
 
             Services.Log.Info($"tool ✓ {job.Name}");
-            completedResult = result;
+            completedResult = Services.ToolResult.Complete(result,warnings);
         }
         catch (ToolInputException ex)
         {
@@ -552,7 +496,7 @@ public class ToolDispatcher : IExternalEventHandler
             // the parameter. A stack trace here would only invite a retry of the identical call.
             Services.ScriptJournal.Complete(ok: false, ex.Message);
             Services.Log.Info($"tool ✗ {job.Name} — bad input: {ex.Message}");
-            completedResult = Services.Json.Serialize(new { ok = false, error = ex.Message });
+            completedResult = Services.ToolResult.Failure("validation",ex.Message);
         }
         catch (System.OperationCanceledException)
         {
@@ -569,16 +513,31 @@ public class ToolDispatcher : IExternalEventHandler
         finally
         {
             // Tools may deliberately activate a family or another document. Follow that
-            // controlled transition; a manual switch cancels the pane's turn instead.
+            // controlled transition; ordinary tab switches keep the bound document.
             try
             {
                 Services.DocumentSessions.Update(app.ActiveUIDocument?.Document);
-                if (job.Session?.ChannelId is { } id && Services.McpTurnChannel.Find(id) is { } channel)
+                if ((Services.DocumentSessions.Same(boundDocument,app.ActiveUIDocument?.Document) || job.Name is "open_family_editor" or "reload_family_into_document") && job.Session?.ChannelId is { } id && Services.McpTurnChannel.Find(id) is { } channel)
                     channel.DocumentKey = Services.DocumentSessions.CurrentDocumentKey;
             }
             catch (Exception ex) { Services.Log.Error("Document context update failed", ex); }
             finally { ToolContext.Clear(); }
             job.Channel?.RecordExecution(queueTime, executionWatch.Elapsed);
+            var rolledBack=cancelled || completedError != null || completedResult == null;
+            if (completedResult != null)
+            {
+                try { using var json=JsonDocument.Parse(completedResult); if(json.RootElement.TryGetProperty("preview",out var preview)&&preview.ValueKind==JsonValueKind.True)rolledBack=true; } catch(JsonException) { }
+            }
+            try
+            {
+            Services.TaskJournal.RecordTiming(job.TaskId, queueTime.TotalSeconds, executionWatch.Elapsed.TotalSeconds);
+            Services.TaskJournal.Append(new { kind="tool",utc=DateTime.UtcNow,task_id=job.TaskId,channel_id=job.Session?.ChannelId,
+                document_key=job.DocumentKey,tool=job.Name,queue_seconds=queueTime.TotalSeconds,revit_seconds=executionWatch.Elapsed.TotalSeconds,
+                ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message,
+                changes=changes?.Complete(rolledBack) });
+            }
+            catch (Exception ex) { Services.Log.Error("Tool diagnostics failed",ex); }
+            finally { ToolDispatcher.PopSuppress(); }
             Services.Log.Info($"tool timing {job.Name}: queue={queueTime.TotalSeconds:0.000}s execution={executionWatch.Elapsed.TotalSeconds:0.000}s");
         }
         if (cancelled) job.Tcs.TrySetCanceled(job.Ct);
@@ -609,15 +568,14 @@ public class ToolDispatcher : IExternalEventHandler
     {
         try
         {
-            var doc = app.ActiveUIDocument?.Document;
+            var doc = Services.DocumentSessions.Find(job.DocumentKey);
             if (doc == null)
             {
                 job.Tcs.TrySetResult("(No document is currently open.)");
                 return;
             }
 
-            if (Services.DocumentSessions.Key(doc) != job.DocumentKey)
-                throw new InvalidOperationException("The active document changed before reading context. Retry in the intended document.");
+
             var allLevels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .OrderBy(l => l.Elevation).ToList();
             // This context trails EVERY request uncached — keep it small. A tower with hundreds of
@@ -663,6 +621,8 @@ public class ToolDispatcher : IExternalEventHandler
         IReadOnlyDictionary<string, JsonElement> Input,
         Services.QueuedOperation<string> Operation, string DocumentKey, Services.McpClientState? Session) : Job
     {
+        public string? TaskId => Channel?.TaskId ?? _taskId;
+        private readonly string? _taskId = Services.TaskJournal.CurrentId;
         public long QueuedAt { get; } = System.Diagnostics.Stopwatch.GetTimestamp();
         public Services.McpTurnChannel? Channel { get; } = Session?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
         public TaskCompletionSource<string> Tcs => Operation.Completion;

@@ -103,7 +103,7 @@ public class GetProjectStandards : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document ?? throw new InvalidOperationException("No document is open.");
+        var doc = ToolContext.UiDocument(app)?.Document ?? throw new InvalidOperationException("No document is open.");
         var parameters = Parameters(doc);
         var (evidence, warning) = Evidence(doc, parameters);
         var query = input.TryGetValue("query", out var q) ? q.GetString() ?? "" : "";

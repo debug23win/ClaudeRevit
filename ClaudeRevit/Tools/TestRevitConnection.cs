@@ -17,7 +17,7 @@ public sealed class TestRevitConnection : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var activeTitle = app.ActiveUIDocument?.Document.Title;
+        var activeTitle = ToolContext.UiDocument(app)?.Document.Title;
         var test = app.Application.NewProjectDocument(UnitSystem.Metric);
         bool created = false, cleaned = false, closed = false, censusVerified = false, nestedRollback = false;
         try

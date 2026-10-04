@@ -23,6 +23,8 @@ public static class ToolCatalog
     {
         var n = tool.GetType().Name;
         bool Has(params string[] keys) => keys.Any(k => n.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0);
+        if (n.StartsWith("Generate",StringComparison.Ordinal) || n is "SetModelProvenance") return "Modeling";
+        if (n is "ValidateCSharp") return "Code & learning";
         if (n is "BimStarterModelTools" or "RunBimStarterCommand") return "Modeling";
 
         // Specific groups first so a broad keyword (e.g. "Delete", "Family") doesn't steal a

@@ -4,6 +4,8 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
+**v3.8.0:** parameter generators for towers/facades/spires, preflight compilation, native view images, structured tool results and a complete task journal with **Copy log**. Open project tabs keep independent chats, drafts, model choices and running tasks. Codex/Claude Code MCP can delegate planning/checks to subagents. Reinforcement setup and actual geometry evidence improve the benchmark. [Tools and examples](docs/modeling-performance.md) · [Release notes](docs/releases/v3.8.0.md).
+
 **v3.7.4:** reduces subscription chat/benchmark overhead with 15 initial MCP tools and on-demand schemas for the rest, targeted context checks and a short-lived model catalog cache. Benchmark progress identifies setup/model/probe/reset phases; the Revit column and saved timings separate tool execution from total agent time. Native level names/elevations and grid geometry now reach the judge. Includes the v3.7.3 document identity/chat-input fixes and all 29 tasks. [Benchmark guide](docs/benchmark.md).
 
 **v3.7:** family nesting analysis and flex tests, native parametric forms and complex
@@ -14,7 +16,7 @@ Codex/ChatGPT subscription; modeller and judge models are selected independently
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit — a dockable chat pane with **213 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+Claude AI in Autodesk Revit — a dockable chat pane with **222 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
 
 Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscription** (via a built-in MCP server + the Claude Code CLI — zero API cost), or on any **OpenAI-compatible** provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama…).
 
@@ -28,10 +30,10 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **BIMStarter** — all 63 source commands cataloged with explicit coverage, independent native workflows and posting buttons in a compatible installed plugin. Dialog/cloud commands require the plugin and user interaction.
 
 - **Dockable chat pane** in Revit, with streaming responses
-- **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Switching documents manually stops the current task before loading the other conversation.
+- **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Open document tabs keep independent drafts, attachments, choices and running tasks; native calls stay bound to their document.
 - **Independent MCP clients** — model reports, settings directives and cancellation belong to each connection. Settings let you select a connected client. Stop cancels this pane's queued work and waits for a running Revit operation to settle.
 - **BIMStarter, ADSK and EIR context** — live GUIDs, bindings, units, templates and schedules via `get_project_standards`; 313 BIMStarter GUIDs and 323 ADSK GUIDs (566 unique combined; 1120 edition/translation rows) via `get_shared_parameter_catalog`. `get_standard_workflows` explains counting schemes and profile differences; `validate_project_standard` performs a partial Samolet EIR audit. Workbook group recommendations do not prove live bindings.
-- **213 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **222 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **OpenAI models can drive Revit too (via MCP)** — the local **Codex CLI** connects to the same MCP server, so GPT-6 Astra / GPT-5.6 Sol-Terra-Luna edit the model through the Revit tools. Cloud ChatGPT can't reach a `127.0.0.1` server, and exposing one publicly would put model editing behind nothing but a token — Codex runs on your machine, so no tunnel is needed. Follow-up messages continue the same Codex conversation, and the session survives a Revit restart.
 - **See who is driving** — replies keep their agent names. Settings show an external MCP client from its handshake and its self-reported model, which may be missing or inaccurate.
@@ -45,7 +47,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Documentation & QA workflows** — the chores that normally need a one-off script: `autonumber_elements` (numbering in drawing reading order, with tolerance-banded rows so a ragged grid still reads left-to-right), `derive_parameters` (fill a parameter from geometry/identity or a `{placeholder}` template), `auto_join_geometry` (find intersecting pairs and join them — the fix for double-counted concrete), `calculate_weight` (mass from real volume × material density; rebar weighed from length × nominal diameter), `get_element_hosts`, `diagnose_model` (warnings, in-place families, exploded CAD imports, oversized groups — each with a recommendation), `clean_model` (removes them; **dry-run by default**), `assign_worksets`, `generate_sheet_set`, `batch_export_sheets`, `create_assembly`, `export_element_coordinates` (setting-out points in **shared/site** coordinates) and `query_linked_elements` (reads linked models, applying the link transform so coordinates land in host space).
 - **Bar bending data** — `get_rebar_shape_sketch` returns ordered leg lengths and bend angles per bar, groups identical bars into schedule positions, and can emit an SVG sketch of each distinct shape.
 - **Works with non-Claude MCP clients** — the MCP server detects the connecting client and emits a portable tool schema for it. OpenAI's function-calling validator rejects the constraint keywords used across these tools (`minimum`/`maximum`, `minItems`, `oneOf`) and refuses such a tool list *wholesale*, so those constraints are folded into each parameter's description instead of dropped. Claude clients keep the richer schemas. *(If you connect an OpenAI model to this server yourself rather than through Codex, note that MCP is reached via the Responses API, not chat completions.)*
-- **Undo for ordinary API operations** — queued jobs drained in one Revit callback can share an undo group. Asynchronous turns spanning callbacks and MCP commands have separate undo entries; groups always close before returning to Revit.
+- **Undo for ordinary API operations** — each completed tool call/batch has an undo entry. Groups always close before returning to Revit; no transaction stays open while the model thinks.
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
 - **Clickable element IDs** — click any id in a tool result, Revit selects and zooms to that element
@@ -57,7 +59,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Full Revit API escape hatch (opt-in)** — for anything no built-in tool covers, Claude can run scripts against the full Revit API: `execute_csharp` (the default — compiled C#, runs in a managed transaction), `run_python` (in-process Python through pyRevit's or RevitPythonShell's IronPython engine — no Dynamo boot, so it starts instantly), or `run_dynamo_python` (Dynamo's Python engine, for proven Dynamo-community snippets). **Off by default**: enable it with a checkbox in settings.
 - **Keeps Revit responsive** — a streamed answer is re-rendered on a short coalescing timer instead of on every token (rebuilding the whole document per token is quadratic in answer length, and it ran on Revit's UI thread), and the straightforward tool calls of one round are dispatched together rather than one Idling round-trip each. Cancelling a turn now also drops the tools that were still queued, so nothing keeps editing the model after you press stop.
 - **Configurable tool-round limit** — cap how many tool-call rounds Claude may take per message (default 24), raise it in Settings for long automated jobs
-- **Optional confirmation for destructive / code ops** — off by default (every turn is one undo step); turn on an Allow/Deny dialog in settings
+- **Optional confirmation for destructive / code ops** — off by default (each completed call/batch is an undo step); turn on an Allow/Deny dialog in settings
 - **In-pane API key entry** — gear icon; keys are stored encrypted with Windows DPAPI (no plain-text env var)
 
 ---
@@ -198,7 +200,7 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **213 tools** to Claude across these categories:
+The plugin exposes **222 tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls

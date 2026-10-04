@@ -27,6 +27,7 @@ public sealed class BenchmarkResult
     public int ReferenceSeconds { get; init; }
     public int Rounds { get; init; }
     public long Tokens { get; init; }
+    public string UsageScope { get; init; } = "unavailable";
     public string Time { get; init; } = "";         // "12.3s"
     public string Reason { get; init; } = "";
     public TurnTimings Timings { get; init; } = new();
@@ -88,7 +89,8 @@ public static class BenchmarkRunner
                 chat.OnStatus = phase => onStatus($"{task.Id} · {task.Title} · {phase}");
                 var conversation = new ObservableCollection<ChatMessage> { new() { Role = "user", Text = task.Prompt +
                     "\nBenchmark: keep the current document active; do not save or close it, open another document, or change application/global settings. " +
-                    "Use native tools and verify the actual result." } };
+                    "Use native tools and verify the actual result. " +
+                    "Do not repeatedly discover nonexistent tool names. Exact tool names return one schema." + TaskHints(task) } };
                 chat.OnRound = (round, max) =>
                 {
                     onStatus($"{task.Id} · {task.Title} · tool round/call {round}");
@@ -113,6 +115,9 @@ public static class BenchmarkRunner
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the owned scratch copy is closed without saving.");
                 onStatus($"{task.Id} · {task.Title} · capturing final evidence…");
                 var after = await StatsAsync(task, true, documentKey, ct);
+                var evidence=JsonSerializer.Deserialize<Dictionary<string,object?>>(after)!;
+                evidence["modelling_revit_execution_seconds"]=chat.Timings.RevitExecutionSeconds;
+                after=JsonSerializer.Serialize(evidence);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
                     : await JudgeAsync(judgeChat, judge, task, before, after, finalText, ct);
@@ -132,7 +137,7 @@ public static class BenchmarkRunner
                     Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗",
                     Quality = points?.Quality, Speed = points?.Speed, Score = points?.Total,
                     Seconds = seconds, ReferenceSeconds = task.ReferenceSeconds,
-                    Rounds = metrics?.Rounds ?? 0, Tokens = (metrics?.InputTokens ?? 0) + (metrics?.OutputTokens ?? 0),
+                    UsageScope = metrics?.UsageScope ?? "unavailable", Rounds = metrics?.Rounds ?? 0, Tokens = (metrics?.InputTokens ?? 0) + (metrics?.OutputTokens ?? 0),
                     Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason, Timings = chat.Timings
                 };
                 Append(row, execution, judge, runStamp, verdict.Pass, metrics?.InputTokens ?? 0, metrics?.OutputTokens ?? 0, row.Rounds, seconds, resultsPath, maxRoundsPerTask, maxSecondsPerTask, resetBetweenTasks);
@@ -199,6 +204,7 @@ public static class BenchmarkRunner
             "with areas_m2, roofs, levels with elevations_m, grids, structural_columns, structural_framing, rebar, " +
             "area_reinforcement, path_reinforcement, structural_connections, doors, direct_shapes with " +
             "bounding-box size_m, materials), element identities/coordinates/host links, rebar centerlines/layouts, " +
+            "DirectShape triangle counts and actual surface samples, connection member IDs/solid components/provenance annotations, " +
             "schedule fields/rows, recursive family structure and independently executed family flex scenarios. " +
             "Judge by the DELTA between before and after. Unchanged element snapshots may be omitted explicitly. " +
             "Use 0-100 QUALITY ONLY: accuracy, completeness, native editability and successful size/variant tests. " +
@@ -273,7 +279,7 @@ public static class BenchmarkRunner
                 reference_seconds = r.ReferenceSeconds,
                 timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
                 execution_profile = execution.Backend == "api" ? "api_progressive_v1" : "compact_mcp_v1",
-                task_suite_version = "v3.7.4",
+                task_suite_version = "v3.8.0",
                 phase_seconds = new { catalog = r.Timings.CatalogSeconds, context = r.Timings.ContextSeconds,
                     model_and_tools = r.Timings.ModelAndToolsSeconds, mcp_tool_wait_sum = r.Timings.ToolWaitSeconds,
                     revit_queue_sum = r.Timings.QueueSeconds, revit_execution_sum = r.Timings.RevitExecutionSeconds },
@@ -281,6 +287,7 @@ public static class BenchmarkRunner
                 max_seconds = maxSeconds,
                 reset_model = reset,
                 rounds,
+                usage_scope = r.UsageScope,
                 input_tokens = inTok,
                 output_tokens = outTok,
                 seconds,
@@ -290,6 +297,11 @@ public static class BenchmarkRunner
         }
         catch (Exception ex) { Log.Error("Benchmark append failed", ex); }
     }
+
+    private static string TaskHints(BenchmarkTask task) => task.Id.StartsWith("R",StringComparison.Ordinal)
+        ? " Native reinforcement: inspect list_rebar_types once; if empty use create_rebar_type(name,diameter_mm,create_system_types:true). Create slabs with create_floor(structural:true). Columns require a concrete family/type. create_rebar_geometry requires preview:false to keep bars. Use create_area_reinforcement / create_path_reinforcement for meshes/edges, not geometric lookalikes."
+        : task.Id == "S1" ? " Use list_structural_connection_types and create_structural_connection for native joints. A generic logical link alone is insufficient; a detailed equivalent joint needs actual solids, verified dimensions and related member IDs recorded with set_model_provenance."
+        : "";
 
     private static string Truncate(string s, int max) =>
         string.IsNullOrEmpty(s) || s.Length <= max ? s ?? "" : s.Substring(0, max) + "…";

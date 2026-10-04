@@ -77,7 +77,7 @@ public static class ClaudeCodeBackend
         // Keep subscription OAuth, while excluding settings that can supply an
         // API-key helper, unrelated MCP servers or project hooks.
         args.AddRange(new[] { "--setting-sources", "", "--strict-mcp-config" });
-        if (string.IsNullOrWhiteSpace(mcpConfigPath)) args.AddRange(new[] { "--tools", "" });
+        args.AddRange(new[] { "--tools", string.IsNullOrWhiteSpace(mcpConfigPath) ? "" : "Agent" });
         McpAgentSelection.AddClaudeOptions(args, model, effort);
         // MCP + tools are for the "drive Revit" path. The judge runs with neither (empty) — a pure
         // text-grading call — so skip the flags; an empty allowedTools glob denies every tool.
@@ -92,11 +92,19 @@ public static class ClaudeCodeBackend
             // launch the CLI ourselves, so they go in where they are certain to be read.
             args.Add("--append-system-prompt");
             args.Add(McpServer.DrivingRules);
+            args.AddRange(new[] { "--agents", JsonSerializer.Serialize(new
+            {
+                revit_planner = new { description = "Plan independent Revit geometry or parameter work from the supplied snapshot.",
+                    prompt = "Return a compact plan, parameters and checks. Work only from the context supplied by the parent. Never modify Revit or claim to have executed tools.", tools = Array.Empty<string>() },
+                revit_checker = new { description = "Independently check dimensions, family formulas and reinforcement plans.",
+                    prompt = "Check the supplied evidence and proposed geometry. Return concrete defects and suggested corrections. Never modify Revit or claim to have executed tools.", tools = Array.Empty<string>() }
+            }) });
         }
         if (!string.IsNullOrWhiteSpace(allowedToolsGlob))
         {
             args.Add("--allowedTools");
             args.Add(allowedToolsGlob);
+            if (!string.IsNullOrWhiteSpace(mcpConfigPath)) args.Add("Agent");
         }
         if (!string.IsNullOrWhiteSpace(resumeSessionId))
         {

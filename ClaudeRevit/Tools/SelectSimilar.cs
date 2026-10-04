@@ -31,7 +31,7 @@ public class SelectSimilar : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var uidoc = app.ActiveUIDocument
+        var uidoc = ToolContext.UiDocument(app)
             ?? throw new InvalidOperationException("No document is open.");
         var doc = uidoc.Document;
 

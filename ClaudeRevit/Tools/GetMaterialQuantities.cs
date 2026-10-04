@@ -30,7 +30,7 @@ public sealed class GetMaterialQuantities : IRevitTool
         IEnumerable<ElementId> selected = scope switch
         {
             "ids" => NativeToolUtil.Ids(input["element_ids"]),
-            "selection" => app.ActiveUIDocument.Selection.GetElementIds(),
+            "selection" => ToolContext.UiDocument(app).Selection.GetElementIds(),
             "all" => new FilteredElementCollector(doc).WhereElementIsNotElementType().ToElementIds(),
             "categories" => new FilteredElementCollector(doc).WhereElementIsNotElementType().WherePasses(new ElementMulticategoryFilter(
                 input["categories"].EnumerateArray().Select(c => Enum.TryParse<BuiltInCategory>(c.GetString(), out var bic) && bic != BuiltInCategory.INVALID ? bic : throw new ToolInputException("Unknown category: " + c)).ToList())).ToElementIds(),

@@ -26,7 +26,7 @@ public class GetLevels : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new System.InvalidOperationException("No document is open.");
 
         var levels = new FilteredElementCollector(doc)

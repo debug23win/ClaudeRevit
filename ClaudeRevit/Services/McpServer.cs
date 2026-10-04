@@ -55,50 +55,15 @@ public static class McpServer
         "1 m = 3.280839895 ft. Do not convert _mm arguments to feet. " +
         "Do not repeat a failed call unchanged. Code tools require the user's code opt-in. Preserve the active document unless explicitly asked to change it. " +
         "Each MCP call has its own undo step; minimise destructive scope. For complex work plan briefly, build and verify a representative element, then batch. " +
+        "For repeated tower geometry use generate_floor_stack, generate_facade_grid and generate_spire; discover exact schemas. Generators default to preview:true; use preview:false after validation. " +
+        "For code call validate_csharp before execute_csharp; prefer System.Text.Json. Report warnings as structured fields. Use export_image for actual native view pixels. " +
+        "Record sources, confidence and assumed dimensions with set_model_provenance; distinguish native BIM elements from DirectShape geometry. " +
+        "The user authorizes subagents for independent planning and checking on complex tasks. Use at most three, give each a bounded task and snapshot, and collect compact findings. " +
+        "Keep all Revit mutations in the parent agent in dependency order; subagents must not edit Revit. Revit API calls are serialized on one UI thread. Do not delegate simple one-call operations. " +
         "Finish concisely with changed IDs, dimensions and any failed checks. The pane already knows the selected driving model; no model-report call is needed.";
 
-    private const string Instructions =
-        StandardKnowledge.AgentRules + "\n\n" +
-        "You are a senior BIM engineer and Revit-API expert driving a LIVE Autodesk Revit model through " +
-        "these tools. Work precisely and safely.\n\n" +
-        "WORKFLOW вЂ” read before you act. Gather context first: get_project_catalog (levels, family types, " +
-        "view templates and the rebar catalogue in one call), get_active_view_info, get_selection, " +
-        "query_elements / filter_elements, get_model_statistics. NEVER invent element IDs, family/type " +
-        "names, or levels вЂ” use only values returned by tools. For a non-trivial task, state a 2вЂ“4 step " +
-        "plan first, then execute. Work in small steps: prove an operation on ONE element, then scale to " +
-        "the floor/building вЂ” don't run a large batch before verifying one.\n\n" +
-        "UNITS вЂ” a parameter's NAME SUFFIX decides its unit and always wins over any general rule: " +
-        "`_mm` is millimetres, `_m2`/`_m3` square/cubic metres, `_deg` degrees, while `_ft` and any " +
-        "unsuffixed spatial value are FEET (Revit's internal unit). spacing_mm=200 means 200 mm вЂ” do " +
-        "NOT convert that to feet. Convert only for feet parameters: 1 m в‰€ 3.28084 ft, 1 mm в‰€ " +
-        "0.00328084 ft. Returned values follow the same rule. Always confirm the target level and " +
-        "view; state the conversion you used.\n\n" +
-        "TOOL CHOICE вЂ” prefer a dedicated tool when one exists (the full tool index is included below; " +
-        "native tools cover walls, floors, roofs, levels, grids, doors, columns, framing, rebar & " +
-        "reinforcement, steel connections, family authoring, views, sheets, schedules, annotation, " +
-        "filters and export). Use filter_elements for \"find all X where Y\" (unit-aware predicates + " +
-        "count/sum/avg aggregate) instead of scanning. Use run_batch to repeat one tool over many items " +
-        "in a single transaction. execute_csharp / run_dynamo_python are the escape hatch for what no tool " +
-        "covers вЂ” only if code execution is enabled (if they aren't offered, it's off); make code " +
-        "idempotent, null-checked, and in one transaction.\n\n" +
-        "EFFICIENCY вЂ” the MCP round-trip is the main cost, so batch aggressively; for heavy multi-step " +
-        "work write ONE execute_csharp instead of many tool calls. Creating elements is cheap (~2000/sec) " +
-        "but doc.Regenerate() is SUPER-LINEAR вЂ” call it ONCE at the end of a batch, never in a loop.\n\n" +
-        "REVIT API вЂ” on 2024+ use ElementId.Value (long); IntegerValue was removed. Don't call " +
-        "RequestViewChange inside a transaction вЂ” use the set_active_view tool.\n\n" +
-        "SAFETY & ERRORS вЂ” over MCP each TOOL CALL is its own undo step (the in-Revit chat pane groups a " +
-        "whole turn into one, but this path has no turn boundary to group by, and a group held open " +
-        "across an idle client would block the user's own edits). So a ten-call sequence takes ten " +
-        "Ctrl+Z to unwind вЂ” say so when you propose something broad. Do destructive actions (delete, mass " +
-        "edits, arbitrary code) on the smallest possible set, and confirm intent when the request is " +
-        "broad. If a request is ambiguous (missing level, type or units), ask ONE clarifying question " +
-        "instead of guessing. If a tool errors, report it verbatim, explain the likely cause, and fix the " +
-        "input вЂ” never blindly repeat the same call.\n\n" +
-        "IDENTIFY YOURSELF вЂ” call report_driving_model once, first thing, with your specific model " +
-        "id. MCP gives this add-in no way to know which model is driving it, so without that call " +
-        "the user cannot tell who did the work.\n\n" +
-        "ANSWERS вЂ” be concise. After acting, say what changed, which IDs/types were affected, and what to " +
-        "check. Take numbers (areas, volumes, counts) from tools вЂ” never estimate.";
+    private const string Instructions = CompactInstructions +
+        " External MCP clients: call report_driving_model once with your actual model ID so the pane can identify the driver.";
 
     // The URL and header a user pastes into their Claude Code / Desktop MCP config.
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
@@ -457,7 +422,7 @@ public static class McpServer
     {
         try { return await CallToolCore(prms, ct, documentKey); }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return (ToolResult("Error: " + ex.Message, true), null); }
+        catch (Exception ex) { return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true), null); }
     }
 
     private static async Task<(JsonNode? value, JsonObject? error)> CallToolCore(JsonNode? prms, CancellationToken ct, string documentKey)
@@ -525,23 +490,38 @@ public static class McpServer
             // The only way anything from the plugin reaches the model: a client never asks whether
             // the user wanted something, so a pending request rides out on the result of whatever
             // tool the model called next.
-            if (McpSession.TakeDirective() is { } directive) text += directive;
+            if (McpSession.TakeDirective() is { } directive)
+            { var value=JsonNode.Parse(Services.ToolResult.Complete(text))!.AsObject();value["next_directive"]=directive;text=value.ToJsonString(Services.ToolResult.Options); }
 
             return (ToolResult(text, false), null);
         }
         catch (Exception ex)
         {
             // MCP convention: tool failures are a normal result with isError=true, not a protocol error.
-            return (ToolResult("Error: " + ex.Message, true), null);
+            return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true), null);
         }
         finally { channel?.RecordToolWait(toolWait.Elapsed); ToolDispatcher.PopSuppress(); }
     }
 
-    private static JsonObject ToolResult(string text, bool isError) => new()
+    private static JsonObject ToolResult(string text, bool isError)
     {
-        ["content"] = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = text } },
-        ["isError"] = isError
-    };
+        if (isError)
+        {
+            try { using var parsed=JsonDocument.Parse(text); if(parsed.RootElement.ValueKind!=JsonValueKind.Object)text=Services.ToolResult.Failure("tool_error",text); }
+            catch(JsonException) { text=Services.ToolResult.Failure("tool_error",text); }
+        }
+        else text=Services.ToolResult.Complete(text);
+        var content=new JsonArray { new JsonObject { ["type"]="text",["text"]=text } };
+        try
+        {
+            using var json=JsonDocument.Parse(text);
+            if(json.RootElement.TryGetProperty("image_id",out var id) && ViewImageStore.Find(id.GetString()??"",ExecutingChannel?.DocumentKey??DocumentSessions.CurrentDocumentKey,ExecutingChannel?.Id) is { } image)
+                content.Add(new JsonObject { ["type"]="image",["mimeType"]="image/png",["data"]=image.Base64 });
+            if(json.RootElement.TryGetProperty("ok",out var ok)&&ok.ValueKind==JsonValueKind.False)isError=true;
+        }
+        catch(JsonException) { }
+        return new JsonObject { ["content"]=content,["isError"]=isError };
+    }
 
     private static JsonObject ErrObj(int code, string message) =>
         new() { ["code"] = code, ["message"] = message };

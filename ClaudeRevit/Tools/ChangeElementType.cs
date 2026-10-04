@@ -36,7 +36,7 @@ public class ChangeElementType : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         var newTypeId = new ElementId(input["new_type_id"].GetInt64());

@@ -81,6 +81,7 @@
                         Content="📊" Height="24" Width="28" FontSize="12" Margin="0,0,4,0"
                         Click="BenchmarkButton_Click"
                         ToolTip="Model benchmark — run graded tasks and compare models (time, tokens, pass rate)." />
+                <Button x:Name="CopyLogButton" Content="📋" Height="24" Width="28" Margin="0,0,4,0" Click="CopyLogButton_Click" ToolTip="Copy diagnostic log and this project chat / Копировать журнал и чат проекта" />
                 <Button Grid.Column="5" x:Name="SettingsButton"
                         Content="⚙" Height="24" Width="28" FontSize="14"
                         Click="SettingsButton_Click"

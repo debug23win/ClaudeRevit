@@ -96,7 +96,7 @@ public class RunPython : IRevitTool
                        "or run_dynamo_python if Dynamo is present."
             });
 
-        var doc = app.ActiveUIDocument?.Document;
+        var doc = ToolContext.UiDocument(app)?.Document;
 
         try
         {
@@ -107,7 +107,7 @@ public class RunPython : IRevitTool
 
             SetVariable(scope, "uiapp", app);
             SetVariable(scope, "__revit__", app);          // RevitPythonShell convention
-            SetVariable(scope, "uidoc", app.ActiveUIDocument);
+            SetVariable(scope, "uidoc", ToolContext.UiDocument(app));
             SetVariable(scope, "doc", doc);
             SetVariable(scope, "app", app.Application);
             SetVariable(scope, "OUT", null);

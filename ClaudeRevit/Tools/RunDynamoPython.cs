@@ -124,7 +124,7 @@ public class RunDynamoPython : IRevitTool
             // already bound to this very document. Fail open (reboot) in every doubtful
             // case, and always reboot after a failed run: a crashed script may have left
             // engine state dirty.
-            var activeDoc = app.ActiveUIDocument?.Document;
+            var activeDoc = ToolContext.UiDocument(app)?.Document;
             var docKey = activeDoc == null ? null : DocKey.For(activeDoc);
             if (docKey == null || docKey != _lastBootDocKey || modelState != "StartedUIless")
             {
@@ -498,7 +498,7 @@ OUT = __cr_json.dumps(__cr_report)
         // the document the other tools read from, say so instead of leaving both sides to
         // silently disagree.
         string? warning = null;
-        var activeDoc = app.ActiveUIDocument?.Document;
+        var activeDoc = ToolContext.UiDocument(app)?.Document;
         if (activeDoc != null && dynDocTitle != null &&
             !string.Equals(dynDocTitle, activeDoc.Title, StringComparison.Ordinal))
         {

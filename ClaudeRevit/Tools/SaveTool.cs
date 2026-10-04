@@ -36,7 +36,7 @@ public class SaveTool : IRevitTool
         "      [\"name\"] = JsonSerializer.SerializeToElement(new { type = \"string\" }) }, Required = new[]{\"id\",\"name\"} };\n" +
         "    public bool RequiresTransaction => true;   // dispatcher wraps Execute in a transaction\n" +
         "    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) {\n" +
-        "      var doc = app.ActiveUIDocument.Document;\n" +
+        "      var doc = ToolContext.UiDocument(app).Document;\n" +
         "      var lvl = doc.GetElement(new ElementId(input[\"id\"].GetInt64())) as Level;\n" +
         "      lvl.Name = input[\"name\"].GetString();\n" +
         "      return Services.Json.Serialize(new { ok = true, renamed = lvl.Name });\n" +

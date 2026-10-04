@@ -19,10 +19,22 @@ namespace ClaudeRevit.UI;
 
 public partial class ChatPaneView : UserControl
 {
-    public ObservableCollection<ChatMessage> Messages { get; } = new();
-
-    private readonly ChatService _service = new();
-    private CancellationTokenSource? _cts;
+    private sealed class PaneSession
+    {
+        public string Key = DocumentSessions.CurrentDocumentKey;
+        public ChatService Service = new();
+        public ObservableCollection<ChatMessage> Messages = new();
+        public CancellationTokenSource? Cancellation;
+        public string Draft = "", Status = "", Agent = SettingsStore.ChatAgent, Model = "auto";
+        public string? Image, Mime;
+        public Dictionary<string,McpAgentSelection> Choices = new()
+        { ["codex"] = SettingsStore.GetAgentSelection("codex"), ["claudecode"] = SettingsStore.GetAgentSelection("claudecode") };
+    }
+    private PaneSession _session = new();
+    private readonly Dictionary<string,PaneSession> _sessions = new();
+    public ObservableCollection<ChatMessage> Messages => _session.Messages;
+    private ChatService _service => _session.Service;
+    private CancellationTokenSource? _cts { get => _session.Cancellation; set => _session.Cancellation = value; }
     private string _selectedModel = "auto";
     private string _selectedAgent = "api";
     private bool _settingChoices;
@@ -40,6 +52,7 @@ public partial class ChatPaneView : UserControl
 
     public ChatPaneView()
     {
+        _sessions[_session.Key] = _session;
         InitializeComponent();
         _choicesReady = true;
         _settingChoices = true;
@@ -55,6 +68,10 @@ public partial class ChatPaneView : UserControl
             Messages.Add(m);
 
         DocumentSessions.Changed += OnDocumentChanged;
+        DocumentSessions.Closed += key =>
+        {
+            if(_sessions.TryGetValue(key,out var session))session.Cancellation?.Cancel();
+        };
         UsageTracker.Updated += UpdateUsageText;
         UpdateUsageText();
 
@@ -160,25 +177,49 @@ public partial class ChatPaneView : UserControl
 
     private void OnDocumentChanged(bool toolTransition)
     {
-        // Managed family/document transitions remain part of the current task. Manual
-        // switches cancel it; history is switched only after its Revit work has settled.
-        if (_cts != null)
-        {
-            if (!toolTransition) { _cts.Cancel(); StatusText.Text = L("Stopping after document change…", "Остановка после смены документа…"); }
-            return;
-        }
+        if (toolTransition && _cts != null) return;
         SwitchDocumentHistory();
     }
     private void SwitchDocumentHistory()
     {
-        if (_service.WorkspaceIsCurrent) return;
+        var key = DocumentSessions.CurrentDocumentKey;
+        if (_session.Key == key)
+        {
+            if (_cts == null && !_service.WorkspaceIsCurrent) { _service.SaveHistory(Messages); _service.SwitchWorkspace(preserveHistory:true); _service.SaveHistory(Messages); }
+            return;
+        }
+        CaptureTypedModel();
+        _session.Draft = InputBox.Text; _session.Status = StatusText.Text;
+        _session.Agent = _selectedAgent; _session.Model = _selectedModel;
+        _session.Image = _pendingImageBase64; _session.Mime = _pendingImageMime;
+        if (_selectedAgent != "api") _session.Choices[_selectedAgent] = SettingsStore.GetAgentSelection(_selectedAgent);
         _service.SaveHistory(Messages);
-        _service.SwitchWorkspace();
-        Messages.Clear();
-        foreach (var message in _service.LoadUiMessages()) Messages.Add(message);
-        InputBox.Text = "";
-        _pendingImageBase64 = _pendingImageMime = null;
-        AttachButton.Content = "📎";
+        if (!_sessions.TryGetValue(key,out var session))
+        {
+            session = new PaneSession(); _sessions[key] = session;
+            foreach (var m in session.Service.LoadUiMessages()) session.Messages.Add(m);
+            session.Messages.CollectionChanged += OnMessagesChanged;
+            session.Service.ConfirmToolAsync = ConfirmToolAsync;
+        }
+        _session = session; _service.Activate();
+        _selectedAgent = session.Agent; _selectedModel = session.Model;
+        foreach(var selected in session.Choices.Values) SettingsStore.SaveAgentSelection(selected);
+        _settingChoices = true;
+        AgentPicker.SelectedItem = AgentPicker.Items.Cast<ComboBoxItem>().First(i=>(string)i.Tag == _selectedAgent);
+        ModelPicker.SelectedItem = ModelPicker.Items.Cast<ComboBoxItem>().First(i=>(string)i.Tag == _selectedModel);
+        _settingChoices = false; ApplyAgentChoices(); UpdateAssistantLabel();
+        MessagesList.ItemsSource = Messages;
+        InputBox.Text = session.Draft; StatusText.Text = session.Status;
+        _pendingImageBase64 = session.Image; _pendingImageMime = session.Mime;
+        AttachButton.Content = session.Image == null ? "📎" : "📎✓";
+        SendButton.Content = _cts == null ? "Send" : "Cancel";
+        SetAgentControlsEnabled(_cts == null);
+    }
+
+    private void CopyLogButton_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(TaskJournal.ReadRecent(_session.Key) + "\n\n" + Log.ReadTail() + "\n\n" + string.Join("\n\n",Messages.Select(m=>$"{m.Role}: {m.Text}"))); StatusText.Text = L("Log copied", "Журнал скопирован"); }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -186,9 +227,9 @@ public partial class ChatPaneView : UserControl
         if (e.NewItems != null)
         {
             foreach (ChatMessage m in e.NewItems)
-                m.PropertyChanged += (_, _) => ScheduleScroll();
+                m.PropertyChanged += (_, _) => { if(ReferenceEquals(sender,Messages))ScheduleScroll(); };
         }
-        ScheduleScroll();
+        if(ReferenceEquals(sender,Messages))ScheduleScroll();
     }
 
     // Keep the newest message visible. ScrollIntoView on the virtualizing ListBox only
@@ -370,6 +411,12 @@ public partial class ChatPaneView : UserControl
         if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync();
     }
 
+    private void SavePaneSelection(McpAgentSelection selected)
+    {
+        _session.Choices[selected.Agent] = selected;
+        SettingsStore.SaveAgentSelection(selected);
+    }
+
     private void ApplyAgentChoices()
     {
         if (!_choicesReady) return;
@@ -424,7 +471,7 @@ public partial class ChatPaneView : UserControl
         if (!_choicesReady || _settingChoices || _selectedAgent == "api" || McpModelPicker.SelectedItem is not Choice choice) return;
         var selection = SettingsStore.GetAgentSelection(_selectedAgent);
         // A level chosen for a different model must not silently override the new model's default.
-        SettingsStore.SaveAgentSelection(selection with { Model = choice.Id, Effort = "" });
+        SavePaneSelection(selection with { Model = choice.Id, Effort = "" });
         PopulateEfforts();
     }
 
@@ -437,7 +484,7 @@ public partial class ChatPaneView : UserControl
             ? choice.Id : McpModelPicker.Text.Trim();
         var saved = SettingsStore.GetAgentSelection(_selectedAgent);
         if (model == saved.Model) return;
-        SettingsStore.SaveAgentSelection(saved with { Model = model, Effort = "" });
+        SavePaneSelection(saved with { Model = model, Effort = "" });
         PopulateEfforts();
     }
 
@@ -445,7 +492,7 @@ public partial class ChatPaneView : UserControl
     {
         if (!_choicesReady || _settingChoices || _selectedAgent == "api") return;
         if (McpEffortPicker.SelectedValue is string effort)
-            SettingsStore.SaveAgentSelection(SettingsStore.GetAgentSelection(_selectedAgent) with { Effort = effort });
+            SavePaneSelection(SettingsStore.GetAgentSelection(_selectedAgent) with { Effort = effort });
     }
 
     private async void RefreshModelsButton_Click(object sender, RoutedEventArgs e) => await RefreshModelsAsync();
@@ -485,6 +532,7 @@ public partial class ChatPaneView : UserControl
 
     private async Task SendAsync()
     {
+        var session = _session; var service = session.Service; var messages = session.Messages;
         var text = InputBox.Text.Trim();
         if ((string.IsNullOrEmpty(text) && _pendingImageBase64 == null) || _cts != null || _refreshingModels) return;
         CaptureTypedModel();
@@ -492,6 +540,7 @@ public partial class ChatPaneView : UserControl
         if (string.IsNullOrEmpty(text)) text = "(see attached image)";
 
         // Take and clear the pending image so it rides with THIS message only.
+        var assistantName=ChatMessage.AssistantLabel;
         var image = _pendingImageBase64;
         var imageMime = _pendingImageMime;
         _pendingImageBase64 = null;
@@ -506,38 +555,36 @@ public partial class ChatPaneView : UserControl
         // The chat loop no longer runs on the UI thread, so this arrives from the thread pool:
         // touching StatusText directly would throw. Fire-and-forget on purpose — a status line is
         // not worth making the loop wait for the dispatcher.
-        _service.OnRound = (r, max) => Dispatcher.BeginInvoke(new Action(() =>
-            StatusText.Text = $"Working… round {r}/{max}"));
-        _service.OnStatus = phase => Dispatcher.BeginInvoke(new Action(() => StatusText.Text = phase));
+        void Status(string value) => Dispatcher.BeginInvoke(new Action(() =>
+        { session.Status = value; if (ReferenceEquals(_session,session)) StatusText.Text = value; }));
+        service.OnRound = (r,max) => Status($"Working… round {r}/{max}");
+        service.OnStatus = Status;
 
-        Messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
+        messages.Add(new ChatMessage { Role = "user", Text = image != null ? text + "  📎" : text });
 
-        _service.SubscriptionMode = false;
-        _cts = new CancellationTokenSource();
+        service.SubscriptionMode = false;
+        var cancellation = new CancellationTokenSource(); session.Cancellation = cancellation;
         SetAgentControlsEnabled(false);
         try
         {
-            await _service.SendAsync(Messages, _selectedModel, _cts.Token, image, imageMime, selection);
-            StatusText.Text = "";
+            await service.SendAsync(messages, _selectedModel, cancellation.Token, image, imageMime, selection);
+            Status("");
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Cancelled";
+            Status("Cancelled");
         }
         catch (Exception ex)
         {
-            Messages.Add(new ChatMessage { Role = "assistant", Text = $"[Error: {ex.Message}]" });
-            StatusText.Text = "Error";
+            messages.Add(new ChatMessage { Role = "assistant", AssistantName=assistantName, Text = $"[Error: {ex.Message}]" });
+            Status("Error");
         }
         finally
         {
-            _service.SaveHistory(Messages);
-            _cts?.Dispose();
-            _cts = null;
-            SwitchDocumentHistory();
-            SendButton.Content = "Send";
-            SetAgentControlsEnabled(true);
-            InputBox.Focus();
+            service.SaveHistory(messages);
+            cancellation.Dispose(); session.Cancellation = null;
+            if (ReferenceEquals(_session,session))
+            { SwitchDocumentHistory(); SendButton.Content = "Send"; SetAgentControlsEnabled(true); InputBox.Focus(); }
         }
     }
 }

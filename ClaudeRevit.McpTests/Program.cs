@@ -85,6 +85,9 @@ internal static class Program
             Check(malformed.Contains("\"isError\":true"), "Malformed gateway input became a transport failure");
             var actual = ToolText(await Rpc(session, 24, "tools/call", new { name = "invoke_revit_tool", arguments = new { name = "rebar_tool_129", arguments = new { count = 3, note = "Арматура" } } }, channel.Id));
             Check(actual["document"]!.GetValue<string>() == "owned-document" && actual["arguments"]!["note"]!.GetValue<string>() == "Арматура" && actual["arguments"]!["count"]!.GetValue<int>() == 3, "Gateway lost arguments or document binding");
+            var exported=JsonNode.Parse(await Rpc(session,31,"tools/call",new {name="invoke_revit_tool",arguments=new {name="export_image",arguments=new {}}},channel.Id))!;
+            var image=exported["result"]!["content"]!.AsArray().Single(c=>c!["type"]!.GetValue<string>()=="image")!;
+            Check(image["data"]!.GetValue<string>()=="AQID" && image["mimeType"]!.GetValue<string>()=="image/png","Native export bytes did not reach MCP image content");
             SettingsStore.DisabledToolGroups = new[] { "Rebar" };
             var blocked = await Rpc(session, 25, "tools/call", new { name = "invoke_revit_tool", arguments = new { name = "rebar_tool_129", arguments = new { } } }, channel.Id);
             Check(blocked.Contains("\"isError\":true"), "Gateway bypassed a disabled group");

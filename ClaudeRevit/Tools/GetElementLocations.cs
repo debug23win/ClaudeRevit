@@ -39,7 +39,7 @@ public class GetElementLocations : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var doc = app.ActiveUIDocument?.Document
+        var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
         if (!input.TryGetValue("element_ids", out var idsEl) || idsEl.ValueKind != JsonValueKind.Array)
