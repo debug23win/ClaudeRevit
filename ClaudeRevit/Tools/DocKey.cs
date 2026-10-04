@@ -2,11 +2,10 @@ using Autodesk.Revit.DB;
 
 namespace ClaudeRevit.Tools;
 
-// Session identity of a document for caches. Title+PathName alone collides for two
-// successive unsaved documents ("Project1" + empty path); the instance hash tells a
-// reopened same-path document apart from the one a cache entry was built for.
+// API-thread session identity shared by caches and native reference tools. Different
+// wrappers, Save As, equal titles/paths and hash collisions cannot confuse documents.
 internal static class DocKey
 {
     public static string For(Document doc) =>
-        doc.Title + "|" + doc.PathName + "|" + doc.GetHashCode();
+        Services.DocumentSessions.Key(doc);
 }

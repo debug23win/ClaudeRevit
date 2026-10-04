@@ -142,7 +142,7 @@ internal static class BenchmarkModelProbe
         try { var geometry=e.get_Geometry(new Options { DetailLevel=ViewDetailLevel.Fine,IncludeNonVisibleObjects=false });if(geometry==null)errors.Add("No geometry.");else Visit(geometry,0); }
         catch(Exception ex){errors.Add(ex.Message);}
         return new { solid_count=solids,face_count=faces,mesh_count=meshes,triangle_count=triangles,surface_samples_mm=samples,
-            samples_truncated=triangles*3>samples.Count,components,errors };
+            samples_truncated=triangles*3>samples.Count,components,components_truncated=solids>components.Count,errors };
     }
 
     private static object Curve(Autodesk.Revit.DB.Curve c) => new { kind = c.GetType().Name, length_mm = c.Length * Units.MmPerFoot,
