@@ -47,6 +47,9 @@ for independent traversal after geometry options are disposed.
 - Schedule numerical updates and margin/overlap checks passed. Native sheet pixels
   must also be reviewed for grid lines, fonts, wrapping and titleblock zones before
   issuing drawings; this report is not blanket SPDS/GOST certification.
+  The final steel/timber A3 exports were reviewed: data/summary borders, body text,
+  values and placement are present. Narrow note/group headers can split words;
+  agree short headings or adjust an approved appearance before production issue.
 - Native reinforcement/connection strength, cover, clash compliance and every
   library family are outside these executed cases.
 
