@@ -12,12 +12,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        var app = new Application();
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Startup += async (_, _) =>
         {
             try
             {
                 DocumentHarness.Change("a", false);
+                await CheckIndependentChat();
                 var pane = new ChatPaneView();
                 CheckRepeatedDocumentWrappers(pane);
                 DocumentHarness.Change("a", false);
@@ -165,6 +166,50 @@ internal static class Program
         app.Run();
     }
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    private static async Task CheckIndependentChat()
+    {
+        ChatWindowHost.Initialize(true);
+        var window = await ChatWindowHost.GetWindowAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var original = Environment.CurrentManagedThreadId;
+        using var completed = new ManualResetEventSlim();
+        Exception? failure = null;
+        // Deliberately block the host's main UI thread as a Revit script would.
+        // The real chat window must still accept a draft, a supplement and Stop.
+        _ = window.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                Check(Environment.CurrentManagedThreadId != original, "Separate chat shares the blocked host thread");
+                var view = (ChatPaneView)window.Content;
+                ChatService.Pending = new();
+                var send = typeof(ChatPaneView).GetMethod("SendAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var input = (TextBox)view.FindName("InputBox"); input.Text = "Long script";
+                var running = (Task)send.Invoke(view, null)!;
+                input.Text = "Дополнение во время скрипта"; await (Task)send.Invoke(view, null)!;
+                await Task.Run(() => ClaudeRevit.Tools.ToolDispatcher.NotifyProgress(DocumentSessions.CurrentDocumentKey, "Native stage: 2/3"));
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                Check(((TextBlock)view.FindName("StatusText")).Text == "Native stage: 2/3", "Script progress did not reach the independent UI from the API thread");
+                input.Text = "Черновик сохраняется";
+                typeof(ChatPaneView).GetMethod("StopButton_Click", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(view, new object[] { view, new RoutedEventArgs() });
+                await running;
+                Check(input.Text == "Черновик сохраняется", "Stop erased the independent chat draft");
+                Check(((Button)view.FindName("StopButton")).Visibility == Visibility.Collapsed, "Stop did not cancel the active independent turn");
+                view.Messages.Clear(); ChatService.Pending = null;
+            }
+            catch (Exception ex) { failure = ex; }
+            finally { completed.Set(); }
+        });
+        Check(completed.Wait(TimeSpan.FromSeconds(8)), "Independent chat input/Stop froze with the host API thread");
+        if (failure != null) throw failure;
+        DocumentHarness.Change("b", false); // raised from the foreign host thread
+        await window.Dispatcher.InvokeAsync(() =>
+            Check(((ChatPaneView)window.Content).Messages.Count == 0, "Foreign document activation failed to reach the chat dispatcher"));
+        ChatWindowHost.Shutdown();
+        await ChatWindowHost.ShutdownCompletion.WaitAsync(TimeSpan.FromSeconds(5));
+        DocumentHarness.Change("a", false);
+        ChatService.Saved.Clear();
+        Console.WriteLine("Independent chat checks passed: separate STA, blocked host thread, draft input, live supplement, Stop and cross-thread project activation.");
+    }
     private static void CheckRepeatedDocumentWrappers(ChatPaneView pane)
     {
         var events = new Autodesk.Revit.UI.UIControlledApplication();

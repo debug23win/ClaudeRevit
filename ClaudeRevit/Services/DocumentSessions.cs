@@ -19,9 +19,11 @@ public static class DocumentSessions
     private static readonly Dictionary<string, ConversationWorkspace> Workspaces = new();
     private static readonly string ProcessId = Guid.NewGuid().ToString("N");
     private static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit");
-    private static string _documentKey = "none";
-    public static string CurrentDocumentKey => System.Threading.Volatile.Read(ref _documentKey);
-    public static ConversationWorkspace CurrentWorkspace { get; private set; } = Workspace("idle:" + ProcessId);
+    public sealed record Snapshot(string DocumentKey, ConversationWorkspace Workspace);
+    private static Snapshot _current = new("none", Workspace("idle:" + ProcessId));
+    public static Snapshot Current => System.Threading.Volatile.Read(ref _current);
+    public static string CurrentDocumentKey => Current.DocumentKey;
+    public static ConversationWorkspace CurrentWorkspace => Current.Workspace;
     public static event Action<bool>? Changed;
     public static event Action<string>? Closed;
 
@@ -85,8 +87,7 @@ public static class DocumentSessions
         var identity = document == null ? "idle:" + ProcessId : Identity(document, key);
         var workspace = Workspace(identity);
         if (key == CurrentDocumentKey && ReferenceEquals(workspace, CurrentWorkspace)) return;
-        System.Threading.Volatile.Write(ref _documentKey, key);
-        CurrentWorkspace = workspace;
+        System.Threading.Volatile.Write(ref _current, new Snapshot(key, workspace));
         Changed?.Invoke(Tools.ToolContext.IsExecuting);
     }
 }

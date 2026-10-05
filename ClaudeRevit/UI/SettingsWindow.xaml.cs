@@ -56,6 +56,7 @@ public partial class SettingsWindow : Window
         var existing = ApiKeyStore.Load();
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
         AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
+        SelectByTag(ChatUiModeBox, SettingsStore.ChatUiMode);
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
         AutoAdvisorBox.IsChecked = SettingsStore.AutoUseAdvisor;
         SelectByTag(AutoExecBox, SettingsStore.AutoExecutorModel);
@@ -250,6 +251,11 @@ public partial class SettingsWindow : Window
             "Снимите галочки с ненужных групп — каждый запрос станет меньше по токенам. Полезно для бесплатных / лимитированных провайдеров (напр. бесплатный тир Gemini, где одного запроса хватает до лимита). По умолчанию включены все.");
 
         TabGeneral.Header = L("General", "Основное");
+        ChatUiModeHeader.Text = L("Chat interface", "Режим окна чата");
+        ChatWindowModeItem.Content = L("Separate window (recommended)", "Отдельное окно (рекомендуется)");
+        ChatDockedModeItem.Content = L("Docked Revit pane", "Встроенная панель Revit");
+        ChatUiModeNote.Text = L("Restart Revit to apply. The separate window stays responsive during scripts. A docked pane shares Revit's UI thread and pauses while an API operation runs.",
+            "Применяется после перезапуска Revit. Отдельное окно остаётся отзывчивым во время скриптов. Встроенная панель использует поток Revit и приостанавливается на время вызова API.");
         TabModels.Header = L("Models", "Модели");
         TabMcp.Header = L("Subscription (MCP)", "Подписка (MCP)");
         TabTools.Header = L("Tools", "Инструменты");
@@ -428,6 +434,7 @@ public partial class SettingsWindow : Window
 
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
+        SettingsStore.ChatUiMode = TagOf(ChatUiModeBox, "window");
         SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;
         SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, "sonnet-5");
         SettingsStore.AutoAdvisorModel = TagOf(AutoAdvBox, "opus-4-8");

@@ -11,8 +11,11 @@ public sealed class ValidateCSharp : IRevitTool
     public bool RequiresTransaction => false;
     public InputSchema InputSchema => new ExecuteCSharp().InputSchema;
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
+        => Validate(input, ToolContext.Current);
+    internal static string Validate(IReadOnlyDictionary<string, JsonElement> input, System.Threading.CancellationToken ct)
     {
-        try { new ExecuteCSharp().Preflight(input,app); return Services.Json.Serialize(new { ok=true, compiled=true, executed=false }); }
+        try { ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct); return Services.Json.Serialize(new { ok=true, compiled=true, executed=false }); }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return Services.ToolResult.Failure("compilation",ex.Message); }
     }
 }

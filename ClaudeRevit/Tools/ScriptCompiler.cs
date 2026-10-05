@@ -20,8 +20,11 @@ internal static class ScriptCompiler
     // assembly, not brick compilation. Rebuilt when the assembly count changes.
     private static List<MetadataReference>? _cachedReferences;
     private static int _cachedReferenceableCount;
+    private static readonly object ReferenceGate = new();
 
     public static List<MetadataReference> RuntimeReferences()
+    { lock (ReferenceGate) return BuildRuntimeReferences(); }
+    private static List<MetadataReference> BuildRuntimeReferences()
     {
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 

@@ -49,6 +49,9 @@ public class ToolDispatcher : IExternalEventHandler
     public static bool Suppressing => ForceSuppress || _suppressCount > 0;
 
     private ToolDispatcher(ToolRegistry registry) => _registry = registry;
+    public static event Action<string, string>? ProgressChanged;
+    private static void ReportProgress(string documentKey, string stage, Services.McpTurnChannel? channel)
+    { if (channel?.Progress is { } progress) progress(stage); else ProgressChanged?.Invoke(documentKey, stage); }
 
     public Task BeginTurnAsync(string label, CancellationToken ct = default, string? documentKey = null)
     {
@@ -94,11 +97,38 @@ public class ToolDispatcher : IExternalEventHandler
                 return Services.ToolResult.Complete(value.ToJsonString(Services.ToolResult.Options));
             }, ct);
         }
+        var boundDocumentKey = documentKey ?? Services.DocumentSessions.CurrentDocumentKey;
+        if (name == "validate_csharp" && _registry.Get(name) is ValidateCSharp validator)
+        {
+            if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(validator), StringComparer.OrdinalIgnoreCase))
+                return Task.FromResult(Services.ToolResult.Failure("tool_disabled", "Code tools are disabled in Settings."));
+            return Task.Run(() => ValidateCSharp.Validate(input, ct), ct);
+        }
+        if (name == "execute_csharp" && _registry.Get(name) is ExecuteCSharp scriptTool)
+            return PrepareScriptAsync(scriptTool, input, ct, boundDocumentKey);
+        return QueueTool(name, input, ct, boundDocumentKey);
+    }
+    private async Task<string> PrepareScriptAsync(ExecuteCSharp tool, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey)
+    {
+        if (!Services.SettingsStore.AllowCodeExecution) throw new InvalidOperationException("Code execution is disabled. Enable it in Settings before running this tool.");
+        if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Code tools are disabled in Settings.");
+        var channel = Services.McpSession.Executing?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
+        ReportProgress(documentKey, "compiling C# on a worker…", channel);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var bytes = await Task.Run(() => ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct), ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        Services.TaskJournal.Append(new { kind = "script_compiled", utc = DateTime.UtcNow, task_id = channel?.TaskId ?? Services.TaskJournal.CurrentId, tool = tool.Name, document_key = documentKey, seconds = watch.Elapsed.TotalSeconds });
+        ReportProgress(documentKey, "running C# in Revit…", channel);
+        return await QueueTool(tool.Name, input, ct, documentKey, tool, bytes).ConfigureAwait(false);
+    }
+    private Task<string> QueueTool(string name, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey, ExecuteCSharp? script = null, byte[]? bytes = null)
+    {
         var operation = new Services.QueuedOperation<string>(ct);
         // The token travels WITH the job: cancelling only the TCS would leave the job queued, and it
         // would still run on the next Idling — mutating the model after the user hit Stop.
         _queue.Enqueue(new ToolJob(name, input, operation,
-            documentKey ?? Services.DocumentSessions.CurrentDocumentKey, Services.McpSession.Executing));
+            documentKey, Services.McpSession.Executing, script, bytes));
         _event.Raise();
         return operation.Task;
     }
@@ -401,7 +431,7 @@ public class ToolDispatcher : IExternalEventHandler
         using var sessionContext = Services.McpSession.Enter(job.Session);
         using var attachmentScope = job.AttachmentScope == null ? null : Services.AttachmentStore.EnterScope(job.AttachmentScope);
         var boundDocument = Services.DocumentSessions.Find(job.DocumentKey);
-        ToolContext.Set(job.Ct, boundDocument, job.Channel?.Progress);
+        ToolContext.Set(job.Ct, boundDocument, stage => ReportProgress(job.DocumentKey, stage, job.Channel));
         var warnings = new List<string>();
         ModelChangeCapture? changes = null;
         ToolDispatcher.PushSuppress();
@@ -420,7 +450,9 @@ public class ToolDispatcher : IExternalEventHandler
                 foreach(var key in new[]{"name","new_name"})if(job.Input.TryGetValue(key,out var value)&&value.ValueKind==JsonValueKind.String)Services.GeometryPreflight.Name(value.GetString()??"");
             if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
                 throw new InvalidOperationException("Code execution is disabled. Enable it in Settings before running this tool.");
-            tool.Preflight(job.Input,app);
+            if (job.PreparedScript != null && !ReferenceEquals(tool, job.PreparedScript))
+                throw new InvalidOperationException("Script tool changed during compilation. Retry the call.");
+            if (job.PreparedBytes == null) tool.Preflight(job.Input,app);
             changes = new ModelChangeCapture(boundDocument,job.DocumentKey);
             if (_benchmarkFixture != null && job.Name is "open_family_editor" or "reload_family_into_document")
                 throw new InvalidOperationException("Benchmark tasks must keep the scratch copy active; run family tasks from a saved RFA seed.");
@@ -458,7 +490,7 @@ public class ToolDispatcher : IExternalEventHandler
 
                 try
                 {
-                    result = tool.Execute(job.Input, app);
+                    result = job.PreparedScript != null ? job.PreparedScript.ExecutePrepared(job.Input, app, job.PreparedBytes!) : tool.Execute(job.Input, app);
                     job.Ct.ThrowIfCancellationRequested();
                     var status = tx.Commit();
 
@@ -641,7 +673,8 @@ public class ToolDispatcher : IExternalEventHandler
     private sealed record ToolJob(
         string Name,
         IReadOnlyDictionary<string, JsonElement> Input,
-        Services.QueuedOperation<string> Operation, string DocumentKey, Services.McpClientState? Session) : Job
+        Services.QueuedOperation<string> Operation, string DocumentKey, Services.McpClientState? Session,
+        ExecuteCSharp? PreparedScript = null, byte[]? PreparedBytes = null) : Job
     {
         public string? TaskId => Channel?.TaskId ?? _taskId;
         private readonly string? _taskId = Services.TaskJournal.CurrentId;

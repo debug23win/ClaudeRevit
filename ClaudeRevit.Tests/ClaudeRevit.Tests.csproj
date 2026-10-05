@@ -35,6 +35,7 @@
   <ItemGroup>
     <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="src\ToolResult.cs" />
     <Compile Include="..\ClaudeRevit\Tools\ScriptCompiler.cs" Link="src\ScriptCompiler.cs" />
+    <Compile Include="..\ClaudeRevit\Tools\ScriptLoopInstrumentation.cs" Link="src\ScriptLoopInstrumentation.cs" />
     <Compile Include="..\ClaudeRevit\Services\GeometryPreflight.cs" Link="src\GeometryPreflight.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexUsage.cs" Link="src\CodexUsage.cs" />
     <!-- Compile the pure-logic sources directly (they use only System.*), so the tests need no

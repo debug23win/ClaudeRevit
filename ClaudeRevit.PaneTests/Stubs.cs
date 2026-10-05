@@ -19,7 +19,9 @@ namespace ClaudeRevit.Services
     }
     public sealed class ChatService
     {
-        private string _scope = DocumentSessions.CurrentWorkspace.Identity;
+        private string _scope;
+        public ChatService(bool ephemeral = false, DocumentSessions.Snapshot? snapshot = null)
+        { _scope = (snapshot ?? DocumentSessions.Current).Workspace.Identity; }
         public static readonly Dictionary<string, List<ChatMessage>> Saved = new();
         public bool SubscriptionMode { get; set; }
         public Func<string, string, Task<bool>>? ConfirmToolAsync;
@@ -36,7 +38,8 @@ namespace ClaudeRevit.Services
             return Pending?.Task.WaitAsync(ct) ?? Task.CompletedTask;
         }
         public bool WorkspaceIsCurrent => _scope == DocumentSessions.CurrentWorkspace.Identity;
-        public void SwitchWorkspace(bool preserveHistory = false) => _scope = DocumentSessions.CurrentWorkspace.Identity;
+        public bool WorkspaceMatches(DocumentSessions.Snapshot snapshot) => _scope == snapshot.Workspace.Identity;
+        public void SwitchWorkspace(bool preserveHistory = false, DocumentSessions.Snapshot? snapshot = null) => _scope = (snapshot ?? DocumentSessions.Current).Workspace.Identity;
         public List<ChatMessage> LoadUiMessages() => Saved.TryGetValue(_scope, out var saved) ? new(saved) : new();
         public void SaveHistory(IEnumerable<ChatMessage> messages) => Saved[_scope] = messages.ToList();
         public void ClearHistory() { }
@@ -101,6 +104,11 @@ namespace ClaudeRevit.Tools
 {
     public static class DynamicToolLoader { public static void LoadAll() { } }
     public static class ToolContext { public static bool IsExecuting { get; set; } }
+    public static class ToolDispatcher
+    {
+        public static event Action<string, string>? ProgressChanged;
+        public static void NotifyProgress(string key, string stage) => ProgressChanged?.Invoke(key, stage);
+    }
 }
 namespace ClaudeRevit.UI
 {

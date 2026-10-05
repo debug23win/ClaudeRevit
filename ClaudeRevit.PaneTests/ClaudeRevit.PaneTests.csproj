@@ -20,6 +20,7 @@
     <Compile Include="..\ClaudeRevit\Services\BenchmarkExecution.cs" Link="BenchmarkExecution.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkTasks.cs" Link="BenchmarkTasks.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatPaneView.xaml.cs" Link="ChatPaneView.xaml.cs" />
+    <Compile Include="..\ClaudeRevit\UI\ChatWindowHost.cs" Link="ChatWindowHost.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="ChatMessage.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpAgentSelection.cs" Link="McpAgentSelection.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexModels.cs" Link="CodexModels.cs" />

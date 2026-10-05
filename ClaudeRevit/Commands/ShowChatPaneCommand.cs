@@ -11,6 +11,8 @@ public class ShowChatPaneCommand : IExternalCommand
 {
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
+        if (ChatWindowHost.UsesWindow)
+        { _ = ChatWindowHost.ShowAsync(toggle: true); return Result.Succeeded; }
         var pane = commandData.Application.GetDockablePane(PaneIds.Chat);
         if (pane.IsShown())
             pane.Hide();

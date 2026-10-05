@@ -22,13 +22,21 @@ internal static class ToolContext
 
     [ThreadStatic] private static Autodesk.Revit.DB.Document? _document;
     [ThreadStatic] private static Action<string>? _progress;
+    [ThreadStatic] private static long _lastProgressTick;
+    [ThreadStatic] private static string? _lastProgressStage;
     public static Autodesk.Revit.UI.UIDocument? UiDocument(Autodesk.Revit.UI.UIApplication app) =>
         _document == null ? app.ActiveUIDocument : new Autodesk.Revit.UI.UIDocument(_document);
     public static void Set(CancellationToken ct, Autodesk.Revit.DB.Document? document = null, Action<string>? progress = null)
-    { _ct = ct; _document = document; _progress = progress; _executing = true; }
+    { _ct = ct; _document = document; _progress = progress; _executing = true; _lastProgressTick = 0; _lastProgressStage = null; }
     public static void Clear() { _ct = default; _document = null; _progress = null; _executing = false; }
     public static void ReportProgress(int completed, int total, string stage)
-    { ThrowIfCancelled(); _progress?.Invoke($"{stage}: {completed}/{total}"); }
+    {
+        ThrowIfCancelled();
+        var now = Environment.TickCount64;
+        if (stage == _lastProgressStage && completed < total && now - _lastProgressTick < 100) return;
+        _lastProgressStage = stage; _lastProgressTick = now;
+        _progress?.Invoke($"{stage}: {completed}/{total}");
+    }
 
     // Call inside long loops. Throws OperationCanceledException, which the dispatcher already
     // reports as a cancelled call rather than a tool failure.

@@ -4,6 +4,8 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
+**v3.8.2:** choose a separate chat window (default) or docked Revit pane in General settings. The separate window keeps input, progress and Stop responsive during scripts. C# compiles on workers and loop bodies gain cooperative Stop checks. Restart Revit to apply the interface choice. [Interface modes and limits](docs/chat-interface.md) · [Release notes](docs/releases/v3.8.2.md).
+
 **v3.8.1:** attach several documents or images, read PDF/Office/text/archive contents in pages, and add instructions/files while the agent works with **Дополнить**. **Stop** stays separate. Project drafts and file access remain independent. [Files and request updates](docs/chat-attachments.md) · [Release notes](docs/releases/v3.8.1.md).
 
 **v3.8.0:** parameter generators for towers/facades/spires, preflight compilation, native view images, structured tool results and a complete task journal with **Copy log**. Open project tabs keep independent chats, drafts, model choices and running tasks. Codex/Claude Code MCP can delegate planning/checks to subagents. Reinforcement setup and actual geometry evidence improve the benchmark. [Tools and examples](docs/modeling-performance.md) · [Release notes](docs/releases/v3.8.0.md).
@@ -33,7 +35,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 
 - **Document attachments** — select/drop/paste several files; PDF text, DOCX, XLSX cached values, PPTX, ODF, text and ZIP entries are readable through `read_attachment`. Images use native vision. Other binary formats supply a stored path for a suitable native tool.
 - **Additional instructions during a task** — **Дополнить** adds text/files at the next model/tool boundary, or continues the same conversation after its final tool. **Stop** is separate; unsent drafts are preserved. [Formats and limits](docs/chat-attachments.md).
-- **Dockable chat pane** in Revit, with streaming responses
+- **Chat interface modes** — an independent window (default) or docked Revit pane, selected in General settings and applied after restarting Revit. The independent window accepts input, progress, supplements and Stop during synchronous scripts.
 - **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Open document tabs keep independent drafts, attachments, choices and running tasks; native calls stay bound to their document.
 - **Independent MCP clients** — model reports, settings directives and cancellation belong to each connection. Settings let you select a connected client. Stop cancels this pane's queued work and waits for a running Revit operation to settle.
 - **BIMStarter, ADSK and EIR context** — live GUIDs, bindings, units, templates and schedules via `get_project_standards`; 313 BIMStarter GUIDs and 323 ADSK GUIDs (566 unique combined; 1120 edition/translation rows) via `get_shared_parameter_catalog`. `get_standard_workflows` explains counting schemes and profile differences; `validate_project_standard` performs a partial Samolet EIR audit. Workbook group recommendations do not prove live bindings.
