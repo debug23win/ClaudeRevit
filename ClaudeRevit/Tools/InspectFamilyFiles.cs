@@ -13,7 +13,7 @@ public sealed class InspectFamilyFiles : IRevitTool
     public bool RequiresNoTurnGroup => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
-        ["files"] = NativeToolUtil.Any("[{path:absolute RFA path,scenarios?:[{name,type_name?,values:{actual parameter name or GUID:value}}]}]. Length in mm, area m2, volume m3, angle degrees. Inspect first to discover names before flexing. No scenarios means analysis only."),
+        ["files"] = NativeToolUtil.Any("[{path:absolute RFA path,scenarios?:[{name,type_name?,values:{actual parameter name or GUID:value}}],require_geometry_change?:bool}]. Length in mm, area m2, volume m3, angle degrees. Inspect first to discover names before flexing. No scenarios means analysis only."),
         ["max_depth"] = NativeToolUtil.Field("integer", "Default 4, 0..6.")
     }, "files");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input, UIApplication app)
@@ -30,7 +30,12 @@ public sealed class InspectFamilyFiles : IRevitTool
                 if(new FileInfo(path).Length>100_000_000)throw new ToolInputException("RFA exceeds the 100 MB reference inspection limit.");
                 var structure = JsonSerializer.Deserialize<JsonElement>(new AnalyzeFamilyStructure().Execute(args, app));
                 JsonElement? flex = null;
-                if (item.TryGetProperty("scenarios", out var scenarios)) { args["scenarios"] = scenarios; flex = JsonSerializer.Deserialize<JsonElement>(new FlexFamily().Execute(args, app)); }
+                if (item.TryGetProperty("scenarios", out var scenarios))
+                {
+                    args["scenarios"] = scenarios;
+                    if (item.TryGetProperty("require_geometry_change", out var change)) args["require_geometry_change"] = change;
+                    flex = JsonSerializer.Deserialize<JsonElement>(new FlexFamily().Execute(args, app));
+                }
                 rows.Add(new { path, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), structure, flex, original_saved = false });
             }
             catch (OperationCanceledException) { throw; }

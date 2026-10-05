@@ -165,8 +165,12 @@ an unknown later group marks the data incomplete. At most 16 derived tables and
 10,000 category instances are supported per document.
 
 Steel masses remain unrounded physical model values. Revit totals them and displays
-tonnes at 0.1 accuracy. Profile/grade subtotals and a grand total are native schedule
-totals. A second **live** schedule gives overall totals by metal grade; place it below
+tonnes at 0.1 accuracy. The tool returns the detail matrix and four **live** grouped
+summary schedules: profile/grade, profile, overall mass and metal grade. Their totals
+are native aggregated data cells, with the same grid/text formatting as detail rows.
+Revit's standard footer rows ignored border overrides in native acceptance; separate
+summaries avoid unframed footer values. This set needs an agreed sheet arrangement
+and is not an exact single-table reproduction of form 2. Place the summaries with
 the main schedule on the sheet. Native row grouping keeps different unit masses and
 measurement units separate, and source data changes update grouping/positions.
 

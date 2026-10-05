@@ -45,7 +45,17 @@ Supported actions:
   invoke subscription models or establish performance timings.
 - `live_schedule`: `section_file`, `output_file`. Compares independently expected
   material mass after section-size edits, physical-density edits and deletion.
-  This numeric check does not certify schedule wrapping or sheet layout.
+  Optional `titleblock_template` and `image_directory` place native schedules on
+  an A3 sheet, export PNG pixels, and report native cell styles/rows and layout
+  audits. Numerical success does not certify wrapping or drawing compliance.
+- `schedule_forms`: `section_file`, `output_file`, `titleblock_template`,
+  `image_directory`. Creates three live timber forms, checks native length-driven
+  amounts and physical material masses, then exports their A3 sheet.
+- `bore`: `section_file` (tube seed). Checks actual inner cylindrical faces and
+  rejects an offset axis and a diameter larger than the through-bore.
+- `reference_placement`: `family_file` (downloaded BIMStarter welded box beam).
+  Tests actual native beam placement length and width-driven solid bounds in a
+  disposable project. It does not certify a generated structural template.
 - `dependent_node`: `section_file`, `output_file`. Checks relative placement and
   parameter/actual-volume dependencies, preserves an independent managed-part
   edit and tests a deleted source. The saved file is a negative regression case.
@@ -57,3 +67,6 @@ are undone in `finally`; no user edit can interleave on Revit's API thread.
 
 Only executed reports can establish acceptance. Successful compilation, a
 catalogue description or the presence of a fixture generator cannot do so.
+See [executed October 2026 cases](../docs/native-acceptance-2026-10.md) for results
+and the [BIMStarter findings](../docs/bimstarter-reference-cases.md) for expected
+minimum-count behavior and remaining visibility checks.

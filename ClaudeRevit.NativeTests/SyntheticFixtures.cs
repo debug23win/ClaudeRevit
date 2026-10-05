@@ -25,7 +25,7 @@ internal static class SyntheticFixtures
             {
                 family = app.Application.NewFamilyDocument(template);
                 NativeAcceptance.Target(family);
-                var n = family.ActiveView.ViewDirection;
+                var n = family.ActiveView?.ViewDirection ?? XYZ.BasisZ;
                 if (Math.Abs(n.DotProduct(XYZ.BasisZ)) > .99) n = XYZ.BasisZ;
                 double width = 300, height = shape == "tube" ? 300 : 400, web = shape == "timber_pair" ? 40 : 12, flange = 20, length = 1000;
                 var args = JsonSerializer.SerializeToElement(new { shape, width_mm = width, height_mm = height, web_mm = web, flange_mm = flange,
@@ -47,7 +47,13 @@ internal static class SyntheticFixtures
                     _ => throw new InvalidOperationException("Unknown fixture shape.")
                 };
                 double actualVolumeMm3 = solids.Sum(s => s.Volume) * Math.Pow(304.8, 3), expectedVolumeMm3 = expectedArea * length;
-                if (Math.Abs(actualVolumeMm3 - expectedVolumeMm3) > Math.Max(1, expectedVolumeMm3 * 1e-5)) throw new InvalidOperationException("Independent fixture volume disagrees.");
+                var curvedTolerance=shape=="tube"?1e-4:1e-5;
+                if (Math.Abs(actualVolumeMm3 - expectedVolumeMm3) > Math.Max(1, expectedVolumeMm3 * curvedTolerance)) throw new InvalidOperationException("Independent fixture volume disagrees.");
+                if(shape=="tube")
+                {
+                    var radii=solids.SelectMany(s=>s.Faces.Cast<Face>()).OfType<CylindricalFace>().SelectMany(f=>new[]{f.get_Radius(0).GetLength(),f.get_Radius(1).GetLength()}).Select(r=>Math.Round(r*304.8,5)).Distinct().OrderBy(r=>r).ToArray();
+                    if(radii.Length!=2||Math.Abs(radii[0]-138)>.001||Math.Abs(radii[1]-150)>.001)throw new InvalidOperationException("Independent native cylindrical radii disagree.");
+                }
                 var fm = family.FamilyManager;
                 var mass = fm.Parameters.Cast<FamilyParameter>().Single(p => p.Definition.Name == "Section_Mass");
                 double actualMass = UnitUtils.ConvertFromInternalUnits(fm.CurrentType.AsDouble(mass)!.Value, UnitTypeId.Kilograms), expectedMass = expectedVolumeMm3 / 1e9 * 7850;
@@ -55,6 +61,7 @@ internal static class SyntheticFixtures
                 var file = Path.Combine(directory, "QA_Section_" + shape + ".rfa");
                 if (File.Exists(file)) throw new InvalidOperationException("Refusing to overwrite an existing fixture: " + file);
                 family.SaveAs(file, new SaveAsOptions { OverwriteExistingFile = false, MaximumBackups = 1 });
+                NativeAcceptance.Target(null); family.Close(false); family=null;
                 rows.Add(new { shape, passed = true, file, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))).ToLowerInvariant(),
                     actual_volume_mm3 = actualVolumeMm3, expected_volume_mm3 = expectedVolumeMm3, actual_mass_kg = actualMass, expected_mass_kg = expectedMass, tool });
             }
@@ -68,7 +75,9 @@ internal static class SyntheticFixtures
     internal static IEnumerable<Solid> Solids(Element element)
     {
         using var options = new Options { DetailLevel = ViewDetailLevel.Fine, IncludeNonVisibleObjects = false };
-        return Collect(element.get_Geometry(options)).ToArray();
+        // Detached geometry remains usable after Options/GeometryElement wrappers
+        // are released; Revit can otherwise throw on later curved-face traversal.
+        return Collect(element.get_Geometry(options)).Select(SolidUtils.Clone).ToArray();
         static IEnumerable<Solid> Collect(GeometryElement? geometry)
         {
             if (geometry == null) yield break;
@@ -171,10 +180,11 @@ internal static class SyntheticFixtures
                 new { name = "variant_off", values = new Dictionary<string,object> { ["QA_SecondVisible"] = false }, require_solid = true }
             } }), app));
             if (flex.GetProperty("results").EnumerateArray().Any(r => !r.GetProperty("valid").GetBoolean())) throw new InvalidOperationException("Nested driver/visibility acceptance failed: " + flex);
-            // Probe only the one top-level instance, preventing double-counting
-            // shared child instances exposed separately by a collector.
-            double nominal = new FilteredElementCollector(root).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>().Where(f => f.SuperComponent == null).SelectMany(Solids).Sum(s => s.Volume) * Math.Pow(.3048, 3);
-            if (Math.Abs(nominal - .24) > 1e-6) throw new InvalidOperationException("Two nested 300x400x1000 blocks must occupy 0.24 m3.");
+            // Shared leaves are separate native instances: Revit deliberately omits
+            // their solids from the middle instance. Probe only the leaf instances
+            // in this fixture, whose middle/root have no owned geometry.
+            double nominal = new FilteredElementCollector(root).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>().Where(f => f.SuperComponent != null && f.GetSubComponentIds().Count==0).SelectMany(Solids).Sum(s => s.Volume) * Math.Pow(.3048, 3);
+            if (Math.Abs(nominal - .24) > 1e-6) throw new InvalidOperationException("Two nested 300x400x1000 blocks must occupy 0.24 m3; actual " + nominal + "; instances: " + JsonSerializer.Serialize(new FilteredElementCollector(root).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>().Select(f=>new { id=f.Id.Value,parent=f.SuperComponent?.Id.Value,volume=Solids(f).Sum(s=>s.Volume)*Math.Pow(.3048,3) })));
             root.SaveAs(rootPath, new SaveAsOptions { OverwriteExistingFile = false, MaximumBackups = 1 });
             return new { passed = true, file = rootPath, middle_file = middlePath, independent_nominal_volume_m3 = nominal, expected_nominal_volume_m3 = .24, structure, flex };
         }
@@ -197,8 +207,8 @@ internal static class SyntheticFixtures
         {
             project = app.Application.NewProjectDocument(UnitSystem.Metric); NativeAcceptance.Target(project);
             var updaterType = typeof(CreateSpdsTable).Assembly.GetType("ClaudeRevit.Tools.LiveSpdsUpdater", true)!;
-            updater = (IUpdater)Activator.CreateInstance(updaterType, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
-                new object[] { new AddInId(new Guid("d777dc4a-9e10-4699-a055-6b855127fe75")) }, null)!;
+            updater = new ScopedUpdater((IUpdater)Activator.CreateInstance(updaterType, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+                new object[] { app.ActiveAddInId }, null)!, app.ActiveAddInId, new Guid("d777dc4a-9e10-4699-a055-6b855127fe75"));
             UpdaterRegistry.RegisterUpdater(updater, project, true);
             var filter = new LogicalOrFilter(new ElementCategoryFilter(BuiltInCategory.OST_GenericModel), new ElementClassFilter(typeof(PropertySetElement)));
             foreach (var change in new[] { Element.GetChangeTypeAny(), Element.GetChangeTypeElementAddition(), Element.GetChangeTypeElementDeletion() })
@@ -229,20 +239,119 @@ internal static class SyntheticFixtures
             Expect(1884, "initial actual material quantities");
             using (var tx = new Transaction(project, "QA width edit")) { tx.Start(); a.LookupParameter("Section_Width").Set(500 / 304.8); tx.Commit(); }
             Expect(2512, "width updater");
-            using (var tx = new Transaction(project, "QA density edit")) { tx.Start(); var asset = assetElement.GetStructuralAsset(); asset.Density = UnitUtils.ConvertToInternalUnits(7000, UnitTypeId.KilogramsPerCubicMeter); assetElement.SetStructuralAsset(asset); tx.Commit(); }
+            using (var tx = new Transaction(project, "QA density edit")) { tx.Start(); var asset = assetElement.GetStructuralAsset(); asset.Name="QA actual steel density 7000"; asset.Density = UnitUtils.ConvertToInternalUnits(7000, UnitTypeId.KilogramsPerCubicMeter); assetElement.SetStructuralAsset(asset); tx.Commit(); }
             Expect(2240, "actual density updater");
             using (var tx = new Transaction(project, "QA source deletion")) { tx.Start(); project.Delete(b.Id); tx.Commit(); }
             Expect(1400, "source deletion updater");
+            var nativeSchedules=created.GetProperty("result").GetProperty("schedules").EnumerateArray().ToArray();
+            if(nativeSchedules.Length!=5)throw new InvalidOperationException("Steel detail and four native summaries are required.");
+            foreach(var entry in nativeSchedules)
+            {
+                var schedule=(ViewSchedule)project.GetElement(new ElementId(entry.GetProperty("id").GetInt64()));
+                var body=schedule.GetTableData().GetSectionData(SectionType.Body);
+                var totalRows=Enumerable.Range(body.FirstRowNumber,body.NumberOfRows).Where(row=>double.TryParse(schedule.GetCellText(SectionType.Body,row,body.LastColumnNumber).Replace(',','.'),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var value)&&Math.Abs(value-1.4)<1e-7).ToArray();
+                if(totalRows.Length!=1)throw new InvalidOperationException("Native summary does not show exactly one 1.4 t data row: "+schedule.Name);
+                foreach(var row in totalRows)foreach(var col in Enumerable.Range(body.FirstColumnNumber,body.NumberOfColumns))
+                {
+                    var style=body.GetTableCellStyle(row,col);
+                    if(new[]{style.BorderTopLineStyle,style.BorderBottomLineStyle,style.BorderLeftLineStyle,style.BorderRightLineStyle}.Any(id=>id.Value<=0))throw new InvalidOperationException("Native summary data has an invisible/unspecified border.");
+                    if(Math.Abs(style.TextSize-2.5*96/25.4)>1e-6)throw new InvalidOperationException("Native summary text size disagrees with 2.5 mm.");
+                }
+            }
             var audits = created.GetProperty("result").GetProperty("schedules").EnumerateArray().Select(s => JsonSerializer.Deserialize<JsonElement>(new AuditSpdsSchedule().Execute(Args(new { schedule_id = s.GetProperty("id").GetInt64() }), app))).ToArray();
+            object? visual=null;
+            if(input.TryGetProperty("titleblock_template",out var titleblock)) visual=ScheduleVisual(app,project,created.GetProperty("result").GetProperty("schedules").EnumerateArray().Select(s=>new ElementId(s.GetProperty("id").GetInt64())).ToArray(),titleblock.GetString()!,input.GetProperty("image_directory").GetString()!);
             project.SaveAs(file, new SaveAsOptions { OverwriteExistingFile = false, MaximumBackups = 1 });
-            return new { passed = true, file, expected_mass_stages_kg = new[] { 1884, 2512, 2240, 1400 }, created, audits, layout_visual_review = "not performed by this numeric test" };
+            return new { passed = true, file, expected_mass_stages_kg = new[] { 1884, 2512, 2240, 1400 }, created, audits, visual, layout_visual_review = "Export pixels still require independent inspection." };
         }
         finally
         {
             NativeAcceptance.Target(null);
-            if (updater != null && project is { IsValidObject: true }) UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId(), project);
+            if (updater != null && project is { IsValidObject: true } && UpdaterRegistry.IsUpdaterRegistered(updater.GetUpdaterId(),project)) UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId(), project);
             if (project is { IsValidObject: true }) project.Close(false);
         }
+    }
+    private static object ScheduleVisual(UIApplication app,Document project,ElementId[] schedules,string template,string directory)
+    {
+        Document? block=null;
+        try
+        {
+            Directory.CreateDirectory(directory);
+            block=app.Application.NewFamilyDocument(template);
+            using(var tx=new Transaction(block,"QA A3 titleblock type")){tx.Start();if(block.FamilyManager.CurrentType==null)block.FamilyManager.NewType("QA A3");tx.Commit();}
+            var loaded=block.LoadFamily(project,new FixtureLoadOptions())??throw new InvalidOperationException("Cannot load QA titleblock.");
+            var symbol=loaded.GetFamilySymbolIds().First();
+            block.Close(false);block=null;
+            ViewSheet sheet;
+            using(var tx=new Transaction(project,"QA live schedules on A3"))
+            {
+                tx.Start();sheet=ViewSheet.Create(project,symbol);sheet.Name="QA live specifications";sheet.SheetNumber="QA-01";project.Regenerate();
+                var outline=sheet.Outline;var point=new XYZ(outline.Min.U+20/304.8,outline.Max.V-20/304.8,0);
+                foreach(var id in schedules)
+                {
+                    var placed=ScheduleSheetInstance.Create(project,sheet.Id,id,point);project.Regenerate();
+                    var box=placed.get_BoundingBox(sheet)??throw new InvalidOperationException("No native schedule bounds.");
+                    point=new XYZ(point.X,box.Min.Y-10/304.8,0);
+                }
+                tx.Commit();
+            }
+            var audits=schedules.Select(id=>JsonSerializer.Deserialize<JsonElement>(new AuditSpdsSchedule().Execute(Args(new{schedule_id=id.Value}),app))).ToArray();
+            var options=new ImageExportOptions{ExportRange=ExportRange.SetOfViews,FilePath=Path.Combine(directory,"QA_A3"),HLRandWFViewsFileType=ImageFileType.PNG,ShadowViewsFileType=ImageFileType.PNG,ZoomType=ZoomFitType.FitToPage,PixelSize=2000,FitDirection=FitDirectionType.Horizontal};
+            options.SetViewsAndSheets(new[]{sheet.Id});project.ExportImage(options);
+            var sections=schedules.Select(id=>
+            {
+                var schedule=(ViewSchedule)project.GetElement(id);var data=schedule.GetTableData();var rows=new List<object>();
+                foreach(var sectionType in new[]{SectionType.Header,SectionType.Body,SectionType.Summary,SectionType.Footer})
+                {
+                    var section=data.GetSectionData(sectionType);if(section==null)continue;
+                    rows.Add(new{section=sectionType.ToString(),count=section.NumberOfRows,cells=Enumerable.Range(section.FirstRowNumber,section.NumberOfRows).Take(30).Select(row=>new{row,height_mm=section.GetRowHeight(row)*304.8,text=Enumerable.Range(section.FirstColumnNumber,section.NumberOfColumns).Select(col=>schedule.GetCellText(sectionType,row,col)).ToArray(),styles=Enumerable.Range(section.FirstColumnNumber,section.NumberOfColumns).Select(col=>{var style=section.GetTableCellStyle(row,col);return new{style.FontName,style.TextSize,top=style.BorderTopLineStyle.Value,bottom=style.BorderBottomLineStyle.Value,left=style.BorderLeftLineStyle.Value,right=style.BorderRightLineStyle.Value};}).ToArray()}).ToArray()});
+                }
+                return new{id=id.Value,rows};
+            }).ToArray();
+            return new{sheet_id=sheet.Id.Value,audits,sections,images=Directory.GetFiles(directory,"*.png"),review="Native pixels must be inspected; this export alone does not certify SPDS compliance."};
+        }
+        finally{if(block is {IsValidObject:true})block.Close(false);}
+    }
+    public static object ScheduleForms(UIApplication app,JsonElement input)
+    {
+        using var installed=new InstalledUpdaterPause("ClaudeRevit live SPDS quantities");
+        var project=app.Application.NewProjectDocument(UnitSystem.Metric);NativeAcceptance.Target(project);
+        IUpdater? updater=null;
+        try
+        {
+            var type=typeof(CreateSpdsTable).Assembly.GetType("ClaudeRevit.Tools.LiveSpdsUpdater",true)!;
+            updater=new ScopedUpdater((IUpdater)Activator.CreateInstance(type,System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance,null,new object[]{app.ActiveAddInId},null)!,app.ActiveAddInId,Guid.NewGuid());
+            UpdaterRegistry.RegisterUpdater(updater,project,true);
+            var filter=new ElementCategoryFilter(BuiltInCategory.OST_GenericModel);
+            foreach(var change in new[]{Element.GetChangeTypeAny(),Element.GetChangeTypeElementAddition(),Element.GetChangeTypeElementDeletion()})UpdaterRegistry.AddTrigger(updater.GetUpdaterId(),project,filter,change);
+            FamilyInstance a,b;
+            using(var tx=new Transaction(project,"QA physical timber sources"))
+            {
+                tx.Start();if(!project.LoadFamily(input.GetProperty("section_file").GetString()!,out var family))throw new InvalidOperationException("Cannot load timber QA fixture.");
+                var symbol=(FamilySymbol)project.GetElement(family.GetFamilySymbolIds().First());symbol.Activate();project.Regenerate();
+                var asset=new StructuralAsset("QA actual timber density",StructuralAssetClass.Wood){Density=UnitUtils.ConvertToInternalUnits(500,UnitTypeId.KilogramsPerCubicMeter)};
+                var physical=PropertySetElement.Create(project,asset);var material=(Material)project.GetElement(Material.Create(project,"QA timber"));material.SetMaterialAspectByPropertySet(MaterialAspect.Structural,physical.Id);
+                a=project.Create.NewFamilyInstance(XYZ.Zero,symbol,Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                b=project.Create.NewFamilyInstance(new XYZ(2,0,0),symbol,Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                a.LookupParameter("Section_Material").Set(material.Id);b.LookupParameter("Section_Material").Set(material.Id);tx.Commit();
+            }
+            var created=new List<JsonElement>();
+            foreach(var profile in new[]{"timber_materials","timber_elements","scheme_specification"})
+                created.Add(JsonSerializer.Deserialize<JsonElement>(new CreateSpdsTable().Execute(Args(new{profile,standard_edition="2026",table_key="QA_"+profile,category="OST_GenericModel",scope="entire_category",nesting_policy="explicit",name="QA "+profile,font_name="Arial",preview=false,
+                    field_mapping=new{name=new{constant="Контрольный деревянный элемент 300x400"},mark=new{constant="ДЭ-1"},designation=new{constant="QA 300x400"},unit=new{constant="м"},notes=new{constant="Плотность 500 кг/м³"},amount=new{parameter_name="Section_Length",unit="m"},mass_kg=new{source="material_volumes"}}
+                }),app)));
+            double Value(JsonElement table,string key)=>new[]{a,b}.Sum(e=>e.get_Parameter(Guid.Parse(table.GetProperty("result").GetProperty("derived_parameters").GetProperty(key).GetString()!)).AsDouble());
+            if(Math.Abs(Value(created[0],"quantity")-2)>1e-7)throw new InvalidOperationException("Initial timber material amount is not 2 m.");
+            foreach(var table in created.Skip(1))if(Math.Abs(UnitUtils.ConvertFromInternalUnits(Value(table,"total"),UnitTypeId.Kilograms)-120)>.01)throw new InvalidOperationException("Initial physical timber total is not 120 kg.");
+            using(var tx=new Transaction(project,"QA timber length change")){tx.Start();a.LookupParameter("Section_Length").Set(2000/304.8);tx.Commit();}
+            if(Math.Abs(Value(created[0],"quantity")-3)>1e-7)throw new InvalidOperationException("Timber material amount did not follow native length.");
+            foreach(var table in created.Skip(1))if(Math.Abs(UnitUtils.ConvertFromInternalUnits(Value(table,"total"),UnitTypeId.Kilograms)-180)>.01)throw new InvalidOperationException("Physical timber total did not follow native length.");
+            var schedules=created.SelectMany(table=>table.GetProperty("result").GetProperty("schedules").EnumerateArray()).Select(s=>new ElementId(s.GetProperty("id").GetInt64())).ToArray();
+            var visual=ScheduleVisual(app,project,schedules,input.GetProperty("titleblock_template").GetString()!,input.GetProperty("image_directory").GetString()!);
+            var file=input.GetProperty("output_file").GetString()!;if(File.Exists(file))throw new InvalidOperationException("Refusing to overwrite timber fixture.");Directory.CreateDirectory(Path.GetDirectoryName(file)!);project.SaveAs(file,new SaveAsOptions{MaximumBackups=1});
+            return new{passed=true,file,initial_amount_m=2,edited_amount_m=3,initial_mass_kg=120,edited_mass_kg=180,created,visual};
+        }
+        finally{NativeAcceptance.Target(null);if(updater!=null&&UpdaterRegistry.IsUpdaterRegistered(updater.GetUpdaterId(),project))UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId(),project);project.Close(false);}
     }
     private sealed class InstalledUpdaterPause : IDisposable
     {
@@ -257,6 +366,14 @@ internal static class SyntheticFixtures
             if (UpdaterRegistry.IsUpdaterRegistered(id) && UpdaterRegistry.IsUpdaterEnabled(id)) { _ids.Add(id); UpdaterRegistry.DisableUpdater(id); }
         }
         public void Dispose() { foreach (var id in _ids) UpdaterRegistry.EnableUpdater(id); }
+    }
+    private sealed class ScopedUpdater(IUpdater implementation, AddInId addin, Guid id) : IUpdater
+    {
+        public UpdaterId GetUpdaterId()=>new(addin,id);
+        public string GetUpdaterName()=>"QA " + implementation.GetUpdaterName();
+        public string GetAdditionalInformation()=>implementation.GetAdditionalInformation();
+        public ChangePriority GetChangePriority()=>implementation.GetChangePriority();
+        public void Execute(UpdaterData data)=>implementation.Execute(data);
     }
     public static object BenchmarkProbe(UIApplication app)
     {
@@ -304,8 +421,8 @@ internal static class SyntheticFixtures
         {
             project = app.Application.NewProjectDocument(UnitSystem.Metric); NativeAcceptance.Target(project);
             var updaterType = typeof(UpsertConnectionNode).Assembly.GetType("ClaudeRevit.Tools.ConnectionNodeUpdater", true)!;
-            updater = (IUpdater)Activator.CreateInstance(updaterType, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
-                new object[] { new AddInId(new Guid("dd181d42-0669-4d2c-873b-c92b36fd79ab")) }, null)!;
+            updater = new ScopedUpdater((IUpdater)Activator.CreateInstance(updaterType, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+                new object[] { app.ActiveAddInId }, null)!, app.ActiveAddInId, new Guid("dd181d42-0669-4d2c-873b-c92b36fd79ab"));
             UpdaterRegistry.RegisterUpdater(updater, project, true);
             var filter = new LogicalOrFilter(new ElementClassFilter(typeof(FamilyInstance)), new ElementClassFilter(typeof(FamilySymbol)));
             foreach (var change in new[] { Element.GetChangeTypeAny(), Element.GetChangeTypeElementDeletion() }) UpdaterRegistry.AddTrigger(updater.GetUpdaterId(), project, filter, change);
@@ -349,7 +466,7 @@ internal static class SyntheticFixtures
         finally
         {
             NativeAcceptance.Target(null);
-            if (updater != null && project is { IsValidObject: true }) UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId(), project);
+            if (updater != null && project is { IsValidObject: true } && UpdaterRegistry.IsUpdaterRegistered(updater.GetUpdaterId(),project)) UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId(), project);
             if (project is { IsValidObject: true }) project.Close(false);
         }
     }

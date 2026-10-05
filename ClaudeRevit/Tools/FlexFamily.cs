@@ -86,7 +86,7 @@ public sealed class FlexFamily : IRevitTool
                     var changed=requireChange?Fingerprint(doc)!=baseline:(bool?)null;
                     if(requireChange&&changed!=true)throw new InvalidOperationException("Parameters did not change actual solid geometry; a named parameter alone is not a working driver.");
                     return new { geometry_changed=changed,type_name = fm.CurrentType?.Name, visible_solid_count = solids, summed_solid_volume_m3 = volume * Math.Pow(0.3048, 3), bounds,
-                        values = fm.Parameters.Cast<FamilyParameter>().Take(1000).Select(p => new { name = p.Definition.Name, value = FamilyEditorUtil.CurrentValue(fm, p).display }).ToArray() };
+                        values = fm.Parameters.Cast<FamilyParameter>().Take(1000).Select(p => { var value=FamilyEditorUtil.CurrentValue(fm,p); return new { name=p.Definition.Name, value=value.display, internal_value=value.raw, value_mm=value.mm }; }).ToArray() };
                 });
                 results.Add(new { name, valid = true, geometry, warnings });
             }

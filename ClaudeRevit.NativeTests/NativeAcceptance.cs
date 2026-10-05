@@ -66,6 +66,9 @@ public static class NativeAcceptance
                 else if (action == "live_schedule") result = SyntheticFixtures.LiveSchedule(app, root);
                 else if (action == "benchmark_probe") result = SyntheticFixtures.BenchmarkProbe(app);
                 else if (action == "dependent_node") result = SyntheticFixtures.DependentNode(app, root);
+                else if (action == "bore") result = GeometryFixtures.Bore(app,root);
+                else if (action == "reference_placement") result = GeometryFixtures.ReferencePlacement(app,root);
+                else if (action == "schedule_forms") result = SyntheticFixtures.ScheduleForms(app,root);
                 else if (action == "template_probe")
                 {
                     var rows = new List<object>();
@@ -91,7 +94,10 @@ public static class NativeAcceptance
                 _running = false;
                 var openAfter = app.Application.Documents.Cast<Document>().ToArray();
                 var originalDocumentsPreserved = openBefore.All(d => d.IsValidObject && openAfter.Contains(d) && d.IsModified == modifiedBefore[d]);
-                var activePreserved = app.ActiveUIDocument?.Document == activeBefore;
+                var activeAfter = app.ActiveUIDocument?.Document;
+                // Revit may return a new managed wrapper for the same native document.
+                var activePreserved = activeBefore == null ? activeAfter == null :
+                    activeAfter != null && activeBefore.IsValidObject && activeBefore.Equals(activeAfter);
                 File.WriteAllText(output, JsonSerializer.Serialize(new { utc = DateTime.UtcNow, revit = app.Application.VersionNumber, build = app.Application.VersionBuild,
                     assembly_sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(InspectFamilyFiles).Assembly.Location))).ToLowerInvariant(),
                     elapsed_seconds = clock.Elapsed.TotalSeconds, original_documents_preserved = originalDocumentsPreserved, active_document_preserved = activePreserved,

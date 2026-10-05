@@ -9,7 +9,7 @@ namespace ClaudeRevit.Tools;
 public sealed class CreateSpdsTable:IRevitTool
 {
     public string Name=>"create_spds_table";
-    public string Description=>"Create LIVE native ViewSchedules from actual model parameter mappings. Steel form 2 has a construction-group mass matrix, profile/grade subtotals, overall total and a separate LIVE grade-total schedule. Timber material/element statements and scheme form 7 supported. Bound calculated model parameters update in the same Revit transaction after source instance/type edits, additions or deletions; masses are summed before display rounding. No drafting snapshots. Preview=true by default. Existing approved schedules should be reused first. Clarify category, source scope, nested-instance counting, units, form, edition and formatting. Registered add-in updater must remain available; Revit warns if missing.";
+    public string Description=>"Create LIVE native ViewSchedules from actual model parameter mappings. Steel consumption uses a construction-group mass matrix and four grouped LIVE summaries (profile/grade, profile, overall, grade); totals use framed native data rows because Revit footer borders cannot be overridden reliably. This set needs an agreed sheet arrangement; it is not an exact single-table form 2 facsimile. Timber material/element statements and scheme form 7 supported. Bound calculated model parameters update in the same Revit transaction after source instance/type edits, additions or deletions; masses are summed before display rounding. No drafting snapshots. Preview=true by default. Reuse approved schedules first. Clarify category, source scope, nesting, units, form, edition and formatting. Registered add-in updater must remain available; Revit warns if missing.";
     public bool RequiresTransaction=>false;
     public bool MutatesWithoutTransaction=>true;
     public bool RequiresNoTurnGroup=>true;
@@ -56,11 +56,17 @@ public sealed class CreateSpdsTable:IRevitTool
         {
             LiveSpds.Bind(doc,r);LiveSpds.Refresh(doc,r,true);
             var schedules=new List<ViewSchedule>{LiveSpds.CreateSchedule(doc,r,name,font,size)};
-            if(profile=="steel_rollup")schedules.Add(LiveSpds.CreateSchedule(doc,r,name+" — по маркам металла",font,size,true));
+            if(profile=="steel_rollup")
+            {
+                schedules.Add(LiveSpds.CreateSchedule(doc,r,name+" — итоги по профилям и маркам",font,size,"profile_grade"));
+                schedules.Add(LiveSpds.CreateSchedule(doc,r,name+" — итоги по профилям",font,size,"profile"));
+                schedules.Add(LiveSpds.CreateSchedule(doc,r,name+" — всего масса металла",font,size,"overall"));
+                schedules.Add(LiveSpds.CreateSchedule(doc,r,name+" — по маркам металла",font,size,"grade"));
+            }
             r.ScheduleUniqueIds=schedules.Select(s=>s.UniqueId).ToArray();LiveSpds.Save(Autodesk.Revit.DB.ExtensibleStorage.DataStorage.Create(doc),r);
             foreach(var s in schedules)ModelProvenance.Write(s,new {generator="live_spds_table",profile,standard_edition=edition,live=true,scope,table_key=key,source_count=sources.Count});
-            return new {profile,standard_edition=edition,table_key=key,live=true,source_count=sources.Count,schedules=schedules.Select(s=>new {id=preview?(long?)null:s.Id.Value,name=s.Name}).ToArray(),total_mass_kg=previewTable.TotalMassKg,columns=Services.SpdsTables.Columns(profile,r.Groups),derived_parameters=r.Parameters};
+            return new {profile,standard_edition=edition,table_key=key,live=true,source_count=sources.Count,schedules=schedules.Select((s,index)=>new {id=preview?(long?)null:s.Id.Value,name=s.Name,aggregation=profile=="steel_rollup"?new[]{"detail","profile_grade","profile","overall","grade"}[index]:"detail"}).ToArray(),total_mass_kg=previewTable.TotalMassKg,columns=Services.SpdsTables.Columns(profile,r.Groups),derived_parameters=r.Parameters};
         });
-        return Services.Json.Serialize(new {preview,result,warnings,next_step="Place live schedules on sheets and inspect export_image for wrapping, borders and totals. Grade-total steel schedule is separate and must be placed below the main table. Derived fields require ClaudeRevit updater; source errors show an incomplete-data title/column instead of stale totals."});
+        return Services.Json.Serialize(new {preview,result,warnings,next_step="Arrange all returned live schedules on sheets; steel summaries are separate native tables. Agree placement and inspect export_image for wrapping, borders and totals. Derived fields require ClaudeRevit updater; source errors show an incomplete-data title/column instead of stale totals."});
     }
 }

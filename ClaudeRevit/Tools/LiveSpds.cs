@@ -164,16 +164,20 @@ internal static class LiveSpds
         }
         return(items.Count,errors);
     }
-    public static ViewSchedule CreateSchedule(Document doc,LiveSpdsRecord r,string name,string font,double size,bool gradeTotals=false)
+    public static ViewSchedule CreateSchedule(Document doc,LiveSpdsRecord r,string name,string font,double size,string aggregation="detail")
     {
-        var schedule=ViewSchedule.CreateSchedule(doc,r.Categories.Count()>1?ElementId.InvalidElementId:new ElementId(r.CategoryId));schedule.Name=name;var d=schedule.Definition;d.IsItemized=false;d.ShowHeaders=true;d.ShowTitle=true;
+        var schedule=ViewSchedule.CreateSchedule(doc,r.Categories.Count()>1?ElementId.InvalidElementId:new ElementId(r.CategoryId));schedule.Name=name;var d=schedule.Definition;d.IsItemized=false;d.ShowHeaders=true;d.ShowTitle=true;d.ShowGridLines=true;
+        schedule.RowHeightOverride=RowHeightOverrideOptions.All;schedule.RowHeight=Math.Max(8,size*2)/Units.MmPerFoot;
+        var border=doc.Settings.Categories.NewSubcategory(doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines),"SPDS table border "+Guid.NewGuid().ToString("N")[..8]);border.SetLineWeight(1,GraphicsStyleType.Projection);
         var columns=Services.SpdsTables.Columns(r.Profile,r.Groups);var added=new Dictionary<string,ScheduleField>();
         ScheduleField Field(string key,bool hidden=false,string? heading=null,double width=15)
         {
             var id=SharedParameterElement.Lookup(doc,r.Parameters[key])?.Id??throw new InvalidOperationException("Missing shared parameter: "+key);var candidates=d.GetSchedulableFields().Where(f=>f.ParameterId==id&&f.FieldType==ScheduleFieldType.Instance).ToArray();
             if(candidates.Length!=1)throw new ToolInputException("Derived field is not schedulable: "+key);var field=d.AddField(candidates[0]);field.ColumnHeading=heading??key;field.IsHidden=hidden;field.GridColumnWidth=field.SheetColumnWidth=width/Units.MmPerFoot;added[key]=field;
-            var style=field.GetStyle();style.FontName=font;style.TextSize=size*72/25.4;style.FontHorizontalAlignment=TextKeys.Contains(key)?HorizontalAlignmentStyle.Left:HorizontalAlignmentStyle.Center;
-            var flags=style.GetCellStyleOverrideOptions();flags.Font=true;flags.FontSize=true;flags.HorizontalAlignment=true;style.SetCellStyleOverrideOptions(flags);field.SetStyle(style);
+            // Table cell text uses display pixels (96 dpi), unlike TextNoteType's feet.
+            var style=field.GetStyle();style.FontName=font;style.TextSize=size*96/25.4;style.FontHorizontalAlignment=TextKeys.Contains(key)?HorizontalAlignmentStyle.Left:HorizontalAlignmentStyle.Center;
+            style.BorderTopLineStyle=style.BorderBottomLineStyle=style.BorderLeftLineStyle=style.BorderRightLineStyle=border.Id;
+            var flags=style.GetCellStyleOverrideOptions();flags.Font=true;flags.FontSize=true;flags.HorizontalAlignment=true;flags.BorderLineStyle=flags.BorderTopLineStyle=flags.BorderBottomLineStyle=flags.BorderLeftLineStyle=flags.BorderRightLineStyle=true;style.SetCellStyleOverrideOptions(flags);field.SetStyle(style);
             if(key is "mass" or "total"||key.StartsWith("group_")){using var format=new FormatOptions(r.Profile=="steel_rollup"?UnitTypeId.Tonnes:UnitTypeId.Kilograms){UseDefault=false,Accuracy=r.Profile=="steel_rollup"?.1:.001};field.SetFormatOptions(format);}
             bool total=key is "quantity" or "total"||key.StartsWith("group_");if(total){if(!field.CanTotal())throw new ToolInputException("Cannot total derived field.");field.DisplayType=ScheduleFieldDisplayType.Totals;}
             return field;
@@ -181,19 +185,31 @@ internal static class LiveSpds
         for(int index=0;index<columns.Count;index++)
         {
             var c=columns[index];string key=r.Profile=="steel_rollup"&&index>=4&&index<columns.Count-1?"group_"+(index-4):c.Key;
-            if(gradeTotals&&key is "profile" or "size" or "position")continue;Field(key,false,c.Heading,c.WidthMm);
+            if(r.Profile=="steel_rollup"&&aggregation!="detail")
+            {
+                if(key is "size" or "position")continue;
+                if(key=="profile"&&aggregation is "grade" or "overall")continue;
+                if(key=="grade"&&aggregation is "profile" or "overall")continue;
+            }
+            Field(key,false,c.Heading,c.WidthMm);
         }
         Field("include",true);Field("row_key",true);if(!added.ContainsKey("position"))Field("position",true);Field("error",true,"Проверка данных",50);
         d.AddFilter(new ScheduleFilter(added["include"].FieldId,ScheduleFilterType.Equal,1));
         if(r.Profile=="steel_rollup")
         {
-            if(!gradeTotals)d.AddSortGroupField(new ScheduleSortGroupField(added["profile"].FieldId,ScheduleSortOrder.Ascending){ShowFooter=true,ShowFooterTitle=true,ShowFooterCount=false});
-            d.AddSortGroupField(new ScheduleSortGroupField(added["grade"].FieldId,ScheduleSortOrder.Ascending){ShowFooter=!gradeTotals,ShowFooterTitle=!gradeTotals,ShowFooterCount=false});
+            if(aggregation is "detail" or "profile_grade" or "profile")d.AddSortGroupField(new ScheduleSortGroupField(added["profile"].FieldId,ScheduleSortOrder.Ascending){ShowHeader=false,ShowBlankLine=false});
+            if(aggregation is "detail" or "profile_grade" or "grade")d.AddSortGroupField(new ScheduleSortGroupField(added["grade"].FieldId,ScheduleSortOrder.Ascending){ShowHeader=false,ShowBlankLine=false});
         }
-        if(!gradeTotals){d.AddSortGroupField(new ScheduleSortGroupField(added["position"].FieldId,ScheduleSortOrder.Ascending));d.AddSortGroupField(new ScheduleSortGroupField(added["row_key"].FieldId,ScheduleSortOrder.Ascending));}
-        d.ShowGrandTotal=r.Profile=="steel_rollup";d.ShowGrandTotalTitle=d.ShowGrandTotal;d.ShowGrandTotalCount=false;d.GrandTotalTitle="Всего масса металла";
+        if(aggregation=="detail"){d.AddSortGroupField(new ScheduleSortGroupField(added["position"].FieldId,ScheduleSortOrder.Ascending){ShowHeader=false,ShowBlankLine=false});d.AddSortGroupField(new ScheduleSortGroupField(added["row_key"].FieldId,ScheduleSortOrder.Ascending){ShowHeader=false,ShowBlankLine=false});}
+        // Revit's footer rows ignore body/column border overrides. Keep all totals
+        // in separately grouped native schedules so their data cells remain live
+        // and support the same grid formatting as ordinary specification rows.
+        d.ShowGrandTotal=false;
+        var gridStyle=new TableCellStyle{FontName=font,TextSize=size*96/25.4,FontHorizontalAlignment=HorizontalAlignmentStyle.Center,FontVerticalAlignment=VerticalAlignmentStyle.Middle,BorderTopLineStyle=border.Id,BorderBottomLineStyle=border.Id,BorderLeftLineStyle=border.Id,BorderRightLineStyle=border.Id};
+        var gridOverrides=new TableCellStyleOverrideOptions();gridOverrides.SetAllOverrides(true);gridStyle.SetCellStyleOverrideOptions(gridOverrides);
+        schedule.GetTableData().GetSectionData(SectionType.Header).SetCellStyle(gridStyle);
         var seed=new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).Cast<TextNoteType>().FirstOrDefault()??throw new ToolInputException("No text style to duplicate.");var tt=(TextNoteType)seed.Duplicate("SPDS live "+Guid.NewGuid().ToString("N")[..8]);tt.get_Parameter(BuiltInParameter.TEXT_FONT).Set(font);tt.get_Parameter(BuiltInParameter.TEXT_SIZE).Set(size/Units.MmPerFoot);schedule.BodyTextTypeId=schedule.HeaderTextTypeId=schedule.TitleTextTypeId=tt.Id;
-        doc.Regenerate();if(r.Profile=="steel_rollup"){int start=gradeTotals?1:4;int end=start+r.Groups.Length-1;if(end>=start&&schedule.CanGroupHeaders(0,start,0,end))schedule.GroupHeaders(0,start,0,end,"Масса по группам конструкций, т");}
+        doc.Regenerate();if(r.Profile=="steel_rollup"){int start=aggregation switch{"detail"=>4,"profile_grade"=>2,"profile" or "grade"=>1,_=>0};int end=start+r.Groups.Length-1;if(end>start&&schedule.CanGroupHeaders(0,start,0,end))schedule.GroupHeaders(0,start,0,end,"Масса по группам конструкций, т");}
         return schedule;
     }
 }
