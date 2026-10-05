@@ -14,6 +14,8 @@ internal static class BenchmarkModelProbe
     public static void Append(Document doc, Dictionary<string, object?> result)
     {
         result["is_family_document"] = doc.IsFamilyDocument;
+        result["revit_version"] = doc.Application.VersionNumber + "/" + doc.Application.VersionBuild;
+        result["schedule_exports"] = ScheduleExportEvidence.Probe(doc);
         var errors = new List<string>();
         void Collect<T>(string name, Func<T, object> snapshot) where T : Element
         {
@@ -36,9 +38,11 @@ internal static class BenchmarkModelProbe
         Collect<StructuralConnectionHandler>("connection_elements",e=>new { id=e.Id.Value,connected_element_ids=e.GetConnectedElementIds().Select(i=>i.Value).ToArray(),geometry=Geometry(e),provenance=ModelProvenance.Read(e) });
         Collect<AreaReinforcement>("area_reinforcement_elements",e=>new { id=e.Id.Value,host_id=e.GetHostId().Value,bounds=Bounds(e) });
         Collect<PathReinforcement>("path_reinforcement_elements",e=>new { id=e.Id.Value,host_id=e.GetHostId().Value,bounds=Bounds(e) });
+        Collect<Material>("material_elements", m => new { id = m.Id.Value, name = m.Name, rgb = new[] { (int)m.Color.Red, (int)m.Color.Green, (int)m.Color.Blue } });
         Collect<Level>("level_elements", l => new { id = l.Id.Value, name = l.Name, elevation_m = l.Elevation * 0.3048 });
         Collect<Grid>("grid_elements", g => new { id = g.Id.Value, name = g.Name, curve = Curve(g.Curve) });
         Collect<Wall>("wall_elements", w => new { id = w.Id.Value, type_id = w.GetTypeId().Value, level_id = w.LevelId.Value,
+            type_width_mm = w.WallType.Width * Units.MmPerFoot,
             curve = w.Location is LocationCurve lc ? Curve(lc.Curve) : null, comments = w.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() });
         Collect<Floor>("floor_elements", f => new { id = f.Id.Value, type_id = f.GetTypeId().Value, level_id = f.LevelId.Value,
             bounds = Bounds(f), area_m2 = f.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED)?.AsDouble() * 0.3048 * 0.3048 });
@@ -84,6 +88,7 @@ internal static class BenchmarkModelProbe
             }
             return new { id = s.Id.Value, name = s.Name, category_id = definition.CategoryId.Value,
                 fields = definition.GetFieldOrder().Select(id => definition.GetField(id).GetName()).ToArray(),
+                field_specs = definition.GetFieldOrder().Select(id => new { parameter_id = definition.GetField(id).ParameterId.Value, spec = definition.GetField(id).GetSpecTypeId().TypeId }).ToArray(),
                 sort_group_count = definition.GetSortGroupFieldCount(), rows, body_rows = body.NumberOfRows,
                 rows_truncated = body.NumberOfRows > rows.Count };
         });

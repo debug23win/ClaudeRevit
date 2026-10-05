@@ -13,6 +13,7 @@ public class BenchmarkRunnerTests : IDisposable
     public BenchmarkRunnerTests()
     {
         _dispatcher.Starts = _dispatcher.Ends = 0; _dispatcher.ScopeActive = _dispatcher.Family = false;
+        _dispatcher.LevelCreated = false;
         _dispatcher.Tools.Clear(); ToolDispatcher.ForceSuppress = false; DocumentSessions.CurrentDocumentKey = "test-document";
         ChatService.Send = _ => Task.CompletedTask; ChatService.Grade = "{\"pass\":true,\"score\":90,\"reason\":\"objective test\"}";
     }
@@ -22,7 +23,7 @@ public class BenchmarkRunnerTests : IDisposable
     [Fact]
     public async Task SkipsWrongDocumentAndWritesQualitySpeedAndFormulaWithoutInventedPoints()
     {
-        ChatService.Send = _ => { Assert.Equal("test-document-scratch", DocumentSessions.CurrentDocumentKey); return Task.CompletedTask; };
+        ChatService.Send = _ => { Assert.Equal("test-document-scratch", DocumentSessions.CurrentDocumentKey); _dispatcher.LevelCreated = true; return Task.CompletedTask; };
         var rows = new List<BenchmarkResult>();
         await Run(new[] { BenchmarkTasks.All[0], BenchmarkTasks.All.Single(t => t.Id == "F1") }, rows);
         Assert.Equal(1, _dispatcher.Starts); Assert.Equal(1, _dispatcher.Ends); Assert.False(_dispatcher.ScopeActive);

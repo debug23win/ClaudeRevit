@@ -12,7 +12,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkObjective.cs" Link="src\BenchmarkObjective.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BenchmarkStatistics.cs" Link="src\BenchmarkStatistics.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkCalibration.cs" Link="src/BenchmarkCalibration.cs" />
+    <Compile Include="../ClaudeRevit/Services/CsvEvidence.cs" Link="src/CsvEvidence.cs" />
     <Compile Include="..\ClaudeRevit\Services\Json.cs" Link="src\Json.cs" />
+    <Compile Include="../ClaudeRevit/Services/CheckpointPlan.cs" Link="src/CheckpointPlan.cs" />
+    <Compile Include="../ClaudeRevit/Services/NestingSelection.cs" Link="src/NestingSelection.cs" />
+    <Compile Include="../ClaudeRevit/Services/VerifiedExperienceStore.cs" Link="src/VerifiedExperienceStore.cs" />
     <Compile Include="..\ClaudeRevit\Services\ConnectionSpec.cs" Link="src\ConnectionSpec.cs" />
     <Compile Include="..\ClaudeRevit\Services\TrussLayout.cs" Link="src\TrussLayout.cs" />
     <Compile Include="..\ClaudeRevit\Services\SectionProfile.cs" Link="src\SectionProfile.cs" />

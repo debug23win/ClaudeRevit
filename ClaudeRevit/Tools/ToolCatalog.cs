@@ -22,12 +22,12 @@ public static class ToolCatalog
     public static string CategoryOf(IRevitTool tool)
     {
         var n = tool.GetType().Name;
-        if(n is "UpsertConnectionNode" or "PlanTrussLayout") return "Modeling";
-        if(n is "CreateParametricSection") return "Family editor";
+        if(n is "UpsertConnectionNode" or "PlanTrussLayout" or "RunCheckpointJob") return "Modeling";
+        if(n is "CreateParametricSection" or "InspectFamilyFiles") return "Family editor";
         if(n.Contains("Spds",StringComparison.Ordinal))return "Schedules";
         bool Has(params string[] keys) => keys.Any(k => n.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0);
         if (n.StartsWith("Generate",StringComparison.Ordinal) || n is "SetModelProvenance") return "Modeling";
-        if (n is "ValidateCSharp") return "Code & learning";
+        if (n is "ValidateCSharp" or "GetVerifiedExperience" or "VerifyModelResult") return "Code & learning";
         if (n is "BimStarterModelTools" or "RunBimStarterCommand") return "Modeling";
 
         // Specific groups first so a broad keyword (e.g. "Delete", "Family") doesn't steal a

@@ -33,6 +33,8 @@ public static class ScriptJournal
     private static string? _code;
     private static string? _engine;
     private static string? _document;
+    private static string _runId="",_documentKey="",_revitVersion="";
+    private static readonly List<long> ModifiedIds=new();
     private static DateTime _startedUtc;
     private static readonly Dictionary<string, int> Added = new();
     private static readonly Dictionary<string, int> Modified = new();
@@ -58,14 +60,14 @@ public static class ScriptJournal
             foreach (var id in e.GetModifiedElementIds())
             {
                 var cat=doc.GetElement(id)?.Category?.Name ?? "(no category)";
-                Modified[cat]=Modified.GetValueOrDefault(cat)+1;
+                Modified[cat]=Modified.GetValueOrDefault(cat)+1;ModifiedIds.Add(id.Value);
             }
             _deleted += e.GetDeletedElementIds().Count;
         }
         catch { /* journaling must never break a tool call */ }
     }
 
-    public static void Begin(string tool, string code, string? engine, string? document)
+    public static void Begin(string tool, string code, string? engine, string? document, Document? model = null)
     {
         // Single recording slot: correct because ToolDispatcher's ExternalEvent serializes
         // tool execution — at most one tool runs at a time. If journaling is ever extended
@@ -74,6 +76,7 @@ public static class ScriptJournal
         _code = code;
         _engine = engine;
         _document = document;
+        _runId=Guid.NewGuid().ToString("N");_documentKey=DocumentSessions.Key(model);_revitVersion=model==null?"unknown":model.Application.VersionNumber+"/"+model.Application.VersionBuild;ModifiedIds.Clear();
         _startedUtc = DateTime.UtcNow;
         Added.Clear();
         Modified.Clear();
@@ -97,7 +100,9 @@ public static class ScriptJournal
         {
             var entry = JsonSerializer.Serialize(new
             {
-                ts = _startedUtc.ToString("o"),
+                ts = _startedUtc.ToString("o"),run_id=_runId,document_key=_documentKey,revit_version=_revitVersion,
+                code_sha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(_code??""))),
+                code_truncated=(_code?.Length??0)>4000,
                 duration_ms = (int)(DateTime.UtcNow - _startedUtc).TotalMilliseconds,
                 tool = _tool,
                 engine = _engine,
@@ -110,7 +115,7 @@ public static class ScriptJournal
                     added_by_category = Added.Count > 0 ? new Dictionary<string, int>(Added) : null,
                     modified_by_category = Modified.Count > 0 ? new Dictionary<string, int>(Modified) : null,
                     deleted_count = _deleted,
-                    added_ids = AddedIds.Count > 0 ? AddedIds.ToList() : null
+                    added_ids = AddedIds.Count > 0 ? AddedIds.Distinct().ToList() : null, modified_ids=ModifiedIds.Distinct().ToArray()
                 }
             });
 

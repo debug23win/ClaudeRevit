@@ -481,7 +481,7 @@ public class ToolDispatcher : IExternalEventHandler
                     job.Input.TryGetValue("code", out var codeEl) ? codeEl.GetString() ?? "" : "",
                     job.Input.TryGetValue("engine", out var engEl) && engEl.ValueKind == JsonValueKind.String
                         ? engEl.GetString() : null,
-                    boundDocument?.Title);
+                    boundDocument?.Title, boundDocument);
             }
 
             string result;

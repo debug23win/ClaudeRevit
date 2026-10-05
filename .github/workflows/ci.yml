@@ -22,6 +22,8 @@ jobs:
         run: dotnet restore ClaudeRevit\ClaudeRevit.csproj
       - name: Build (Release, no deploy)
         run: dotnet build ClaudeRevit\ClaudeRevit.csproj -c Release -p:SkipDeploy=true --no-restore
+      - name: Compile native acceptance harness (does not run without Revit)
+        run: dotnet build ClaudeRevit.NativeTests\ClaudeRevit.NativeTests.csproj -c Release -p:SkipDeploy=true
       - name: Unit tests (pure logic, no Revit)
         run: dotnet test ClaudeRevit.Tests\ClaudeRevit.Tests.csproj -c Release
       - name: Pane checks (isolated WPF, no Revit or account)

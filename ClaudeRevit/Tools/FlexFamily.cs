@@ -13,6 +13,7 @@ public sealed class FlexFamily : IRevitTool
     public bool RequiresNoTurnGroup => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
+        ["file_path"] = NativeToolUtil.Field("string", "Optional absolute local RFA path: inspect in a background document, close unsaved; excludes family_id."),
         ["family_id"] = NativeToolUtil.Field("integer", "Optional loaded Family; otherwise active RFA."),
         ["scenarios"] = NativeToolUtil.Any("1..100 objects {name, type_name(optional), values:{parameterNameOrGUID:value}, require_solid(optional bool)}. Default tests all existing types."),
         ["require_geometry_change"] = NativeToolUtil.Field("boolean", "Default false. True rejects scenarios whose values change but solid mesh geometry remains identical. Test each independent size driver separately.")
@@ -85,7 +86,7 @@ public sealed class FlexFamily : IRevitTool
                     var changed=requireChange?Fingerprint(doc)!=baseline:(bool?)null;
                     if(requireChange&&changed!=true)throw new InvalidOperationException("Parameters did not change actual solid geometry; a named parameter alone is not a working driver.");
                     return new { geometry_changed=changed,type_name = fm.CurrentType?.Name, visible_solid_count = solids, summed_solid_volume_m3 = volume * Math.Pow(0.3048, 3), bounds,
-                        values = fm.Parameters.Cast<FamilyParameter>().Take(1000).Select(p => new { name = p.Definition.Name, value = FamilyEditorUtil.CurrentValue(fm, p).display }).ToArray() };
+                        values = fm.Parameters.Cast<FamilyParameter>().Take(1000).Select(p => { var value=FamilyEditorUtil.CurrentValue(fm,p); return new { name=p.Definition.Name, value=value.display, internal_value=value.raw, value_mm=value.mm }; }).ToArray() };
                 });
                 results.Add(new { name, valid = true, geometry, warnings });
             }
@@ -94,7 +95,7 @@ public sealed class FlexFamily : IRevitTool
             catch (Exception ex) { results.Add(new { name, valid = false, error = ex.Message }); }
             if (fm.CurrentType?.Name != originalType) throw new InvalidOperationException("Flex rollback did not restore the original family type; stop and inspect the document.");
         }
-        return Services.Json.Serialize(new { family = doc.OwnerFamily.Name, restored = true, results,
+        return Services.Json.Serialize(new { family = doc.OwnerFamily.Name, restored = true, results, open_warnings = scope.OpenWarnings,
             coverage = "Only these scenarios were tested. Commit/regen and geometry probes cannot guarantee every size, visibility combination or nested type." });
     }
     private static string Fingerprint(Document doc)

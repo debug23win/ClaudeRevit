@@ -91,9 +91,13 @@ internal static class FamilyEditorUtil
                     if (d == null) return (null, null, null);
                     return (d.Value, IsLength(p) ? d.Value * FeetToMm : (double?)null, SafeValueString(ct, p));
                 case StorageType.Integer:
-                    return (ct.AsInteger(p), null, SafeValueString(ct, p));
+                    var integer = ct.AsInteger(p);
+                    return (integer, null, SafeValueString(ct, p) ?? integer?.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 case StorageType.String:
                     return (ct.AsString(p), null, ct.AsString(p));
+                case StorageType.ElementId:
+                    var id = ct.AsElementId(p);
+                    return (id?.Value, null, SafeValueString(ct, p) ?? id?.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 default:
                     return (SafeValueString(ct, p), null, SafeValueString(ct, p));
             }

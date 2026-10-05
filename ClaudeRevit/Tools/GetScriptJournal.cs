@@ -14,8 +14,8 @@ public class GetScriptJournal : IRevitTool
     public string Description =>
         "Returns the learning journal of past execute_csharp / run_dynamo_python calls in " +
         "this environment: the code, whether it succeeded, and the exact MODEL DELTA it " +
-        "produced (elements added/modified/deleted by category). Check it before writing a " +
-        "new script — reuse a snippet that is already proven to work here instead of " +
+        "produced (elements added/modified/deleted by category), stable run_id, code hash, Revit build and document key. Check it before writing a " +
+        "new script. Execution success does not prove correct geometry; use verify_model_result and get_verified_experience before optional reuse instead of " +
         "reinventing it, and learn which API calls actually behave in this Revit/Dynamo " +
         "version. Recurring patterns here are also candidates for new dedicated tools.";
 

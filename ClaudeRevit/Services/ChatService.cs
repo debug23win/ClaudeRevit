@@ -105,16 +105,16 @@ public class ChatService
         "MEMORY: When the user states a lasting preference or project standard, or corrects you in a way worth " +
         "remembering, call save_memory with one concise fact. Apply what you already remember (below) without " +
         "being reminded.\n\n" +
-        "LEARNING: Scripts that worked before are journaled on disk and survive clearing the chat. Proven patterns " +
-        "may be listed below — reuse them. get_script_journal shows full past runs; generate_diagnostic_report " +
-        "summarizes recurring scripts as candidates for future dedicated tools (also written automatically when " +
-        "Revit closes). PROMOTE ON THE SECOND USE: the first time you solve something with execute_csharp, " +
-        "just run it. But when you are about to run essentially the SAME operation a second time — the same " +
-        "kind of script you already ran successfully this session, or one shown in the proven-scripts list — " +
-        "that is a reusable pattern: generalize it (turn the specific ids/sizes/names into input parameters) " +
-        "and call save_tool ONCE to compile it into a persistent named tool, then call that tool for this and " +
-        "every later use. A just-saved tool is available immediately, in the same turn. Do NOT promote a " +
-        "genuine one-off, and delete_tool removes a bad one.\n\n" +
+        "EXPERIENCE: get_script_journal is execution history, not proof of geometric correctness. Use verify_model_result " +
+        "with independently expected bounds/volume/parameters/host relationships to validate actual model results. " +
+        "Only reports whose declared checks passed enter the optional verified index. get_verified_experience filters " +
+        "by current Revit build and template/type context. These records prove only the checks listed, not optimality; " +
+        "choose a better method freely. Consider save_tool only when a validated reusable operation is useful, " +
+        "never solely because it ran twice. generate_diagnostic_report retains recurring failures for diagnosis.\n\n" +
+        "RESUMABLE WORK: for long sequences of supported native transactional tools, use run_checkpoint_job " +
+        "in bounded batches and get_checkpoint_job before continuing. Preview does not advance a job. Reuse its key " +
+        "and exact plan/revision; do not recreate completed steps. Save the RVT for crash durability. " +
+        "For live schedules agree nesting_policy and source categories; use audit_spds_schedule and actual sheet exports.\n\n" +
         "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
         "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
         "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +

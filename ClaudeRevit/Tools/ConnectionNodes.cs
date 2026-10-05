@@ -18,6 +18,9 @@ internal sealed class NodeRecord
 {
     public string Key { get; set; } = "";
     public int Revision { get; set; }
+    public bool AutoUpdate { get; set; }
+    public bool NeedsRefresh { get; set; }
+    public string? LastUpdateError { get; set; }
     public ConnectionSpec Spec { get; set; } = new();
     public Dictionary<string,NodeBinding> Bindings { get; set; } = new();
 }
@@ -53,7 +56,8 @@ internal static class ConnectionNodes
         var t=Frame(e);var bb=e.get_BoundingBox(null);
         return Services.Json.Serialize(new { type=e.GetTypeId().Value,origin=NativeToolUtil.Mm(t.Origin),x=NativeToolUtil.Vector(t.BasisX),y=NativeToolUtil.Vector(t.BasisY),
             bbox=bb==null?null:new { min=NativeToolUtil.Vector(bb.Min),max=NativeToolUtil.Vector(bb.Max) },
-            parameters=e.Parameters.Cast<Parameter>().Where(p=>p.HasValue&&p.StorageType==StorageType.Double).OrderBy(p=>p.Id.Value).Select(p=>new {id=p.Id.Value,value=p.AsDouble()}).ToArray() });
+            type_parameters=e.Document.GetElement(e.GetTypeId())?.Parameters.Cast<Parameter>().Where(p=>p.HasValue&&p.StorageType==StorageType.Double).OrderBy(p=>p.Id.Value).Select(p=>new {id=p.Id.Value,value=p.AsDouble()}).ToArray(),
+            parameters=e.Parameters.Cast<Parameter>().Where(p=>p.HasValue&&!p.Definition.Name.StartsWith("CR_SPDS_",StringComparison.Ordinal)).OrderBy(p=>p.Id.Value).Select(p=>new {id=p.Id.Value,value=p.StorageType switch {StorageType.Double=>p.AsDouble().ToString("R",System.Globalization.CultureInfo.InvariantCulture),StorageType.Integer=>p.AsInteger().ToString(System.Globalization.CultureInfo.InvariantCulture),StorageType.String=>p.AsString(),StorageType.ElementId=>p.AsElementId().Value.ToString(System.Globalization.CultureInfo.InvariantCulture),_=>null}}).ToArray() });
     }
     public static PlanarFace Face(Document doc,string reference,Element? expected=null)
     {var r=Reference.ParseFromStableRepresentation(doc,reference);var host=NativeToolUtil.Element(doc,r.ElementId.Value);if(expected!=null&&host.Id!=expected.Id)throw new ToolInputException("face_reference belongs to a different host.");return host.GetGeometryObjectFromReference(r) as PlanarFace??throw new ToolInputException("A stable planar face reference is required.");}
@@ -79,15 +83,27 @@ internal static class ConnectionNodes
         frame=Frame(e);var twist=Math.Atan2(x.DotProduct(frame.BasisY.CrossProduct(y!)),frame.BasisY.DotProduct(y!));Rotate(x,twist);
         frame=Frame(e);if(frame.BasisX.AngleTo(x)>1e-6||frame.BasisY.AngleTo(y!)>1e-6)throw new ToolInputException("Revit constraints prevented the requested orientation.");
     }
-    public static void Parameters(Element e,IEnumerable<ConnectionParameter> values)
+    public static void Parameters(Element e,IEnumerable<ConnectionParameter> values,IReadOnlyDictionary<string,Element>? elements=null)
     {
         foreach(var v in values)
         {
+            var value=v.Value;
+            if(v.ValueFrom is { } from)
+            {
+                var source=elements?.GetValueOrDefault(from.PartKey)??throw new ToolInputException("Dependency source is unavailable.");
+                if(from.Scope=="type")source=source.Document.GetElement(source.GetTypeId())??throw new ToolInputException("Dependency has no type.");
+                var driver=NativeToolUtil.Parameter(source,from.Name??"",from.Guid??"");
+                if(driver?.StorageType!=StorageType.Double||!driver.HasValue||driver.Definition.GetDataType()!=SpecTypeId.Length)throw new ToolInputException("Dependent dimension source must be a real Length parameter.");
+                value=JsonSerializer.SerializeToElement(driver.AsDouble()*Units.MmPerFoot*from.Scale+from.OffsetMm);
+            }
             var p=NativeToolUtil.Parameter(e,v.Name??"",v.Guid??"")??throw new ToolInputException("Parameter missing from part.");
             if(p.IsReadOnly)throw new ToolInputException($"{p.Definition.Name} is read-only.");
             if(v.Unit=="mm"&&(p.StorageType!=StorageType.Double||p.Definition.GetDataType()!=SpecTypeId.Length))throw new ToolInputException("mm only applies to length parameters.");
+            double number=p.StorageType==StorageType.Double?value.GetDouble()/(v.Unit=="mm"?Units.MmPerFoot:1):0;
+            int integer=p.StorageType==StorageType.Integer?value.ValueKind==JsonValueKind.True?1:value.ValueKind==JsonValueKind.False?0:value.GetInt32():0;
+            if(p.StorageType==StorageType.Double&&!double.IsFinite(number))throw new ToolInputException("Nonfinite dependent dimension.");
             var ok=p.StorageType switch
-            {StorageType.Double=>p.Set(v.Value.GetDouble()/(v.Unit=="mm"?Units.MmPerFoot:1)),StorageType.Integer=>p.Set(v.Value.ValueKind==JsonValueKind.True?1:v.Value.ValueKind==JsonValueKind.False?0:v.Value.GetInt32()),StorageType.String=>p.Set(v.Value.GetString()??""),StorageType.ElementId=>p.Set(new ElementId(v.Value.GetInt64())),_=>false};
+            {StorageType.Double=>p.HasValue&&Math.Abs(p.AsDouble()-number)<1e-10||p.Set(number),StorageType.Integer=>p.HasValue&&p.AsInteger()==integer||p.Set(integer),StorageType.String=>p.AsString()==value.GetString()||p.Set(value.GetString()??""),StorageType.ElementId=>p.AsElementId().Value==value.GetInt64()||p.Set(new ElementId(value.GetInt64())),_=>false};
             if(!ok)throw new ToolInputException($"Revit rejected {p.Definition.Name}.");
         }
     }
@@ -103,23 +119,25 @@ public sealed class UpsertConnectionNode:IRevitTool
     public InputSchema InputSchema=>NativeToolUtil.Schema(new()
     {
         ["node_key"]=NativeToolUtil.Field("string","Stable document-local node key, max 128 chars."),
-        ["spec"]=NativeToolUtil.Any("{parts:[{key,role:member|plate|splice|bolt|hole|cope|rib|other,element_id?,family_type_id?,level_id?,point_mm?,axis_x?,axis_y?,relative_to?,face_reference?,offset_mm?,parameters:[{name? OR guid?,value,unit:internal|mm}],cut_targets:[keys]}],rules:[{kind:clash|contact|bolt,a,b,tolerance_mm?:1,max_volume_mm3?:1,face_reference?:stable face on b for contact,expected_offset_mm?:0,local_axis_a?:[0,0,1],local_axis_b?:[0,0,1],bolt_diameter_parameter?,hole_diameter_parameter?,grip_parameter?,stack_parts?:[keys],forbidden_planes?:[{origin_mm,normal,half_width_mm}]}],calculation_evidence?,documentation_evidence?}. Use full spec on updates; omit to refresh. Diameter/grip names must be actual Length parameters."),
+        ["spec"]=NativeToolUtil.Any("{parts:[{key,role:member|plate|splice|bolt|hole|cope|rib|other,element_id?,family_type_id?,level_id?,point_mm?,axis_x?,axis_y?,relative_to?,face_reference?,offset_mm?,parameters:[{name? OR guid?,value? OR value_from:{part_key,name? OR guid?,scope:instance|type,scale?:1,offset_mm?:0},unit:internal|mm}],cut_targets:[keys]}],rules:[{kind:clash|contact|bolt,a,b,tolerance_mm?:1,max_volume_mm3?:1,face_reference?:stable face on b for contact,expected_offset_mm?:0,local_axis_a?:[0,0,1],local_axis_b?:[0,0,1],bolt_diameter_parameter?,hole_diameter_parameter?,grip_parameter?,stack_parts?:[keys],forbidden_planes?:[{origin_mm,normal,half_width_mm}]}],calculation_evidence?,documentation_evidence?}. Use full spec on updates; omit to refresh. Diameter/grip names must be actual Length parameters."),
         ["preview"]=NativeToolUtil.Field("boolean","Default true: roll back and return a change report; preview IDs are temporary."),
         ["expected_revision"]=NativeToolUtil.Field("integer","Optional optimistic revision check, 0 for a new node."),
         ["remove_missing_parts"]=NativeToolUtil.Field("boolean","Default false. Allow removal of omitted managed parts. Referenced members are only unbound."),
         ["require_valid"]=NativeToolUtil.Field("boolean","Default true: failed declared checks prevent apply. Incomplete checks are reported separately.")
+        ,["auto_update"]=NativeToolUtil.Field("boolean","Default true for new nodes; existing nodes preserve their setting. Follows saved relative placements and value_from Length dependencies after member/type edits. Failures mark needs_refresh and preserve dependent geometry.")
     },"node_key");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
         var doc=NativeToolUtil.Doc(app);var key=ToolInput.RequiredString(input,"node_key");if(key.Length>128)throw new ToolInputException("node_key exceeds 128 chars.");
         var (storage,old)=ConnectionNodes.Find(doc,key);
+        if(old==null&&ConnectionNodes.All(doc).Take(100).Count()>=100)throw new ToolInputException("At most 100 managed nodes per document.");
         if(input.TryGetValue("expected_revision",out var rev)&&rev.GetInt32()!=(old?.Revision??0))throw new ToolInputException("Node revision changed; reload before updating.");
         var spec=input.TryGetValue("spec",out var raw)?raw.Deserialize<ConnectionSpec>(ConnectionSpec.Options)??throw new ToolInputException("Empty spec."):old?.Spec??throw new ToolInputException("New nodes need a spec.");
         spec=JsonSerializer.Deserialize<ConnectionSpec>(JsonSerializer.Serialize(spec,ConnectionSpec.Options),ConnectionSpec.Options)!;
         var ordered=spec.OrderedParts();var preview=NativeToolUtil.Preview(input);var remove=ToolInput.Flag(input,"remove_missing_parts");
         var omitted=old?.Bindings.Keys.Except(spec.Parts.Select(p=>p.Key)).ToArray()??[];
         if(omitted.Length>0&&!remove)throw new ToolInputException("Omitted parts require remove_missing_parts=true.");
-        var record=new NodeRecord {Key=key,Revision=(old?.Revision??0)+1,Spec=spec};
+        var record=new NodeRecord {Key=key,Revision=(old?.Revision??0)+1,Spec=spec,AutoUpdate=input.TryGetValue("auto_update",out var auto)?auto.GetBoolean():old?.AutoUpdate??true};
         var created=new List<long>();var updated=new List<long>();var deleted=new List<long>();var unbound=new List<string>();var parameterChanges=new List<object>();
         Dictionary<string,Element> elements=new();
         object? validation=null;
@@ -162,7 +180,7 @@ public sealed class UpsertConnectionNode:IRevitTool
                 if(p.FaceReference!=null){var face=ConnectionNodes.Face(doc,p.FaceReference);var o=p.OffsetMm??new double[3];point=face.Origin+(face.XVector*o[0]+face.YVector*o[1]+face.FaceNormal*o[2])/Units.MmPerFoot;}
                 if(point!=null)ConnectionNodes.Position(doc,e,point,p.AxisX==null?null:new XYZ(p.AxisX[0],p.AxisX[1],p.AxisX[2]).Normalize(),p.AxisY==null?null:new XYZ(p.AxisY[0],p.AxisY[1],p.AxisY[2]).Normalize());
                 else if(p.AxisX!=null)ConnectionNodes.Position(doc,e,ConnectionNodes.Frame(e).Origin,new XYZ(p.AxisX[0],p.AxisX[1],p.AxisX[2]).Normalize(),new XYZ(p.AxisY![0],p.AxisY[1],p.AxisY[2]).Normalize());
-                ConnectionNodes.Parameters(e,p.Parameters);elements[p.Key]=e;record.Bindings[p.Key]=new(){UniqueId=e.UniqueId,Owned=owned};
+                ConnectionNodes.Parameters(e,p.Parameters,elements);elements[p.Key]=e;record.Bindings[p.Key]=new(){UniqueId=e.UniqueId,Owned=owned};
                 if(!created.Contains(e.Id.Value))updated.Add(e.Id.Value);
             }
             doc.Regenerate();
@@ -183,7 +201,7 @@ public sealed class UpsertConnectionNode:IRevitTool
             var check=ConnectionNodeValidation.Check(doc,record);validation=check;
             if((!input.TryGetValue("require_valid",out var v)||v.GetBoolean())&&check.Failed>0)throw new ToolInputException("Node geometry checks failed; entire update rolled back. Use preview with require_valid=false to inspect the report.");
         });
-        return Services.Json.Serialize(new {preview,preview_ids_are_temporary=preview,result,validation,warnings,refresh="Reapply this tool without spec after changing members; no background updater runs on manual edits."});
+        return Services.Json.Serialize(new {preview,preview_ids_are_temporary=preview,result,validation,warnings,auto_update=record.AutoUpdate,refresh="Relative placements and declared value_from dimensions follow source edits through the required updater. Missing/cyclic/invalid dependencies are flagged; inspect get_connection_node before manual refresh."});
     }
 }
 
@@ -199,7 +217,7 @@ public sealed class GetConnectionNode:IRevitTool
         if(key.Length==0)return Services.Json.Serialize(new {nodes=ConnectionNodes.All(doc).Take(1000).Select(p=>new {key=p.Record.Key,revision=p.Record.Revision,part_count=p.Record.Bindings.Count}).ToArray(),limit=1000});
         var (_,r)=ConnectionNodes.Find(doc,key);if(r==null)throw new ToolInputException("Node not found.");
         var parts=r.Bindings.Select(p=>{var e=doc.GetElement(p.Value.UniqueId);return new {key=p.Key,id=e?.Id.Value,owned=p.Value.Owned,missing=e==null,externally_changed=e!=null&&ConnectionNodes.Signature(e)!=p.Value.Signature};}).ToArray();
-        return Services.Json.Serialize(new {node_key=key,revision=r.Revision,spec=JsonSerializer.SerializeToElement(r.Spec,ConnectionSpec.Options),parts,needs_refresh=parts.Any(p=>p.missing||p.externally_changed)});
+        return Services.Json.Serialize(new {node_key=key,revision=r.Revision,auto_update=r.AutoUpdate,last_update_error=r.LastUpdateError,spec=JsonSerializer.SerializeToElement(r.Spec,ConnectionSpec.Options),parts,needs_refresh=r.NeedsRefresh||parts.Any(p=>p.missing||p.externally_changed)});
     }
 }
 

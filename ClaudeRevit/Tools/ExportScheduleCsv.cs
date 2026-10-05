@@ -61,9 +61,12 @@ public class ExportScheduleCsv : IRevitTool
         var options = new ViewScheduleExportOptions
         {
             FieldDelimiter = ",",
+            HeadersFootersBlanks = true,
+            ColumnHeaders = ExportColumnHeaders.MultipleRows,
             TextQualifier = ExportTextQualifier.DoubleQuote
         };
         schedule.Export(dir, name, options);
+        ScheduleExportEvidence.Record(doc, schedule, outPath);
 
         return Services.Json.Serialize(new
         {

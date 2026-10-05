@@ -14,6 +14,7 @@ public sealed class AnalyzeFamilyStructure : IRevitTool
     public bool RequiresNoTurnGroup => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
+        ["file_path"] = NativeToolUtil.Field("string", "Optional absolute local RFA path: inspect in a background document, close unsaved; excludes family_id."),
         ["family_id"] = NativeToolUtil.Field("integer", "Optional loaded Family ID in active document; otherwise active RFA."),
         ["max_depth"] = NativeToolUtil.Field("integer", "Nested family depth 0..6, default 3."),
         ["max_families"] = NativeToolUtil.Field("integer", "Total family documents to inspect 1..50, default 20.")
@@ -81,12 +82,13 @@ public sealed class AnalyzeFamilyStructure : IRevitTool
                     Analyze(child, childPath, depth + 1, new HashSet<string>(ancestors) { family.Name });
                 }
                 catch (OperationCanceledException) { throw; }
+                catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
                 catch (Exception ex) { problems.Add(new { path = childPath, status = ex.Message }); }
                 finally { if (child is { IsValidObject: true }) child.Close(false); }
             }
         }
         Analyze(scope.Document, scope.Document.OwnerFamily.Name, 0, new() { scope.Document.OwnerFamily.Name });
-        return Services.Json.Serialize(new { inspected_families = count, nodes, edges, limitations = problems,
+        return Services.Json.Serialize(new { inspected_families = count, nodes, edges, limitations = problems, open_warnings = scope.OpenWarnings,
             note = "Element IDs are local to each family document. Analysis does not prove flex/constraint validity; run flex_family." });
     }
     private static string? SafeLabel(Dimension d) { try { return d.FamilyLabel?.Definition.Name; } catch { return null; } }

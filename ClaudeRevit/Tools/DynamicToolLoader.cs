@@ -273,6 +273,8 @@ public static class DynamicToolLoader
         var typeName = tool.GetType().Name;
         typeName = typeName switch
         {
+            "GetVerifiedExperience" => "VerifyModelResult",
+            "RunCheckpointJob" or "GetCheckpointJob" => "CheckpointJob",
             "GetBimStarterTools" or "RunBimStarterCommand" => "BimStarterPluginTools",
             "SetRebarConstraint" => "GetRebarConstraints",
             "UpsertConnectionNode" or "GetConnectionNode" or "PlanTrussLayout" => "ConnectionNodes",

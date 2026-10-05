@@ -30,7 +30,11 @@ public sealed class ConnectionSpec
             if (new[] { p.PointMm != null, p.RelativeTo != null, p.FaceReference != null }.Count(x => x) > 1) throw new ArgumentException("Point, relative_to and face_reference are alternative placement modes.");
             if (p.Parameters==null || p.CutTargets==null || p.Parameters.Count > 100 || p.Parameters.Any(p=>p==null)) throw new ArgumentException("Supply nonnull parameter/cut arrays, at most 100 parameters per part.");
             foreach (var param in p.Parameters)
+            {
                 if (param.Unit is not ("internal" or "mm") || string.IsNullOrWhiteSpace(param.Name) == string.IsNullOrWhiteSpace(param.Guid)) throw new ArgumentException("Each parameter needs exactly one name or guid and unit internal/mm.");
+                if ((param.ValueFrom != null) == (param.Value.ValueKind != JsonValueKind.Undefined)) throw new ArgumentException("Specify value OR value_from, not both/neither.");
+                if (param.ValueFrom is { } v && (string.IsNullOrWhiteSpace(v.PartKey) || string.IsNullOrWhiteSpace(v.Name) == string.IsNullOrWhiteSpace(v.Guid) || v.Scope is not ("instance" or "type") || !double.IsFinite(v.Scale) || !double.IsFinite(v.OffsetMm) || param.Unit != "mm")) throw new ArgumentException("value_from needs part_key, one parameter name/GUID, instance/type scope, finite scale/offset_mm and target unit mm.");
+            }
         }
         var ordered = new List<ConnectionPart>(); var visiting = new HashSet<string>(); var done = new HashSet<string>();
         void Visit(ConnectionPart p)
@@ -38,6 +42,8 @@ public sealed class ConnectionSpec
             if (done.Contains(p.Key)) return;
             if (!visiting.Add(p.Key)) throw new ArgumentException("relative_to contains a cycle.");
             if (p.RelativeTo != null) { if (!map.TryGetValue(p.RelativeTo, out var parent)) throw new ArgumentException($"Missing relative_to part {p.RelativeTo}."); Visit(parent); }
+            foreach (var dependency in p.Parameters.Where(v => v.ValueFrom != null).Select(v => v.ValueFrom!.PartKey))
+            { if (!map.TryGetValue(dependency, out var source)) throw new ArgumentException("Missing value_from source: " + dependency); Visit(source); }
             visiting.Remove(p.Key); done.Add(p.Key); ordered.Add(p);
         }
         foreach (var p in Parts) Visit(p);
@@ -78,8 +84,19 @@ public sealed class ConnectionParameter
 {
     public string? Name { get; set; }
     public string? Guid { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public JsonElement Value { get; set; }
+    public ConnectionValueFrom? ValueFrom { get; set; }
     public string Unit { get; set; } = "internal";
+}
+public sealed class ConnectionValueFrom
+{
+    public string PartKey { get; set; } = "";
+    public string? Name { get; set; }
+    public string? Guid { get; set; }
+    public string Scope { get; set; } = "instance";
+    public double Scale { get; set; } = 1;
+    public double OffsetMm { get; set; }
 }
 public sealed class ConnectionRule
 {
