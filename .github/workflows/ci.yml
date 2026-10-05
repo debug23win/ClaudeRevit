@@ -40,6 +40,14 @@ jobs:
       - name: Installer detection regression checks
         shell: pwsh
         run: ./installer/checks/Test-Detection.ps1
+      - name: Release Defender activation contract checks (isolated mocks)
+        shell: pwsh
+        run: ./scripts/checks/Test-ReleaseDefender.ps1
+      - name: Verify Defender activation on hosted runner
+        shell: pwsh
+        run: |
+          ./scripts/Enable-ReleaseDefender.ps1
+          ./scripts/Check-ReleaseArtifacts.ps1 -Paths @('ClaudeRevit/bin/Release/release/ClaudeRevit.dll') -ReportPath defender-ci.json -SourceCommit '${{ github.sha }}'
       - name: Upload Revit 2027 build
         uses: actions/upload-artifact@v4
         with:
