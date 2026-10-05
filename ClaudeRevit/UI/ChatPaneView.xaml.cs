@@ -62,7 +62,13 @@ public partial class ChatPaneView : UserControl, IDisposable
         AgentPicker.SelectedItem = AgentPicker.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == _selectedAgent);
         _settingChoices = false;
         ApplyAgentChoices();
-        Loaded += async (_, _) => { if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync(); };
+        Loaded += async (_, _) =>
+        {
+            // A tab may have changed while this independent dispatcher built XAML,
+            // before it subscribed to document events. Reconcile on first display.
+            SwitchDocumentHistory();
+            if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync();
+        };
         DataContext = this;
         Messages.CollectionChanged += OnMessagesChanged;
 
