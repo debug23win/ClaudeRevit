@@ -95,7 +95,7 @@ public sealed class FlexFamily : IRevitTool
             catch (Exception ex) { results.Add(new { name, valid = false, error = ex.Message }); }
             if (fm.CurrentType?.Name != originalType) throw new InvalidOperationException("Flex rollback did not restore the original family type; stop and inspect the document.");
         }
-        return Services.Json.Serialize(new { family = doc.OwnerFamily.Name, restored = true, results,
+        return Services.Json.Serialize(new { family = doc.OwnerFamily.Name, restored = true, results, open_warnings = scope.OpenWarnings,
             coverage = "Only these scenarios were tested. Commit/regen and geometry probes cannot guarantee every size, visibility combination or nested type." });
     }
     private static string Fingerprint(Document doc)

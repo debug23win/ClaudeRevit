@@ -6,7 +6,7 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
-**In development after v3.8.3:** mandatory objective benchmark checks, repeated-run calibration, channel/angle/tube/paired-timber sections, dependent nodes and actual bore checks, multicategory live SPDS sources, optional verified experience and saved resumable jobs. [Prepared changes and remaining acceptance](docs/releases/v3.8.4.md) · [BIMStarter reference cases](docs/bimstarter-reference-cases.md).
+**In development after v3.8.3:** mandatory objective benchmark checks, repeated-run calibration, channel/angle/tube/paired-timber sections, dependent nodes and actual bore checks, multicategory live SPDS sources, optional verified experience and saved resumable jobs. [Prepared changes and remaining acceptance](docs/releases/v3.8.4.md) · [BIMStarter reference cases](docs/bimstarter-reference-cases.md) · [Native acceptance harness](ClaudeRevit.NativeTests/README.md).
 
 **v3.8.3:** live SPDS steel/timber schedules, native steel connection inspection, persistent keyed nodes and geometry-driving parametric sections with independent flex checks. Instance values survive type changes; compiler/worker failures and timing are journaled. Code execution is always enabled, with no permission checkbox. [Structural workflows and limits](docs/structural-workflows.md) · [Release notes](docs/releases/v3.8.3.md).
 

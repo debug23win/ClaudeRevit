@@ -35,6 +35,8 @@ Do not redistribute the downloaded files with this repository.
 
 The developer prepares synthetic fixtures and expected analytical measurements; the
 catalogue files serve as realistic regression references, not as generated fixtures.
-Synthetic fixture cases and native inspection still need execution in Revit before
+The [native acceptance harness](../ClaudeRevit.NativeTests/README.md) now implements
+the synthetic fixture generation and analytical checks. Its successful compilation
+does not establish a native result. Synthetic cases and native inspection still need execution in Revit before
 the new workflows can be described as accepted. Old RFA versions can be inspected in
 newer Revit, but the originals must not be saved back after upgrade.

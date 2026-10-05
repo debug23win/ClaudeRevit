@@ -14,7 +14,7 @@ public sealed class InspectFamilyFiles : IRevitTool
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
         ["files"] = NativeToolUtil.Any("[{path:absolute RFA path,scenarios?:[{name,type_name?,values:{actual parameter name or GUID:value}}]}]. Length in mm, area m2, volume m3, angle degrees. Inspect first to discover names before flexing. No scenarios means analysis only."),
-        ["max_depth"] = NativeToolUtil.Field("integer", "Default 4, 1..8.")
+        ["max_depth"] = NativeToolUtil.Field("integer", "Default 4, 0..6.")
     }, "files");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input, UIApplication app)
     {

@@ -353,6 +353,7 @@ public class App : IExternalApplication
     // transaction back as usual. No-op when a user is doing their own editing.
     private static void OnFailuresProcessing(object? sender, FailuresProcessingEventArgs e)
     {
+        if (FamilyInspectionFailures.Handle(e)) return;
         if (!ToolDispatcher.Suppressing) return;
         try
         {

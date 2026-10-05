@@ -82,12 +82,13 @@ public sealed class AnalyzeFamilyStructure : IRevitTool
                     Analyze(child, childPath, depth + 1, new HashSet<string>(ancestors) { family.Name });
                 }
                 catch (OperationCanceledException) { throw; }
+                catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
                 catch (Exception ex) { problems.Add(new { path = childPath, status = ex.Message }); }
                 finally { if (child is { IsValidObject: true }) child.Close(false); }
             }
         }
         Analyze(scope.Document, scope.Document.OwnerFamily.Name, 0, new() { scope.Document.OwnerFamily.Name });
-        return Services.Json.Serialize(new { inspected_families = count, nodes, edges, limitations = problems,
+        return Services.Json.Serialize(new { inspected_families = count, nodes, edges, limitations = problems, open_warnings = scope.OpenWarnings,
             note = "Element IDs are local to each family document. Analysis does not prove flex/constraint validity; run flex_family." });
     }
     private static string? SafeLabel(Dimension d) { try { return d.FamilyLabel?.Definition.Name; } catch { return null; } }

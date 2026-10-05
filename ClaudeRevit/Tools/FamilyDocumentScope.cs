@@ -9,6 +9,8 @@ internal sealed class FamilyDocumentScope : IDisposable
 {
     public Document Document { get; }
     private readonly bool _close;
+    private readonly FamilyInspectionFailures? _failures;
+    public IReadOnlyList<string> OpenWarnings => _failures?.Warnings ?? (IReadOnlyList<string>)Array.Empty<string>();
     public FamilyDocumentScope(UIApplication app, IReadOnlyDictionary<string, JsonElement> input)
     {
         if (input.TryGetValue("file_path", out var file))
@@ -17,8 +19,11 @@ internal sealed class FamilyDocumentScope : IDisposable
             var path = Path.GetFullPath(file.GetString() ?? "");
             if (!Path.IsPathFullyQualified(file.GetString() ?? "") || !path.EndsWith(".rfa", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) throw new ToolInputException("Supply an existing absolute RFA path.");
             if (app.Application.Documents.Cast<Document>().Any(d => string.Equals(d.PathName, path, StringComparison.OrdinalIgnoreCase))) throw new ToolInputException("RFA is already open; inspect its active document instead of closing a user-owned file.");
-            Document = app.Application.OpenDocumentFile(path); _close = true;
-            if (!Document.IsFamilyDocument) { Document.Close(false); throw new ToolInputException("The file is not an ordinary family document."); }
+            _failures = new FamilyInspectionFailures(app.Application);
+            try { Document = app.Application.OpenDocumentFile(path); _close = true; }
+            catch { _failures.Dispose(); throw; }
+            if (_failures.Errors.Count > 0) { var errors = string.Join("; ", _failures.Errors); Dispose(); throw new ToolInputException("Reference RFA upgrade failed: " + errors); }
+            if (!Document.IsFamilyDocument) { Dispose(); throw new ToolInputException("The file is not an ordinary family document."); }
             return;
         }
         var source = NativeToolUtil.Doc(app);
@@ -31,7 +36,7 @@ internal sealed class FamilyDocumentScope : IDisposable
         }
         else { FamilyEditorUtil.Manager(source); Document = source; }
     }
-    public void Dispose() { if (_close && Document.IsValidObject) Document.Close(false); }
+    public void Dispose() { try { if (_close && Document.IsValidObject) Document.Close(false); } finally { _failures?.Dispose(); } }
     public static FamilyParameter Parameter(FamilyManager fm, string nameOrGuid)
     {
         var byGuid = Guid.TryParse(nameOrGuid, out var guid);
