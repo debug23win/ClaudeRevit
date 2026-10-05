@@ -1,6 +1,6 @@
 # Claude Revit
 
-**Installer notice:** Defender blocks the v3.8.3 EXE as `Program:Win32/Contebrew.A!ml`; a false positive is not confirmed. Do not bypass protection to install it. [Investigation and release checks](docs/installer-security.md).
+**Installer check:** Defender flagged v3.8.3 with intelligence `1.459.560.0`. After updating to `1.459.565.0`, the unchanged original EXE passed a new scan with its published SHA-256 verified. Update Defender and retry the official download if affected; no protection bypass is needed. [Evidence and release checks](docs/installer-security.md).
 
 MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a model
 and reasoning effort. Choices are saved independently. Codex reads its model

@@ -1,5 +1,21 @@
 # Installer detection investigation
 
+## Updated scan result
+
+After an official Defender intelligence update to `1.459.565.0`, the exact original
+v3.8.3 EXE was downloaded again from GitHub and scanned on 5 October 2026 at
+20:48 UTC. It returned exit code 0 with no threats, its SHA-256 matched the published
+asset below, and its signature status was `NotSigned`. The binary was not rebuilt,
+modified, run, restored from quarantine or excluded from protection. The result of
+detection therefore changed with the intelligence version. The exact classifier
+trigger is unknown; no Microsoft analyst determination was requested or received.
+
+If affected, update Defender intelligence and retry the official GitHub download.
+Do not disable protection to work around a remaining detection. A scan is evidence
+from one engine at one time and cannot establish universal safety.
+
+## Initial detection and comparison
+
 On 5 October 2026 Microsoft Defender blocked the published
 `ClaudeRevit-Setup-v3.8.3.exe` as `Program:Win32/Contebrew.A!ml`.
 The SHA-256 recorded when the GitHub asset was verified is:
@@ -37,7 +53,9 @@ classification trigger in the resulting executable remains unknown.
 Microsoft's [developer procedure](https://learn.microsoft.com/en-us/defender-xdr/developer-faq)
 is to submit the original file for analysis and wait for the final determination.
 The [submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission)
-requires sign-in for developer submissions. No file has been submitted yet.
+requires sign-in for developer submissions. The user chose local checks only;
+no file was submitted. The updated scan result above resolved the reproduced
+local download detection without requiring a submission.
 
 ## Release checks
 
