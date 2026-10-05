@@ -116,7 +116,7 @@ jobs:
       - name: Scan release payloads and final packages
         shell: pwsh
         run: |
-          Update-MpSignature -ErrorAction Stop
+          ./scripts/Enable-ReleaseDefender.ps1
           $targets = @((Resolve-Path 'installer/payload').Path)
           $targets += Get-ChildItem "ClaudeRevit-${{ steps.vars.outputs.version }}-Revit*.zip" | ForEach-Object FullName
           $targets += '${{ steps.installer.outputs.path }}'

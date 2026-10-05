@@ -7,9 +7,10 @@ param(
 # Fail closed. A successful scan is evidence from one engine at one time, not a
 # guarantee of safety. Do not add exclusions, restore quarantine or disable AV.
 $ErrorActionPreference = 'Stop'
-$report = [ordered]@{ source_commit = $SourceCommit; utc = [DateTime]::UtcNow.ToString('o'); status = 'incomplete'; engine = $null; files = @(); error = $null }
+$report = [ordered]@{ source_commit = $SourceCommit; utc = [DateTime]::UtcNow.ToString('o'); status = 'incomplete'; protection = $null; engine = $null; files = @(); error = $null }
 try {
     $status = Get-MpComputerStatus -ErrorAction Stop
+    $report.protection = @{ mode = $status.AMRunningMode; antivirus_enabled = [bool]$status.AntivirusEnabled; realtime_enabled = [bool]$status.RealTimeProtectionEnabled }
     if (-not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled) {
         throw 'Microsoft Defender must be active; release scanning cannot be skipped.'
     }

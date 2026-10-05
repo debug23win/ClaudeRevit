@@ -71,3 +71,12 @@ archive contents and exclusions are handled by the scanner without changing
 real-time protection or restoring files. See the
 [official command reference](https://learn.microsoft.com/en-us/defender-endpoint/command-line-arguments-microsoft-defender-antivirus).
 A passing scan is a time-specific result from one engine, not a safety guarantee.
+
+GitHub's [Windows image configuration](https://github.com/actions/runner-images/blob/main/images/windows/scripts/build/Configure-WindowsDefender.ps1)
+disables monitoring and can force passive mode. The first v3.8.4 release attempt
+built every package but failed closed at this gate; nothing was published.
+`Enable-ReleaseDefender.ps1` now activates protection only on a disposable hosted
+Windows runner, removes that image's two whole-drive exclusions and updates
+intelligence. It follows Microsoft's [always-on protection settings](https://learn.microsoft.com/en-us/defender-endpoint/configure-real-time-protection-microsoft-defender-antivirus).
+Developer-machine invocation is rejected. Activation failure still blocks release;
+the original scan gate is retained. Isolated contract tests mock all system calls.
