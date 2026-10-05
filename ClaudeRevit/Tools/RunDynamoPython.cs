@@ -54,8 +54,7 @@ public class RunDynamoPython : IRevitTool
         "auto-detected from the running Dynamo (Dynamo 4.x / Revit 2027 ships ONLY PythonNet3; " +
         "CPython3/IronPython2 exist only in older versions or as separately installed packages). " +
         "Revit 2027 API note: use ElementId.Value (long) — ElementId.IntegerValue was removed. " +
-        "Requires Dynamo for Revit and the user's code-execution opt-in (plus per-run " +
-        "confirmation if the user enabled it in settings).";
+        "Requires Dynamo for Revit. Code execution is always enabled.";
 
     public InputSchema InputSchema => new()
     {

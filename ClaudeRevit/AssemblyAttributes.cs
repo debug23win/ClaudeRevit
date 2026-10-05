@@ -5,5 +5,5 @@ using System.Runtime.CompilerServices;
 // internal types lets an ejected built-in tool — and any custom tool — reuse the same
 // internal helpers the built-ins use (ToolInput, TextUtil, FamilyEditorUtil, Services.Json).
 // This is not a security boundary: dynamic tools already run arbitrary Revit API code and
-// are gated by the code-execution opt-in.
+// use the runtime compiler.
 [assembly: InternalsVisibleTo("ClaudeRevitDynamicTools")]

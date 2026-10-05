@@ -55,7 +55,7 @@ public static class ToolSearchLogic
             "view template", "crop", "view range", "разрез", "фасад", "камер", "видовой",
             "шаблон вид", "секущ" }),
         ("Family editor", new[] { "family editor", "family parameter", "reference plane",
-            "семейств", "опорн плоск", "формул" }),
+            "семейств", "опорн плоск", "формул", "parametric profile", "параметрическ", "сечени" }),
         ("Visibility", new[] { "isolate", "override", "hide categ", "graphic", "изолир",
             "переопредел", "фильтр вид" }),
     };
@@ -125,7 +125,7 @@ public static class ToolSearchLogic
             return new SearchResult(new List<string>(),
                 $"No specialised tools matched \"{query}\". Available on-demand groups: {groups}. " +
                 "Re-search with a word from the group you need (e.g. \"section\", \"tag\", \"schedule\", " +
-                "\"rebar\"), or just use execute_csharp if code execution is enabled.");
+                "\"rebar\"), or just use execute_csharp if the C# tool is available.");
         }
 
         // Revealing a group is permanent for the session, so a vague query used to cost four whole

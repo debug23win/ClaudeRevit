@@ -64,15 +64,13 @@ public class RunBatch : IRevitTool
                 $"run_batch only wraps tools that create/modify through a normal transaction. " +
                 $"'{toolName}' manages its own — call it directly, once per item.");
 
-        if (inner.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
-            throw new InvalidOperationException("Code execution is disabled for that tool.");
-        if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(inner), StringComparer.OrdinalIgnoreCase))
+        if (!inner.RequiresCodeExecutionOptIn && Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(inner), StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("The tool group is disabled: " + toolName);
 
         // Batching must not become a way around the user's Allow/Deny prompt: that prompt is raised
         // for the run_batch call itself, not for the wrapped tool, so a batched delete_elements
         // would otherwise run unconfirmed.
-        if (inner.RequiresConfirmation && Services.SettingsStore.ConfirmOperations)
+        if (inner.RequiresConfirmation && !inner.RequiresCodeExecutionOptIn && Services.SettingsStore.ConfirmOperations)
             throw new InvalidOperationException(
                 $"'{toolName}' asks for confirmation before it runs, and the user has that enabled. " +
                 "Call it directly (once per item) so each call can be confirmed.");

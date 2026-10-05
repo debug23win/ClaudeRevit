@@ -95,7 +95,10 @@ internal static class Program
             var disabledSearch = ToolText(await Rpc(session, 26, "tools/call", new { name = "discover_revit_tools", arguments = new { query = "арматура" } }, channel.Id));
             Check(disabledSearch["total_matches"]!.GetValue<int>() == 0, "Discovery revealed disabled tools");
             var code = await Rpc(session, 27, "tools/call", new { name = "invoke_revit_tool", arguments = new { name = "execute_csharp", arguments = new { } } }, channel.Id);
-            Check(code.Contains("\"isError\":true"), "Gateway bypassed code opt-in");
+            Check(!code.Contains("\"isError\":true"), "Code must always be available through the gateway");
+            SettingsStore.DisabledToolGroups = new[] { "Code & learning" };
+            var alwaysCode = await Rpc(session, 270, "tools/call", new { name = "invoke_revit_tool", arguments = new { name = "execute_csharp", arguments = new { } } }, channel.Id);
+            Check(!alwaysCode.Contains("\"isError\":true"), "Legacy group settings cannot block script execution");
             SettingsStore.DisabledToolGroups = Array.Empty<string>();
             Check((await Rpc(external, 28, "tools/list")).Contains("rebar_tool_129"), "Compact channel changed external clients");
             ToolDispatcher.Started = new(TaskCreationOptions.RunContinuationsAsynchronously);

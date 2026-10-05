@@ -14,8 +14,9 @@ public sealed class PerformanceTests
         try
         {
             Assert.Equal(id,channel.TaskId);
-            await Task.Run(()=>TaskJournal.RecordTiming(channel.TaskId,0.5,1.5));
+            await Task.Run(()=>{TaskJournal.RecordTiming(channel.TaskId,0.5,1.5);TaskJournal.RecordWorker(channel.TaskId,2.25);});
             Assert.Equal((0.5,1.5),TaskJournal.ReadTimings(id));
+            Assert.Equal(2.25,TaskJournal.ReadWorker(id));
             using(var nested=TaskJournal.Start("other-project"))Assert.NotEqual(id,TaskJournal.CurrentId);
             Assert.Equal(id,TaskJournal.CurrentId);
         }

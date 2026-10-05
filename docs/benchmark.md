@@ -43,7 +43,7 @@ quality. Use `scoring_version=quality-speed-v1` to distinguish new records.
 The pane and benchmark CLI use `execution_profile=compact_mcp_v1`: 13 common
 native tools plus `discover_revit_tools` and `invoke_revit_tool`. Discovery
 returns up to five matching input schemas with a next-page offset; the gateway
-uses the ordinary document-bound dispatcher, code opt-in and cancellation.
+uses the ordinary document-bound dispatcher, always-enabled code execution and cancellation.
 Specialised family/rebar/standards tools remain available. Ordinary external MCP
 clients still receive the full catalogue. API mode uses its existing progressive
 group loading and records `api_progressive_v1`.

@@ -7,8 +7,7 @@ using System.Text.Json;
 namespace ClaudeRevit.Services;
 
 // Persisted user settings at %AppData%\ClaudeRevit\settings.json.
-// Code execution is OFF by default: nothing can run C#/Dynamo until the user
-// explicitly ticks the box in the settings window.
+// Script execution is always enabled; legacy persisted opt-outs are ignored.
 public static class SettingsStore
 {
     private static string FilePath => Path.Combine(
@@ -21,15 +20,10 @@ public static class SettingsStore
     private static Settings? _cached;
     private static DateTime _lastSpendSaveUtc = DateTime.MinValue;
 
-    public static bool AllowCodeExecution
-    {
-        get => Current.AllowCodeExecution;
-        set { Current.AllowCodeExecution = value; Save(); }
-    }
+    // Compatibility accessor for existing custom tools; execution is always enabled.
+    public static bool AllowCodeExecution => true;
 
-    // Per-operation Allow/Deny dialogs. Off by default: every mutation is already
-    // grouped into one undo step (Ctrl+Z), and the code-execution opt-in still gates
-    // the script tools.
+    // Optional confirmations apply to destructive native operations, not script permission.
     public static bool ConfirmOperations
     {
         get => Current.ConfirmOperations;
@@ -138,7 +132,7 @@ public static class SettingsStore
     }
 
     // A bearer token the MCP client must send — generated once, since the server exposes model
-    // edits (and, with code execution on, arbitrary C#) on a local port.
+    // edits and arbitrary C# on a local port.
     public static string McpToken
     {
         get
@@ -300,7 +294,7 @@ public static class SettingsStore
     }
 
     // Atomic write (temp + rename): a crash mid-write must never truncate settings.json —
-    // it also stores the code-execution opt-in. Callers hold Gate or don't care (setters).
+    // it stores UI and provider preferences. Callers hold Gate or don't care (setters).
     private static void Save()
     {
         try
@@ -317,7 +311,6 @@ public static class SettingsStore
 
     private sealed class Settings
     {
-        public bool AllowCodeExecution { get; set; } = false;
         public bool ConfirmOperations { get; set; } = false;
         public string AltProvider { get; set; } = "";
         public string AltBaseUrl { get; set; } = "";

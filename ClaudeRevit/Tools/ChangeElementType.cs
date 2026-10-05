@@ -15,7 +15,9 @@ public class ChangeElementType : IRevitTool
     public string Description =>
         "Swaps the type of one or more elements to a new type id. The new type must be compatible with the " +
         "element's category — e.g. you can swap a Wall to a different WallType, but not to a FloorType. " +
-        "Use list_family_types to find the right new_type_id.";
+        "Use list_family_types to find the right new_type_id. By default restore compatible writable instance parameters " +
+        "after the swap and report changed parameters and replacement IDs. preserve_parameters selects critical names; " +
+        "failure to retain them rolls that item back. Type-owned properties come from the new type. preview=true rolls back the whole call.";
 
     public InputSchema InputSchema => new()
     {
@@ -27,12 +29,17 @@ public class ChangeElementType : IRevitTool
                 description = "Elements whose type should change.",
                 items = new { type = "integer" }
             }),
-            ["new_type_id"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "New ElementType id." })
+            ["new_type_id"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "New ElementType id." }),
+            ["preserve_instance_parameters"] = NativeToolUtil.Field("boolean", "Default true. Restore compatible writable instance values."),
+            ["preserve_parameters"] = NativeToolUtil.Array("string", "Optional critical instance parameter names. All must survive the swap or it rolls back."),
+            ["preview"] = NativeToolUtil.Field("boolean", "Default false for compatibility; true tests then rolls back.")
         },
         Required = ["element_ids", "new_type_id"]
     };
 
-    public bool RequiresTransaction => true;
+    public bool RequiresTransaction => false;
+    public bool MutatesWithoutTransaction => true;
+    public bool RequiresNoTurnGroup => true;
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -48,14 +55,31 @@ public class ChangeElementType : IRevitTool
 
         var changed = new List<long>();
         var skipped = new List<object>();
+        var reports = new List<object>();
+        bool preserve = !input.TryGetValue("preserve_instance_parameters", out var keep) || keep.GetBoolean();
+        var names = input.TryGetValue("preserve_parameters", out var ps) ? ps.EnumerateArray().Select(p=>p.GetString()??"").ToArray() : null;
+        bool preview=input.TryGetValue("preview",out var pv)&&pv.GetBoolean();
 
+        var (_, warnings) = NativeToolUtil.Commit(doc,"Claude: change element types",preview,()=>
+        {
         foreach (var id in elementIds)
         {
+            ToolContext.ThrowIfCancelled();
             var el = doc.GetElement(id);
             if (el == null) { skipped.Add(new { id = id.Value, reason = "not found" }); continue; }
-            try { el.ChangeTypeId(newTypeId); changed.Add(id.Value); }
-            catch (Exception ex) { skipped.Add(new { id = id.Value, reason = ex.Message }); }
+            using var sub = new SubTransaction(doc); sub.Start();
+            try
+            {
+                var result=TypeChangePreservation.Change(el,newTypeId,preserve,names);
+                sub.Commit(); changed.Add(result.Element.Id.Value);
+                reports.Add(new { previous_id=id.Value,current_id=result.Element.Id.Value,parameter_changes=result.Changes });
+            }
+            catch (OperationCanceledException) { sub.RollBack(); throw; }
+            catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
+            catch (Exception ex) { sub.RollBack(); skipped.Add(new { id = id.Value, reason = ex.Message }); }
         }
+        return true;
+        });
 
         // A swapped title block can have a different printable area, leaving viewports under
         // the new frame or outside it — the caller should re-check the sheet layout.
@@ -77,6 +101,8 @@ public class ChangeElementType : IRevitTool
             changed_count = changed.Count,
             skipped_count = skipped.Count,
             skipped,
+            preview, changed_ids=changed, reports, warnings,
+            preview_ids_are_temporary=preview,
             note
         });
     }

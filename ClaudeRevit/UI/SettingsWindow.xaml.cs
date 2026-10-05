@@ -55,7 +55,6 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         var existing = ApiKeyStore.Load();
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
-        AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
         SelectByTag(ChatUiModeBox, SettingsStore.ChatUiMode);
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
         AutoAdvisorBox.IsChecked = SettingsStore.AutoUseAdvisor;
@@ -166,15 +165,10 @@ public partial class SettingsWindow : Window
             "Stored encrypted (Windows DPAPI, current user) in %AppData%\\ClaudeRevit. Get a key at console.anthropic.com → Settings → API Keys.",
             "Хранится зашифрованным (Windows DPAPI, текущий пользователь) в %AppData%\\ClaudeRevit. Ключ — на console.anthropic.com → Settings → API Keys.");
 
-        AllowCodeBox.Content = L("Allow Claude to run code (C# / Dynamo Python)", "Разрешить выполнение кода (C# / Dynamo Python)");
-        AllowCodeNote.Text = L(
-            "Off by default. When enabled, Claude may run scripts against the full Revit API for actions no built-in tool covers. Leave this off unless you need it; arbitrary code can modify or delete anything in the model. Every turn is one undo step (Ctrl+Z).",
-            "По умолчанию выключено. Включив, вы разрешаете выполнять скрипты со всем Revit API для действий, не покрытых готовыми инструментами. Не включайте без необходимости — произвольный код может изменить или удалить что угодно в модели. Каждый ход — один шаг отмены (Ctrl+Z).");
-
-        ConfirmOpsBox.Content = L("Ask for confirmation before destructive / code operations", "Спрашивать подтверждение перед опасными операциями / кодом");
+        ConfirmOpsBox.Content = L("Ask for confirmation before destructive operations", "Спрашивать подтверждение перед опасными операциями");
         ConfirmOpsNote.Text = L(
-            "Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z.",
-            "По умолчанию выключено: диалог «Разрешить/Запретить» перед удалением и запуском скриптов. Всё равно отменяется через Ctrl+Z.");
+            "Off by default: an Allow/Deny dialog before deletions. Everything is still undoable with Ctrl+Z.",
+            "По умолчанию выключено: диалог «Разрешить/Запретить» перед удалением. Всё равно отменяется через Ctrl+Z.");
 
         AutoAdvisorBox.Content = L(
             "Auto mode: consult the advisor mid-turn (recommended)",
@@ -219,7 +213,7 @@ public partial class SettingsWindow : Window
             "Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)",
             "Эксперимент: MCP-сервер (рулить Revit из Claude Code / Desktop по подписке)");
         McpNote.Text = L(
-            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. In the pane, choose API, Claude Code · MCP or Codex · MCP. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
+            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. In the pane, choose API, Claude Code · MCP or Codex · MCP. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C#). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
             "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. В панели выбирайте API, Claude Code · MCP или Codex · MCP. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
         McpPortLabel.Text = L("Port:", "Порт:");
         McpWhoLabel.Text = L("Currently driving Revit", "Кто сейчас управляет Revit");
@@ -301,6 +295,7 @@ public partial class SettingsWindow : Window
             System.StringComparer.OrdinalIgnoreCase);
         foreach (var (category, count) in ToolCatalog.Summarize(ToolRegistry.Instance.All))
         {
+            if(category == "Code & learning") continue; // Always available.
             ToolGroupsPanel.Children.Add(new CheckBox
             {
                 Content = $"{category} ({count})",
@@ -432,7 +427,6 @@ public partial class SettingsWindow : Window
                 disabledGroups.Add(cat);
         SettingsStore.DisabledToolGroups = disabledGroups;
 
-        SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
         SettingsStore.ChatUiMode = TagOf(ChatUiModeBox, "window");
         SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;

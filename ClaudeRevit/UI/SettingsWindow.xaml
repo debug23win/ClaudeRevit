@@ -51,14 +51,10 @@
 
                         <Border BorderBrush="#EEE" BorderThickness="0,1,0,0" Margin="0,14,0,10" />
 
-                        <CheckBox x:Name="AllowCodeBox" Content="Allow Claude to run code (C# / Dynamo Python)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="AllowCodeNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
-                                   Text="Off by default. When enabled, Claude may run scripts against the full Revit API for actions no built-in tool covers. Leave this off unless you need it; arbitrary code can modify or delete anything in the model. Every turn is one undo step (Ctrl+Z)." />
-
                         <CheckBox x:Name="ConfirmOpsBox" Margin="0,12,0,0"
-                                  Content="Ask for confirmation before destructive / code operations" />
+                                  Content="Ask for confirmation before destructive operations" />
                         <TextBlock x:Name="ConfirmOpsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
-                                   Text="Off by default: an Allow/Deny dialog before deletions and script runs. Everything is still undoable with Ctrl+Z." />
+                                   Text="Off by default: an Allow/Deny dialog before deletions. Everything is still undoable with Ctrl+Z." />
 
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                             <TextBlock x:Name="BalanceLabel" Text="Account balance, USD:" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -196,7 +192,7 @@
                         <CheckBox x:Name="McpBox" FontWeight="SemiBold"
                                   Content="Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)" />
                         <TextBlock x:Name="McpNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"
-                                   Text="Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C# if code execution is on). Paste the config below into Claude Code’s MCP settings." />
+                                   Text="Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. The in-Revit chat pane still uses your API key. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C#). Paste the config below into Claude Code’s MCP settings." />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock x:Name="McpPortLabel" Text="Port:" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBox x:Name="McpPortBox" Width="70" Height="26" Padding="4" VerticalContentAlignment="Center" />

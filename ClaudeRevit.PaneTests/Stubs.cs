@@ -12,7 +12,7 @@ namespace ClaudeRevit.Services
         public static string UiLanguage => "ru";
         public static string AltModel => "";
         public static string CodexExe => "codex";
-        public static bool AllowCodeExecution => false;
+        public static bool AllowCodeExecution => true;
         private static readonly Dictionary<string, McpAgentSelection> Choices = new();
         public static McpAgentSelection GetAgentSelection(string agent) => Choices.TryGetValue(agent, out var selection) ? selection : new(agent);
         public static void SaveAgentSelection(McpAgentSelection selection) => Choices[selection.Agent] = selection;

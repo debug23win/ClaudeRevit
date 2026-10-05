@@ -9,7 +9,7 @@ namespace ClaudeRevit.Services
         public static int McpPort { get; set; }
         public static string McpToken => "isolated-test-token";
         public static bool McpEnabled => true;
-        public static bool AllowCodeExecution => false;
+        public static bool AllowCodeExecution => true;
         public static IReadOnlyList<string> DisabledToolGroups { get; set; } = Array.Empty<string>();
     }
     public static class DocumentSessions

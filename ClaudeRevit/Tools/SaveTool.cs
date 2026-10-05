@@ -9,7 +9,7 @@ namespace ClaudeRevit.Tools;
 // Self-extension: turns a proven pattern into a persistent, first-class tool. Claude writes
 // a complete C# source file implementing IRevitTool; it is compiled and validated on the
 // spot, saved under %AppData%\ClaudeRevit\tools\, and becomes available as a normal tool on
-// the next message and in every future session. Gated by the code-execution opt-in.
+// the next message and in every future session. Code execution is always enabled.
 public class SaveTool : IRevitTool
 {
     public string Name => "save_tool";
@@ -23,7 +23,7 @@ public class SaveTool : IRevitTool
         "read it with get_tool_source, change the source, then call save_tool with the SAME name — this " +
         "overwrites a custom tool, or installs an editable override that shadows a built-in (delete_tool " +
         "reverts a built-in to its compiled original). Refine a tool rather than create near-duplicates. " +
-        "Requires the code-execution opt-in. TEMPLATE:\n" +
+        "Code execution is always available. TEMPLATE:\n" +
         "```\n" +
         "using System; using System.Collections.Generic; using System.Text.Json;\n" +
         "using Anthropic.Models.Beta.Messages; using Autodesk.Revit.DB; using Autodesk.Revit.UI;\n" +

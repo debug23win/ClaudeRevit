@@ -9,7 +9,7 @@ namespace ClaudeRevit.Tools;
 public sealed class CreateStructuralConnection : IRevitTool
 {
     public string Name => "create_structural_connection";
-    public string Description => "Create a native StructuralConnectionHandler linking actual structural member IDs. Optional connection_type_id chooses a loaded native detailed connection type; omit for a generic logical connection (no fabrication geometry). Verify connected member IDs and generated geometry. Generic connection is explicitly reported and does not certify joint design. One Undo call; no DirectShape imitation.";
+    public string Description => "Preferred steel-node tool: create a native StructuralConnectionHandler linking actual structural members. Inspect inspect_structural_capabilities/list_structural_connection_types first. connection_type_id selects a compatible loaded detailed connection; omit only when a generic logical link is explicitly wanted (no fabrication geometry). Generic Model family parts are not structural members. Verify generated geometry. Does not certify joint design. One Undo call.";
     public bool RequiresTransaction => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {

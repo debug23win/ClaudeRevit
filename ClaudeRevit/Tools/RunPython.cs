@@ -46,7 +46,7 @@ public class RunPython : IRevitTool
         "Revit 2025+ runs on .NET 8, where only IronPython 3.x can load (IronPython 2.7 is .NET Framework " +
         "only). Revit 2027 API note: use ElementId.Value (long) — IntegerValue was removed.\n" +
         "Prefer execute_csharp for new code (no third-party dependency); use this when the user wants " +
-        "Python, or for a proven pyRevit/RPS snippet. Requires the code-execution opt-in.";
+        "Python, or for a proven pyRevit/RPS snippet. Code execution is always available.";
 
     public InputSchema InputSchema => new()
     {

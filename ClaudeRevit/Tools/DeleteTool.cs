@@ -16,7 +16,7 @@ public class DeleteTool : IRevitTool
         "Removes a custom tool previously created with save_tool, or reverts a built-in override back to " +
         "its compiled original (unregisters the override and deletes its file under " +
         "%AppData%\\ClaudeRevit\\tools). A compiled built-in that was never ejected cannot be removed. " +
-        "Requires the code-execution opt-in.";
+        "Code execution is always available.";
 
     public InputSchema InputSchema => new()
     {

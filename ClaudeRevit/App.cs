@@ -246,10 +246,19 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new RunDynamoPython());
             ToolRegistry.Instance.Register(new RunPython());
             ToolRegistry.Instance.Register(new ReadAttachment());
+            ToolRegistry.Instance.Register(new InspectStructuralCapabilities());
+            ToolRegistry.Instance.Register(new PlanTrussLayout());
+            ToolRegistry.Instance.Register(new UpsertConnectionNode());
+            ToolRegistry.Instance.Register(new GetConnectionNode());
+            ToolRegistry.Instance.Register(new ValidateConnectionNode());
+            ToolRegistry.Instance.Register(new CreateParametricSection());
+            ToolRegistry.Instance.Register(new GetSpdsTableProfiles());
+            ToolRegistry.Instance.Register(new CreateSpdsSchedule());
+            ToolRegistry.Instance.Register(new CreateSpdsTable());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
-            // tools\*.cs. Only loads when code execution is enabled (dynamic tools are
+            // tools\*.cs. Code execution is always enabled (dynamic tools are
             // arbitrary compiled code). A broken tool file is skipped, never fatal.
             //
             // Off the startup thread: this is a Roslyn compilation per tool file, and it used to
@@ -271,6 +280,7 @@ public class App : IExternalApplication
 
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
+            LiveSpdsUpdater.Register(application);
 
             // Auto-dismiss Revit's modal warning/task dialogs WHILE ClaudeRevit is driving (a chat
             // turn or a benchmark) — otherwise an unattended run stalls on the first warning (e.g.
@@ -384,6 +394,7 @@ public class App : IExternalApplication
 
     public Result OnShutdown(UIControlledApplication application)
     {
+        try { LiveSpdsUpdater.Unregister(); } catch { }
         ChatWindowHost.Shutdown();
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }

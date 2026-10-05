@@ -22,6 +22,9 @@ public static class ToolCatalog
     public static string CategoryOf(IRevitTool tool)
     {
         var n = tool.GetType().Name;
+        if(n is "UpsertConnectionNode" or "PlanTrussLayout") return "Modeling";
+        if(n is "CreateParametricSection") return "Family editor";
+        if(n.Contains("Spds",StringComparison.Ordinal))return "Schedules";
         bool Has(params string[] keys) => keys.Any(k => n.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0);
         if (n.StartsWith("Generate",StringComparison.Ordinal) || n is "SetModelProvenance") return "Modeling";
         if (n is "ValidateCSharp") return "Code & learning";
