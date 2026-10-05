@@ -18,7 +18,7 @@ public class GetToolSource : IRevitTool
         "(its original source is embedded in the add-in). Use it to study a tool, or to refine one: read " +
         "the source, change it, then save_tool with the SAME name. For a built-in, eject_tool first (or " +
         "just save_tool the same name) to install an editable override; delete_tool reverts to the " +
-        "compiled original. Requires the code-execution opt-in.";
+        "compiled original. Code execution is always available.";
 
     public InputSchema InputSchema => new()
     {

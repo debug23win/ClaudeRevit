@@ -17,8 +17,8 @@ public interface IRevitTool
     // default). Use for destructive or arbitrary-code operations.
     bool RequiresConfirmation => false;
 
-    // When true, the tool is only offered to Claude (and only runs) if the user has
-    // ticked "Allow code execution" in settings. Arbitrary-code tools set this.
+    // Legacy compatibility marker for script/custom tools. Execution is always enabled;
+    // this marker exempts code tools from native group filters and confirmation settings.
     bool RequiresCodeExecutionOptIn => false;
 
     // Arbitrary-code tools (journaled with their model delta by ScriptJournal).

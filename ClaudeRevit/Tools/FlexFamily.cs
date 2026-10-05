@@ -14,7 +14,8 @@ public sealed class FlexFamily : IRevitTool
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
         ["family_id"] = NativeToolUtil.Field("integer", "Optional loaded Family; otherwise active RFA."),
-        ["scenarios"] = NativeToolUtil.Any("1..100 objects {name, type_name(optional), values:{parameterNameOrGUID:value}, require_solid(optional bool)}. Default tests all existing types.")
+        ["scenarios"] = NativeToolUtil.Any("1..100 objects {name, type_name(optional), values:{parameterNameOrGUID:value}, require_solid(optional bool)}. Default tests all existing types."),
+        ["require_geometry_change"] = NativeToolUtil.Field("boolean", "Default false. True rejects scenarios whose values change but solid mesh geometry remains identical. Test each independent size driver separately.")
     });
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -26,6 +27,7 @@ public sealed class FlexFamily : IRevitTool
             : types.Keys.Select(name => JsonSerializer.SerializeToElement(new { name, type_name = name })).ToList();
         if (scenarios.Count is < 1 or > 100) throw new ToolInputException("Supply 1..100 scenarios; empty/type-less families need explicit scenarios.");
         var results = new List<object>();
+        var requireChange=ToolInput.Flag(input,"require_geometry_change");
         foreach (var scenario in scenarios)
         {
             ToolContext.ThrowIfCancelled();
@@ -37,6 +39,11 @@ public sealed class FlexFamily : IRevitTool
                     if (scenario.TryGetProperty("type_name", out var t))
                         fm.CurrentType = types.TryGetValue(t.GetString() ?? "", out var type) ? type : throw new ToolInputException("Unknown type: " + t);
                     if (fm.CurrentType == null) fm.NewType("Claude flex temporary");
+                    doc.Regenerate();
+                    if(requireChange&&(!scenario.TryGetProperty("values",out var driverValues)||driverValues.ValueKind!=JsonValueKind.Object||!driverValues.EnumerateObject().Any()))throw new ToolInputException("Geometry-change scenarios need explicit driver values.");
+                    // Compare to this scenario's type, so switching to a different type
+                    // cannot falsely prove that a non-driving parameter works.
+                    var baseline=requireChange?Fingerprint(doc):null;
                     if (scenario.TryGetProperty("values", out var values))
                         foreach (var value in values.EnumerateObject()) FamilyDocumentScope.Set(fm, FamilyDocumentScope.Parameter(fm, value.Name), value.Value);
                     doc.Regenerate();
@@ -75,7 +82,9 @@ public sealed class FlexFamily : IRevitTool
                     if (broken.Length > 0) throw new InvalidOperationException("Parameter evaluation failed: " + string.Join(", ", broken));
                     if (scenario.TryGetProperty("require_solid", out var rs) && rs.ValueKind == JsonValueKind.True && solids == 0)
                         throw new InvalidOperationException("Scenario requires solid geometry, but none is visible.");
-                    return new { type_name = fm.CurrentType?.Name, visible_solid_count = solids, summed_solid_volume_m3 = volume * Math.Pow(0.3048, 3), bounds,
+                    var changed=requireChange?Fingerprint(doc)!=baseline:(bool?)null;
+                    if(requireChange&&changed!=true)throw new InvalidOperationException("Parameters did not change actual solid geometry; a named parameter alone is not a working driver.");
+                    return new { geometry_changed=changed,type_name = fm.CurrentType?.Name, visible_solid_count = solids, summed_solid_volume_m3 = volume * Math.Pow(0.3048, 3), bounds,
                         values = fm.Parameters.Cast<FamilyParameter>().Take(1000).Select(p => new { name = p.Definition.Name, value = FamilyEditorUtil.CurrentValue(fm, p).display }).ToArray() };
                 });
                 results.Add(new { name, valid = true, geometry, warnings });
@@ -87,5 +96,21 @@ public sealed class FlexFamily : IRevitTool
         }
         return Services.Json.Serialize(new { family = doc.OwnerFamily.Name, restored = true, results,
             coverage = "Only these scenarios were tested. Commit/regen and geometry probes cannot guarantee every size, visibility combination or nested type." });
+    }
+    private static string Fingerprint(Document doc)
+    {
+        var values=new List<string>();int vertices=0;
+        foreach(var e in new FilteredElementCollector(doc).WhereElementIsNotElementType())
+        {
+            if(e is not (GenericForm or GeomCombination or FamilyInstance))continue;
+            if(e is GenericForm member&&member.Combinations.Cast<object>().Any())continue;
+            foreach(var solid in ConnectionNodes.Solids(e))foreach(Face face in solid.Faces)
+            {
+                var mesh=face.Triangulate();foreach(var p in mesh.Vertices)
+                {ToolContext.ThrowIfCancelled();if(++vertices>200000)throw new ToolInputException("Geometry-change check exceeds 200000 mesh vertices; narrow the family.");values.Add(FormattableString.Invariant($"{Math.Round(p.X,7)},{Math.Round(p.Y,7)},{Math.Round(p.Z,7)}"));}
+            }
+        }
+        values.Sort(StringComparer.Ordinal);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join(";",values))));
     }
 }

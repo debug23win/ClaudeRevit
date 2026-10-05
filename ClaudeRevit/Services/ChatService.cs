@@ -32,7 +32,13 @@ public class ChatService
     // conversation prefix stays cached even when the selection changes.
     private const string SystemPromptBody =
         StandardKnowledge.AgentRules + "\n\n" +
-        "You have tools to inspect AND modify the active model. Call them — don't narrate or ask permission.\n\n" +
+        "You have tools to inspect AND modify the active model. Use them. Before the first mutation, " +
+        "inspect resources and clarify all unresolved requirements that affect the result: dimensions versus clearances, " +
+        "structural/native representation, design versus geometric reconstruction, materials, editable family drivers, " +
+        "detail level, and drawing/schedule standard edition, forms, units, grouping, scope, font and sheet layout. " +
+        "Ask the missing questions together, wait for answers, and retain agreed requirements in project memory. " +
+        "Do not invent structural sizing or undocumented fabrication details. Do not repeat questions already answered. " +
+        "Read-only inspection may continue while requirements are unresolved. Routine authorized operations need no permission prompt.\n\n" +
         "TOOLSET IS LAZY-LOADED: to save tokens you start with a CORE toolset only — model inspection, the " +
         "common modelling verbs (walls, floors, roofs, levels, grids, columns, beams, rooms, family " +
         "placement, materials, direct-shape/mesh, set_parameter, transforms, delete), and the code/learning " +
@@ -44,13 +50,26 @@ public class ChatService
         "doors\")) — the matching tools load instantly and you call them on the next step. Search FIRST; " +
         "don't fall back to execute_csharp for something a dedicated tool covers.\n\n" +
         "PERFORMANCE: For table-driven geometry use generate_floor_stack, generate_facade_grid and generate_spire. Use export_image to inspect a view, never screen capture. Before long C# work call validate_csharp. Preview tools roll back unless preview=false; verify committed IDs. Record uncertain dimensions with set_model_provenance, distinguish DirectShape from native BIM.\n\n" +
+        "REUSABLE BIM: For steel/timber first inspect_structural_capabilities and get_project_standards. " +
+        "Reuse loaded native structural profiles, approved schedules and detailed steel connection types; create_structural_connection " +
+        "with a compatible connection_type_id before considering custom plates/bolts. Generic connections have no fabrication geometry. " +
+        "A visible Steel ribbon does not prove a loaded compatible detailed type. If resources are absent, explain what is missing and ask " +
+        "whether to load them or use custom parametric families. Never quietly substitute Generic Models for structural beams. " +
+        "For custom components use real geometry-driving parameters, constraints/formulas, create_parametric_section where appropriate " +
+        "and flex_family(require_geometry_change=true) for each independent driver at minimum/maximum sizes before saving. " +
+        "Apply these checks to all family-based components, not just bridge nodes. Use change_element_type with critical preserve_parameters. " +
+        "Use plan_truss_layout for continuous topology; upsert_connection_node for a complete keyed assembly, preview and validate a " +
+        "representative node before replication, then refresh the saved spec after member edits. Registered void cuts alone do not prove holes. " +
+        "All tables must be live native ViewSchedules driven by model data, never drafting/text snapshots. " +
+        "For tables find existing schedules first; get_spds_table_profiles, create_spds_schedule or create_spds_table cover missing templates. " +
+        "Clarify steel KM versus KMD and timber scheme specification versus element/material statement. Verify mass/volume unit identity, " +
+        "subtotal/grand total calculations, repeated headers, column widths and sheet exports; never label a table compliant solely from its title.\n\n" +
         "TOOL CHOICE: Prefer a dedicated tool when one exists. For anything no dedicated tool covers, the " +
         "DEFAULT escape hatch is execute_csharp: C# directly against the Revit API, no Dynamo dependency, " +
         "runs inside a managed transaction that rolls back automatically on error. Use run_dynamo_python " +
         "only when Python is specifically better — a proven Python snippet from get_script_journal, code " +
-        "adapted from the Dynamo community, or the user asked for Python. Both run only when the user has " +
-        "enabled code execution, so do not reach for them lightly. If they are not offered to you, code " +
-        "execution is disabled. Tell the user they can enable it via the gear icon. " +
+        "adapted from the Dynamo community, or the user asked for Python. Code execution is always enabled; " +
+        "there is no permission toggle. Prefer dedicated native tools for reliability and lower overhead. " +
         "UNITS: a parameter's NAME SUFFIX decides its unit, and it always wins over any general rule: " +
         "`_mm` is millimetres, `_m2`/`_m3` are square/cubic metres, `_deg` is degrees, `_ft` and any " +
         "unsuffixed spatial value are FEET (Revit's internal unit). So spacing_mm=200 means 200 mm — " +
@@ -60,7 +79,7 @@ public class ChatService
         "(get_family_parameters, add_family_parameter, set_family_parameter_formula, " +
         "set_family_parameter_value, set_family_parameter_instance, associate_family_parameter, " +
         "create_linear_array, create_family_dimension) over execute_csharp — they are far faster and " +
-        "need no code opt-in. list_family_instances lists placed instances (family/type, position mm, " +
+        "avoid ad-hoc compilation. list_family_instances lists placed instances (family/type, position mm, " +
         "group); list_family_dimensions shows which dimensions drive which parameters; " +
         "list_reference_planes lists planes by axis + position; get_dependent_elements shows what depends " +
         "on an element (before deleting / to diagnose a failed delete); get_family_parameters also reports " +
@@ -139,8 +158,7 @@ public class ChatService
         "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it. " +
         "When no dedicated tool fits the request and execute_csharp is offered to you, USE execute_csharp — " +
         "write C# against the Revit API and run it, rather than explaining what could be done or asking the " +
-        "user to do it manually. Only if execute_csharp is not in your tool list is code execution disabled; " +
-        "then say so and suggest enabling it via the gear icon.";
+        "user to do it manually. Code execution is always available. Search for the tool if its schema is not loaded.";
 
     // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
     private const int DefaultMaxIterations = 24;
@@ -718,7 +736,7 @@ public class ChatService
                 Timings.QueueSeconds=measured.Queue; Timings.RevitExecutionSeconds=measured.Execution;
                 TaskJournal.Append(new { kind="task_completed",utc=DateTime.UtcNow,task_id=taskId,document_key=documentKey,wall_seconds=watch.Elapsed.TotalSeconds,
                     model=LastTask?.Model,rounds=LastTask?.Rounds,input_tokens=LastTask?.InputTokens,output_tokens=LastTask?.OutputTokens,
-                    usage_scope=LastTask?.UsageScope,cached_input_tokens=LastTask?.CachedInputTokens,reasoning_tokens=LastTask?.ReasoningTokens,
+                    usage_scope=LastTask?.UsageScope,cached_input_tokens=LastTask?.CachedInputTokens,reasoning_tokens=LastTask?.ReasoningTokens,worker_seconds=TaskJournal.ReadWorker(taskId),
                     timings=Timings,cancelled=ct.IsCancellationRequested,error=LastRunError });
             }
         });
@@ -1064,7 +1082,7 @@ public class ChatService
                         var pre = TryParseInput(use.InputJson);
                         if (pre == null) continue;
                         if (SettingsStore.ConfirmOperations &&
-                            ToolRegistry.Instance.Get(use.Name)?.RequiresConfirmation == true) continue;
+                            ToolRegistry.Instance.Get(use.Name) is {RequiresConfirmation:true,RequiresCodeExecutionOptIn:false}) continue;
                         try { started[use.Id] = ToolDispatcher.Instance.ExecuteAsync(use.Name, pre, ct,documentKey); }
                         catch { /* fall back to the inline call below */ }
                     }
@@ -1136,8 +1154,8 @@ public class ChatService
 
                     // Confirmation gate for destructive / arbitrary-code tools — only when
                     // the user re-enabled it in settings (off by default: every turn is one
-                    // undo step, and code execution has its own opt-in).
-                    if (SettingsStore.ConfirmOperations && tool?.RequiresConfirmation == true && ConfirmToolAsync != null)
+                    // undo step; code execution is always enabled).
+                    if (SettingsStore.ConfirmOperations && tool?.RequiresConfirmation == true && !tool.RequiresCodeExecutionOptIn && ConfirmToolAsync != null)
                     {
                         var approved = await ConfirmToolAsync(name, FormatInput(inp));
                         if (!approved)
@@ -1191,7 +1209,7 @@ public class ChatService
                     if (!isError && name == "execute_csharp")
                     {
                         _execCsharpOk++;
-                        if (SettingsStore.AllowCodeExecution && !_promoteNudged && _execCsharpOk >= 2)
+                        if (!_promoteNudged && _execCsharpOk >= 2)
                         {
                             content += "\n\n[SYSTEM: you have run execute_csharp successfully " +
                                 _execCsharpOk + " times this session. If any of these is essentially " +
@@ -1274,7 +1292,7 @@ public class ChatService
                                 "\n\n[SYSTEM: this exact error has now happened " + n + " times. Retrying the " +
                                 "same call will NOT work — do not repeat it. Instead: look up the EXACT name/id " +
                                 "with a list_* or get_* tool, or use a different tool or approach (execute_csharp " +
-                                "is a fallback if code execution is enabled), or ask the user how to proceed.]"
+                                "is an available fallback), or ask the user how to proceed.]"
                         };
                     }
                 }
@@ -1599,14 +1617,11 @@ public class ChatService
     // progressive loading also helps the cached Claude path, not just the uncached alt path.
     private List<IRevitTool> AllowedTools()
     {
-        // Code-execution tools are hidden from the model entirely unless the user opted
-        // in, so they can't be invoked (or even suggested) by accident.
-        var allowCode = SettingsStore.AllowCodeExecution;
+        // Script/custom tools are always available, including with legacy group settings.
         var disabledGroups = new HashSet<string>(SettingsStore.DisabledToolGroups, StringComparer.OrdinalIgnoreCase);
 
         bool Ok(IRevitTool t) =>
-            (allowCode || !t.RequiresCodeExecutionOptIn) &&
-            (disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)));
+            (t.RequiresCodeExecutionOptIn || disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)));
 
         var all = ToolRegistry.Instance.All.Where(Ok).ToList();
 
@@ -1625,9 +1640,9 @@ public class ChatService
         var tools = core.Concat(revealed).Concat(custom).ToList();
 
         // Never send an empty tool list (a mis-set filter that disables everything would
-        // leave the model unable to act) — fall back to the code-gated full set.
+        // leave the model unable to act) — fall back to the full set.
         if (tools.Count == 0)
-            tools = ToolRegistry.Instance.All.Where(t => allowCode || !t.RequiresCodeExecutionOptIn).ToList();
+            tools = ToolRegistry.Instance.All.ToList();
         return tools;
     }
 

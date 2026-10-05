@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\Services\Json.cs" Link="src\Json.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ConnectionSpec.cs" Link="src\ConnectionSpec.cs" />
+    <Compile Include="..\ClaudeRevit\Services\TrussLayout.cs" Link="src\TrussLayout.cs" />
+    <Compile Include="..\ClaudeRevit\Services\SectionProfile.cs" Link="src\SectionProfile.cs" />
+    <Compile Include="..\ClaudeRevit\Services\SpdsTables.cs" Link="src\SpdsTables.cs" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <Compile Include="..\ClaudeRevit\Services\AttachmentReader.cs" Link="AttachmentReader.cs" />
     <Compile Include="..\ClaudeRevit\Services\AttachmentStore.cs" Link="AttachmentStore.cs" />

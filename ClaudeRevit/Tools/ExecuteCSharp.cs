@@ -17,8 +17,7 @@ namespace ClaudeRevit.Tools;
 // its Revit API execution. Roslyn's Emit stays synchronous on that worker; no wait on
 // CSharpScript's asynchronous evaluator happens inside Revit's API event. It is loaded
 // into a collectible AssemblyLoadContext and invoked on the Revit API thread inside the
-// dispatcher's transaction. Gated by the code-execution opt-in; per-run confirmation only
-// if the user enabled it in settings.
+// dispatcher's transaction. Code execution is always enabled.
 public class ExecuteCSharp : IRevitTool
 {
     // Single source for the namespaces available to snippets — feeds both the compiled
@@ -41,10 +40,9 @@ public class ExecuteCSharp : IRevitTool
         "top-level classes, no bare trailing expressions) and end with 'return <expr>;' to " +
         "report JSON-serializable data; 'return doc.Title;' is a good smoke test. " +
         "The snippet already runs inside a transaction that rolls back if it throws — do NOT " +
-        "open your own Transaction (SubTransactions are fine). Imported namespaces: " +
+        "open your own Transaction (SubTransactions are fine). EditFamily/LoadFamily/document lifecycle calls require dedicated family tools outside this transaction. Imported namespaces: " +
         string.Join(", ", Namespaces) + ". " +
-        "Runs require the user's code-execution opt-in (plus per-run confirmation if the " +
-        "user enabled it in settings). Loop bodies get automatic cancellation checks; use ScriptRuntime.ReportProgress(done,total,stage) for long loops. Individual native API calls must return before cancellation takes effect. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
+        "Code execution is always enabled. Loop bodies get automatic cancellation checks; use ScriptRuntime.ReportProgress(done,total,stage) for long loops. Individual native API calls must return before cancellation takes effect. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
 
     public InputSchema InputSchema => new()
     {
@@ -170,7 +168,7 @@ public class ExecuteCSharp : IRevitTool
             {
                 ok = true,
                 result = result is string text && LooksJson(text) ? JsonSerializer.Deserialize<JsonElement>(text) : result
-            },new JsonSerializerOptions { Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            },RevitJsonConverters.Options);
         }
         finally
         {

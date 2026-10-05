@@ -14,7 +14,7 @@ public class ListCustomTools : IRevitTool
     public string Description =>
         "Lists the custom tools you have created with save_tool (name and description). Use it to see what " +
         "you already built before adding a new one, and to pick a tool to refine (get_tool_source + " +
-        "save_tool). Requires the code-execution opt-in.";
+        "save_tool). Code execution is always available.";
 
     public InputSchema InputSchema => new()
     {

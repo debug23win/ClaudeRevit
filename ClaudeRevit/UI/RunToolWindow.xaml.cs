@@ -18,10 +18,8 @@ public partial class RunToolWindow : Window
     {
         InitializeComponent();
 
-        // Saved tools only auto-load at Revit startup, and only when code execution was on then.
-        // If it's on now but nothing is loaded yet (e.g. the user just enabled it, or the loader
-        // never ran), load the on-disk files now so the window is self-healing rather than blank.
-        if (SettingsStore.AllowCodeExecution && DynamicToolLoader.ListCustom().Count == 0
+        // Recover saved files if an earlier load did not populate the registry.
+        if (DynamicToolLoader.ListCustom().Count == 0
             && DynamicToolLoader.ListSavedFiles().Count > 0)
         {
             try { DynamicToolLoader.LoadAll(); } catch { /* surfaced via the empty message below */ }
@@ -35,11 +33,7 @@ public partial class RunToolWindow : Window
         {
             RunButton.IsEnabled = false;
             var savedCount = DynamicToolLoader.ListSavedFiles().Count;
-            if (!SettingsStore.AllowCodeExecution && savedCount > 0)
-                DescriptionText.Text = $"You have {savedCount} saved tool(s), but code execution is off " +
-                                       "so they aren't loaded. Enable 'Allow Claude to run code' in Settings " +
-                                       "(gear icon) — they load automatically.";
-            else if (savedCount > 0)
+            if (savedCount > 0)
                 DescriptionText.Text = $"{savedCount} saved tool file(s) found but none loaded — one may have " +
                                        "a compile error. Check %AppData%\\ClaudeRevit\\tools and the log.";
             else

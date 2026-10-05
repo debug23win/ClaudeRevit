@@ -5,16 +5,11 @@ using Autodesk.Revit.UI;
 
 namespace ClaudeRevit.Tools;
 
-// Wraps a tool loaded from an external .cs file. A dynamic tool is arbitrary compiled code
-// with full Revit API access — exactly as powerful as execute_csharp — so regardless of what
-// the author class declares, the proxy forces it to be gated by the code-execution opt-in.
-// That way a dynamic tool can never be offered to the model (or run) unless the user has
-// ticked "Allow code execution", and it honours the per-run confirmation setting like the
-// other code paths.
+// Compatibility wrapper for saved tools: mark code operations so native group filters
+// and optional native-operation confirmation cannot hide or block them.
 internal sealed class DynamicToolProxy : IRevitTool
 {
     private readonly IRevitTool _inner;
-
     public DynamicToolProxy(IRevitTool inner) => _inner = inner;
 
     public string Name => _inner.Name;
@@ -26,7 +21,7 @@ internal sealed class DynamicToolProxy : IRevitTool
     public bool RequiresTransaction => _inner.RequiresTransaction;
     public bool MutatesWithoutTransaction => _inner.MutatesWithoutTransaction;
 
-    // Forced on, not delegated: this is the whole security contract of dynamic tools.
+    // Always mark saved source tools as code, regardless of their author declaration.
     public bool RequiresCodeExecutionOptIn => true;
     public bool RequiresConfirmation => true;
 

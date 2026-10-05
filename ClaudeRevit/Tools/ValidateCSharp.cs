@@ -7,8 +7,9 @@ namespace ClaudeRevit.Tools;
 public sealed class ValidateCSharp : IRevitTool
 {
     public string Name => "validate_csharp";
-    public string Description => "Compile a Revit C# snippet without executing it or opening a transaction. Uses exactly the execute_csharp wrapper/reference set; returns compiler diagnostics before modelling. No code opt-in is required for compilation.";
+    public string Description => "Compile a Revit C# snippet without executing it or opening a transaction. Uses exactly the execute_csharp wrapper/reference set; returns compiler diagnostics before modelling. Compilation has no model side effects.";
     public bool RequiresTransaction => false;
+    public bool RequiresCodeExecutionOptIn => true; // Legacy code marker; never gated.
     public InputSchema InputSchema => new ExecuteCSharp().InputSchema;
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
         => Validate(input, ToolContext.Current);

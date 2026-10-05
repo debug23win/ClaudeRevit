@@ -18,7 +18,7 @@ public class EjectTool : IRevitTool
         "Makes a BUILT-IN tool editable: copies its source to an override file that shadows the compiled " +
         "version, so you can then change its behaviour with save_tool (same name) and revert with " +
         "delete_tool (restores the original). Use get_tool_source first to see the code. Requires the " +
-        "code-execution opt-in.";
+        "always-enabled code execution.";
 
     public InputSchema InputSchema => new()
     {

@@ -100,25 +100,41 @@ public class ToolDispatcher : IExternalEventHandler
         var boundDocumentKey = documentKey ?? Services.DocumentSessions.CurrentDocumentKey;
         if (name == "validate_csharp" && _registry.Get(name) is ValidateCSharp validator)
         {
-            if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(validator), StringComparer.OrdinalIgnoreCase))
-                return Task.FromResult(Services.ToolResult.Failure("tool_disabled", "Code tools are disabled in Settings."));
-            return Task.Run(() => ValidateCSharp.Validate(input, ct), ct);
+            return ValidateScriptAsync(input,ct,boundDocumentKey);
         }
         if (name == "execute_csharp" && _registry.Get(name) is ExecuteCSharp scriptTool)
             return PrepareScriptAsync(scriptTool, input, ct, boundDocumentKey);
         return QueueTool(name, input, ct, boundDocumentKey);
     }
+    private async Task<string> ValidateScriptAsync(IReadOnlyDictionary<string,JsonElement> input,CancellationToken ct,string documentKey)
+    {
+        var channel=Services.McpSession.Executing?.ChannelId is { } cid?Services.McpTurnChannel.Find(cid):null;
+        var id=channel?.TaskId??Services.TaskJournal.CurrentId;var watch=System.Diagnostics.Stopwatch.StartNew();string? result=null;Exception? error=null;
+        try { result=await Task.Run(()=>ValidateCSharp.Validate(input,ct),ct).ConfigureAwait(false);return result; }
+        catch(Exception ex){error=ex;throw;}
+        finally
+        {
+            Services.TaskJournal.RecordWorker(id,watch.Elapsed.TotalSeconds);
+            Services.TaskJournal.Append(new {kind="tool",utc=DateTime.UtcNow,task_id=id,document_key=documentKey,tool="validate_csharp",phase="worker",worker_seconds=watch.Elapsed.TotalSeconds,queue_seconds=0,revit_seconds=0,ok=result!=null&&ResultLooksOk(result),cancelled=error is OperationCanceledException,error=error?.Message??Services.ToolResult.ErrorMessage(result)});
+        }
+    }
     private async Task<string> PrepareScriptAsync(ExecuteCSharp tool, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey)
     {
-        if (!Services.SettingsStore.AllowCodeExecution) throw new InvalidOperationException("Code execution is disabled. Enable it in Settings before running this tool.");
-        if (Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase))
+        if (!tool.RequiresCodeExecutionOptIn && Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("Code tools are disabled in Settings.");
         var channel = Services.McpSession.Executing?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
         ReportProgress(documentKey, "compiling C# on a worker…", channel);
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        var bytes = await Task.Run(() => ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct), ct).ConfigureAwait(false);
+        byte[] bytes;Exception? compileError=null;
+        try { bytes=await Task.Run(() => ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct), ct).ConfigureAwait(false); }
+        catch(Exception ex){compileError=ex;throw;}
+        finally
+        {
+            var taskId=channel?.TaskId??Services.TaskJournal.CurrentId;
+            Services.TaskJournal.RecordWorker(taskId,watch.Elapsed.TotalSeconds);
+            Services.TaskJournal.Append(new {kind="script_compiled",utc=DateTime.UtcNow,task_id=taskId,tool=tool.Name,document_key=documentKey,worker_seconds=watch.Elapsed.TotalSeconds,ok=compileError==null,error=compileError?.Message,cancelled=compileError is OperationCanceledException});
+        }
         ct.ThrowIfCancellationRequested();
-        Services.TaskJournal.Append(new { kind = "script_compiled", utc = DateTime.UtcNow, task_id = channel?.TaskId ?? Services.TaskJournal.CurrentId, tool = tool.Name, document_key = documentKey, seconds = watch.Elapsed.TotalSeconds });
         ReportProgress(documentKey, "running C# in Revit…", channel);
         return await QueueTool(tool.Name, input, ct, documentKey, tool, bytes).ConfigureAwait(false);
     }
@@ -448,8 +464,6 @@ public class ToolDispatcher : IExternalEventHandler
                 throw new InvalidOperationException("This UI operation requires its document tab to be active. Activate the intended tab and retry.");
             if(tool.Name.StartsWith("create_",StringComparison.Ordinal)||tool.Name=="rename_element")
                 foreach(var key in new[]{"name","new_name"})if(job.Input.TryGetValue(key,out var value)&&value.ValueKind==JsonValueKind.String)Services.GeometryPreflight.Name(value.GetString()??"");
-            if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
-                throw new InvalidOperationException("Code execution is disabled. Enable it in Settings before running this tool.");
             if (job.PreparedScript != null && !ReferenceEquals(tool, job.PreparedScript))
                 throw new InvalidOperationException("Script tool changed during compilation. Retry the call.");
             if (job.PreparedBytes == null) tool.Preflight(job.Input,app);
@@ -587,7 +601,7 @@ public class ToolDispatcher : IExternalEventHandler
             Services.TaskJournal.RecordTiming(job.TaskId, queueTime.TotalSeconds, executionWatch.Elapsed.TotalSeconds);
             Services.TaskJournal.Append(new { kind="tool",utc=DateTime.UtcNow,task_id=job.TaskId,channel_id=job.Session?.ChannelId,
                 document_key=job.DocumentKey,tool=job.Name,queue_seconds=queueTime.TotalSeconds,revit_seconds=executionWatch.Elapsed.TotalSeconds,
-                ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message,
+                ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message??Services.ToolResult.ErrorMessage(completedResult),
                 changes=changes?.Complete(rolledBack) });
             }
             catch (Exception ex) { Services.Log.Error("Tool diagnostics failed",ex); }

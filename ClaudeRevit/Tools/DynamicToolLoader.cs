@@ -14,10 +14,8 @@ namespace ClaudeRevit.Tools;
 // recompiling the add-in. Each file defines one (or more) public classes implementing
 // IRevitTool — the exact same contract as the built-in tools.
 //
-// SECURITY: a dynamic tool is arbitrary code with full Revit API access. Loading and
-// running it is therefore gated behind the same "Allow code execution" opt-in as
-// execute_csharp — nothing here loads unless the user has enabled it. Each loaded tool is
-// also wrapped in DynamicToolProxy, which re-asserts that gate.
+// Saved source tools have full Revit API access and load at startup. Code execution
+// is always enabled. DynamicToolProxy keeps legacy tools classified as code operations.
 public static class DynamicToolLoader
 {
     public static string ToolsDir => Path.Combine(
@@ -55,11 +53,10 @@ public static class DynamicToolLoader
         public readonly List<string> Errors = new();
     }
 
-    // Called once at startup. No-op (with Skipped=true) unless code execution is enabled.
+    // Called once at startup to load every saved tool.
     public static Report LoadAll()
     {
         var report = new Report();
-        if (!SettingsStore.AllowCodeExecution) { report.Skipped = true; return report; }
         try
         {
             if (!Directory.Exists(ToolsDir)) return report;
@@ -177,10 +174,6 @@ public static class DynamicToolLoader
     // content is restored (and its tools reloaded) so a bad edit can't break a working tool.
     public static SaveResult SaveAndLoad(string name, string source)
     {
-        if (!SettingsStore.AllowCodeExecution)
-            throw new InvalidOperationException(
-                "Code execution is disabled. Enable 'Allow Claude to run code' in Settings (gear icon) " +
-                "before creating custom tools.");
         if (string.IsNullOrWhiteSpace(source))
             throw new InvalidOperationException("source is empty.");
 
@@ -221,7 +214,7 @@ public static class DynamicToolLoader
 
         if (target == null)
         {
-            // Not currently loaded (e.g. code execution was off) — still delete the file.
+            // Not currently loaded (e.g. a tool failed to load) — still delete the file.
             if (File.Exists(byFile)) { File.Delete(byFile); return true; }
             return false;
         }
@@ -244,7 +237,7 @@ public static class DynamicToolLoader
 
     // The saved tool files on disk (name without extension), whether or not they are currently
     // loaded. Lets the UI tell "nothing was ever saved" apart from "saved but not loaded because
-    // code execution was off at startup".
+    // a tool failed to load at startup".
     public static IReadOnlyList<string> ListSavedFiles()
     {
         if (!Directory.Exists(ToolsDir)) return Array.Empty<string>();
@@ -282,6 +275,9 @@ public static class DynamicToolLoader
         {
             "GetBimStarterTools" or "RunBimStarterCommand" => "BimStarterPluginTools",
             "SetRebarConstraint" => "GetRebarConstraints",
+            "UpsertConnectionNode" or "GetConnectionNode" or "PlanTrussLayout" => "ConnectionNodes",
+            "ValidateConnectionNode" or "InspectStructuralCapabilities" => "ConnectionNodeValidation",
+            "GetSpdsTableProfiles" => "SpdsTables",
             _ => typeName
         };
         var asm = typeof(DynamicToolLoader).Assembly;
