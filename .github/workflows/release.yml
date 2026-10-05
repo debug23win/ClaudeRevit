@@ -113,6 +113,24 @@ jobs:
           "path=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Installer: $($exe.FullName) ($([math]::Round($exe.Length / 1KB, 1)) KB)"
 
+      - name: Scan release payloads and final packages
+        shell: pwsh
+        run: |
+          Update-MpSignature -ErrorAction Stop
+          $targets = @((Resolve-Path 'installer/payload').Path)
+          $targets += Get-ChildItem "ClaudeRevit-${{ steps.vars.outputs.version }}-Revit*.zip" | ForEach-Object FullName
+          $targets += '${{ steps.installer.outputs.path }}'
+          ./scripts/Check-ReleaseArtifacts.ps1 -Paths $targets -ReportPath release-security.json -SourceCommit '${{ github.sha }}'
+
+      - name: Preserve release security diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-security-${{ steps.vars.outputs.version }}
+          path: release-security.json
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Select release notes
         id: notes
         shell: pwsh
@@ -133,5 +151,6 @@ jobs:
             ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2026.zip
             ClaudeRevit-${{ steps.vars.outputs.version }}-Revit2027.zip
             ${{ steps.installer.outputs.path }}
+            release-security.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,7 @@
 # Claude Revit
 
+**Installer notice:** Defender blocks the v3.8.3 EXE as `Program:Win32/Contebrew.A!ml`; a false positive is not confirmed. Do not bypass protection to install it. [Investigation and release checks](docs/installer-security.md).
+
 MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a model
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
