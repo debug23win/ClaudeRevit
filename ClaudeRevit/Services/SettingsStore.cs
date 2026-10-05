@@ -183,6 +183,12 @@ public static class SettingsStore
         set { lock (Gate) { Current.ChatAgent = value; Save(); } }
     }
 
+    public static string ChatUiMode
+    {
+        get => Current.ChatUiMode == "docked" ? "docked" : "window";
+        set { lock (Gate) { Current.ChatUiMode = value == "docked" ? "docked" : "window"; Save(); } }
+    }
+
     public static McpAgentSelection GetAgentSelection(string agent)
     {
         lock (Gate)
@@ -330,6 +336,7 @@ public static class SettingsStore
         public string CodexExe { get; set; } = "codex";
         public string McpModelOverride { get; set; } = "";
         public string ChatAgent { get; set; } = "api";
+        public string ChatUiMode { get; set; } = "window";
         public string? CodexModel { get; set; }
         public string? CodexEffort { get; set; }
         public string? ClaudeCodeModel { get; set; }

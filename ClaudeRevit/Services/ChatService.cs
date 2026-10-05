@@ -210,13 +210,13 @@ public class ChatService
     private string _assistantName = ChatMessage.AssistantLabel;
     private string ClientDirectory => _workspace == null ? McpServer.ClientWorkDir() : Path.Combine(_workspace.ClientDirectory, "ccwork");
 
-    public ChatService(bool ephemeral)
+    public ChatService(bool ephemeral, DocumentSessions.Snapshot? snapshot = null)
     {
         _ephemeral = ephemeral;
         if (!ephemeral)
         {
             Current = this;
-            SwitchWorkspace();
+            SwitchWorkspace(snapshot: snapshot);
         }
 
         // A restored long history must be eligible for compaction on the very FIRST send
@@ -278,17 +278,19 @@ public class ChatService
     private string ClaudeCodeSessionFile => _workspace!.ClaudeSessionPath;
     private string CodexSessionFile => _workspace!.CodexSessionPath;
     public bool WorkspaceIsCurrent => ReferenceEquals(_workspace, DocumentSessions.CurrentWorkspace);
+    public bool WorkspaceMatches(DocumentSessions.Snapshot snapshot) => ReferenceEquals(_workspace, snapshot.Workspace);
     public List<ChatMessage> LoadUiMessages()
     {
         var messages = _workspace == null ? new() : HistoryStore.LoadUiMessages(_workspace);
         AttachmentStore.Restore(_attachmentScope, messages.SelectMany(m => m.Attachments));
         return messages;
     }
-    public void SwitchWorkspace(bool preserveHistory = false)
+    public void SwitchWorkspace(bool preserveHistory = false, DocumentSessions.Snapshot? snapshot = null)
     {
-        if (_ephemeral || WorkspaceIsCurrent) return;
-        _workspace = DocumentSessions.CurrentWorkspace;
-        _documentKey = DocumentSessions.CurrentDocumentKey;
+        snapshot ??= DocumentSessions.Current;
+        if (_ephemeral || ReferenceEquals(_workspace, snapshot.Workspace)) return;
+        _workspace = snapshot.Workspace;
+        _documentKey = snapshot.DocumentKey;
         if (preserveHistory) { PersistClaudeCodeSession(); PersistCodexSession(); return; }
         _history.Clear();
         _history.AddRange(HistoryStore.LoadApiHistory(_workspace));

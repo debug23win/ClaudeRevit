@@ -13,9 +13,9 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace ClaudeRevit.Tools;
 
 // Escape hatch giving Claude the full Revit API when no dedicated tool exists — with no
-// Dynamo involved. The snippet is wrapped in a static method, compiled SYNCHRONOUSLY with
-// Roslyn (CSharpCompilation.Emit — deliberately no CSharpScript/async: blocking on the
-// scripting API's tasks from Revit's UI thread is what deadlocked Revit before), loaded
+// Dynamo involved. The dispatcher emits the wrapped snippet on a worker before queueing
+// its Revit API execution. Roslyn's Emit stays synchronous on that worker; no wait on
+// CSharpScript's asynchronous evaluator happens inside Revit's API event. It is loaded
 // into a collectible AssemblyLoadContext and invoked on the Revit API thread inside the
 // dispatcher's transaction. Gated by the code-execution opt-in; per-run confirmation only
 // if the user enabled it in settings.
@@ -44,7 +44,7 @@ public class ExecuteCSharp : IRevitTool
         "open your own Transaction (SubTransactions are fine). Imported namespaces: " +
         string.Join(", ", Namespaces) + ". " +
         "Runs require the user's code-execution opt-in (plus per-run confirmation if the " +
-        "user enabled it in settings). Use ScriptRuntime.CheckCancellation() and ReportProgress(done,total,stage) inside long loops. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
+        "user enabled it in settings). Loop bodies get automatic cancellation checks; use ScriptRuntime.ReportProgress(done,total,stage) for long loops. Individual native API calls must return before cancellation takes effect. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
 
     public InputSchema InputSchema => new()
     {
@@ -67,7 +67,7 @@ public class ExecuteCSharp : IRevitTool
     private static bool LooksJson(string value) { try { using var json = JsonDocument.Parse(value); return true; } catch (JsonException) { return false; } }
 
     // Emitted assembly bytes keyed by full source — see Execute.
-    private static readonly Dictionary<string, byte[]> CompileCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> CompileCache = new();
 
     // The method body starts right after this prelude; used to map compiler diagnostics
     // back to the user's snippet line numbers.
@@ -89,8 +89,10 @@ public class ExecuteCSharp : IRevitTool
         @"(?:doc|uidoc|uiapp)\s*=[^;\n]*;[ \t]*$",
         System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private static byte[] Prepare(string code)
+    internal static byte[] Prepare(string code, System.Threading.CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(code)) throw new InvalidOperationException("code is empty.");
+        ct.ThrowIfCancellationRequested();
         code = BootstrapLine.Replace(code, "");
         var source = Prelude + code + "\nreturn null;\n    }\n}\n";
         var preludeLines = Prelude.Count(c => c == '\n');
@@ -100,13 +102,13 @@ public class ExecuteCSharp : IRevitTool
         {
             var compilation = CSharpCompilation.Create(
                 "ClaudeScript_" + Guid.NewGuid().ToString("N"),
-                [CSharpSyntaxTree.ParseText(source)],
+                [ScriptLoopInstrumentation.Apply(CSharpSyntaxTree.ParseText(source, cancellationToken: ct))],
                 ScriptCompiler.RuntimeReferences(),
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                     optimizationLevel: OptimizationLevel.Release));
 
             using var ms = new MemoryStream();
-            var emit = compilation.Emit(ms);
+            var emit = compilation.Emit(ms, cancellationToken: ct);
             if (!emit.Success)
             {
                 // Report errors with line numbers relative to the user's snippet.
@@ -132,16 +134,14 @@ public class ExecuteCSharp : IRevitTool
     public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => Prepare(input["code"].GetString() ?? "");
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
-    {
-        var code = input["code"].GetString();
-        if (string.IsNullOrWhiteSpace(code))
-            throw new InvalidOperationException("code is empty.");
+        => ExecutePrepared(input, app, Prepare(input["code"].GetString() ?? "", ToolContext.Current));
 
+    internal string ExecutePrepared(IReadOnlyDictionary<string, JsonElement> input, UIApplication app, byte[] assemblyBytes)
+    {
+        ToolContext.ThrowIfCancelled();
         var uidoc = ToolContext.UiDocument(app)
             ?? throw new InvalidOperationException("No document is open.");
         var doc = uidoc.Document;
-
-        var assemblyBytes = Prepare(code);
 
         var alc = new AssemblyLoadContext("ClaudeScript", isCollectible: true);
         try

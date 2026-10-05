@@ -17,12 +17,14 @@ using ClaudeRevit.Services;
 
 namespace ClaudeRevit.UI;
 
-public partial class ChatPaneView : UserControl
+public partial class ChatPaneView : UserControl, IDisposable
 {
     private sealed class PaneSession
     {
-        public string Key = DocumentSessions.CurrentDocumentKey;
-        public ChatService Service = new();
+        public string Key;
+        public ChatService Service;
+        public PaneSession(DocumentSessions.Snapshot? snapshot = null)
+        { snapshot ??= DocumentSessions.Current; Key = snapshot.DocumentKey; Service = new(false, snapshot); }
         public ObservableCollection<ChatMessage> Messages = new();
         public CancellationTokenSource? Cancellation;
         public string Draft = "", Status = "", Agent = SettingsStore.ChatAgent, Model = "auto";
@@ -68,11 +70,9 @@ public partial class ChatPaneView : UserControl
             Messages.Add(m);
 
         DocumentSessions.Changed += OnDocumentChanged;
-        DocumentSessions.Closed += key =>
-        {
-            if(_sessions.TryGetValue(key,out var session))session.Cancellation?.Cancel();
-        };
+        DocumentSessions.Closed += OnDocumentClosed;
         UsageTracker.Updated += UpdateUsageText;
+        Tools.ToolDispatcher.ProgressChanged += OnToolProgress;
         UpdateUsageText();
 
         SelectionService.Changed += OnSelectionChanged;
@@ -177,15 +177,52 @@ public partial class ChatPaneView : UserControl
 
     private void OnDocumentChanged(bool toolTransition)
     {
-        if (toolTransition && _cts != null) return;
-        SwitchDocumentHistory();
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        var snapshot = DocumentSessions.Current;
+        if (!Dispatcher.CheckAccess())
+        { Dispatcher.BeginInvoke(new Action(() => ApplyDocumentChange(toolTransition, snapshot))); return; }
+        ApplyDocumentChange(toolTransition, snapshot);
     }
-    private void SwitchDocumentHistory()
+    private void ApplyDocumentChange(bool toolTransition, DocumentSessions.Snapshot snapshot)
     {
-        var key = DocumentSessions.CurrentDocumentKey;
+        if (_disposed) return;
+        if (toolTransition && _cts != null) return;
+        SwitchDocumentHistory(snapshot);
+    }
+    private void OnDocumentClosed(string key)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(() => OnDocumentClosed(key))); return; }
+        if (!_disposed && _sessions.TryGetValue(key, out var session)) session.Cancellation?.Cancel();
+    }
+    private bool _disposed;
+    private void OnToolProgress(string documentKey, string stage)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_disposed || !_sessions.TryGetValue(documentKey, out var session) || session.Cancellation == null) return;
+            session.Status = stage; if (ReferenceEquals(session, _session)) StatusText.Text = stage;
+        }));
+    }
+    public void Dispose()
+    {
+        if (_disposed) return; _disposed = true;
+        DocumentSessions.Changed -= OnDocumentChanged; DocumentSessions.Closed -= OnDocumentClosed;
+        UsageTracker.Updated -= UpdateUsageText; SelectionService.Changed -= OnSelectionChanged;
+        Tools.ToolDispatcher.ProgressChanged -= OnToolProgress;
+        Dispatcher.UnhandledException -= OnDispatcherUnhandledException;
+        foreach (var session in _sessions.Values)
+        { session.Cancellation?.Cancel(); session.Service.SaveHistory(session.Messages); session.Messages.CollectionChanged -= OnMessagesChanged; }
+    }
+    private void SwitchDocumentHistory(DocumentSessions.Snapshot? snapshot = null)
+    {
+        snapshot ??= DocumentSessions.Current;
+        var key = snapshot.DocumentKey;
         if (_session.Key == key)
         {
-            if (_cts == null && !_service.WorkspaceIsCurrent) { _service.SaveHistory(Messages); _service.SwitchWorkspace(preserveHistory:true); _service.SaveHistory(Messages); }
+            if (_cts == null && !_service.WorkspaceMatches(snapshot))
+            { _service.SaveHistory(Messages); _service.SwitchWorkspace(preserveHistory:true, snapshot:snapshot); _service.SaveHistory(Messages); }
             return;
         }
         CaptureTypedModel();
@@ -195,7 +232,7 @@ public partial class ChatPaneView : UserControl
         _service.SaveHistory(Messages);
         if (!_sessions.TryGetValue(key,out var session))
         {
-            session = new PaneSession(); _sessions[key] = session;
+            session = new PaneSession(snapshot); _sessions[key] = session;
             foreach (var m in session.Service.LoadUiMessages()) session.Messages.Add(m);
             session.Messages.CollectionChanged += OnMessagesChanged;
             session.Service.ConfirmToolAsync = ConfirmToolAsync;

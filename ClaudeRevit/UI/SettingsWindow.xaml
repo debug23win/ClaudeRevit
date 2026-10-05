@@ -37,6 +37,13 @@
             <TabItem x:Name="TabGeneral" Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
                     <StackPanel>
+                        <TextBlock x:Name="ChatUiModeHeader" Text="Chat interface" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ComboBox x:Name="ChatUiModeBox" Height="28" Margin="0,0,0,6">
+                            <ComboBoxItem x:Name="ChatWindowModeItem" Tag="window" Content="Separate window (recommended)" />
+                            <ComboBoxItem x:Name="ChatDockedModeItem" Tag="docked" Content="Docked Revit pane" />
+                        </ComboBox>
+                        <TextBlock x:Name="ChatUiModeNote" FontSize="11" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Restart Revit to apply. The separate window stays responsive during scripts. A docked pane shares Revit's UI thread and pauses while an API operation runs." />
                         <TextBlock x:Name="ApiKeyHeader" Text="Anthropic API key" FontWeight="SemiBold" Margin="0,0,0,6" />
                         <PasswordBox x:Name="ApiKeyBox" Padding="6" Height="28" />
                         <TextBlock x:Name="ApiKeyNote" Margin="0,8,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"

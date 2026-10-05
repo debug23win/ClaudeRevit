@@ -298,7 +298,8 @@ public class App : IExternalApplication
             // (subscription) can drive Revit. Off by default; failure is non-fatal.
             try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Services.Log.Error("MCP start failed", ex); }
 
-            var view = new ChatPaneView();
+            ChatWindowHost.Initialize(SettingsStore.ChatUiMode == "window");
+            System.Windows.FrameworkElement view = ChatWindowHost.UsesWindow ? ChatWindowHost.CreateLauncher() : new ChatPaneView();
             application.RegisterDockablePane(PaneIds.Chat, "Claude Chat", new ChatPaneProvider(view));
 
             const string tabName = "Claude";
@@ -383,6 +384,7 @@ public class App : IExternalApplication
 
     public Result OnShutdown(UIControlledApplication application)
     {
+        ChatWindowHost.Shutdown();
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }
         catch { /* shutting down anyway */ }

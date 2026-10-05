@@ -4,9 +4,9 @@ namespace ClaudeRevit.UI;
 
 public class ChatPaneProvider : IDockablePaneProvider
 {
-    private readonly ChatPaneView _view;
+    private readonly System.Windows.FrameworkElement _view;
 
-    public ChatPaneProvider(ChatPaneView view) => _view = view;
+    public ChatPaneProvider(System.Windows.FrameworkElement view) => _view = view;
 
     public void SetupDockablePane(DockablePaneProviderData data)
     {
