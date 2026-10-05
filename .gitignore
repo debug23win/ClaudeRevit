@@ -27,3 +27,7 @@ Thumbs.db
 *.env
 appsettings.Development.json
 secrets.json
+
+# Local pane verification artifacts and release scanner reports
+pane-qa/
+release-security.json

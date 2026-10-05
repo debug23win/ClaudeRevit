@@ -17,6 +17,7 @@ public sealed class CreateSpdsSchedule:IRevitTool
         ["profile"]=NativeToolUtil.Field("string","scheme_specification, timber_materials, timber_elements."),["standard_edition"]=NativeToolUtil.Field("string","2020 or 2026."),["category"]=NativeToolUtil.Field("string","Source category."),["name"]=NativeToolUtil.Field("string","Unique schedule name."),["existing_schedule_id"]=NativeToolUtil.Field("integer","Optional approved schedule to duplicate. Its field mappings are replaced; filters retained unless filters is supplied."),
         ["fields"]=NativeToolUtil.Any("Array in profile column order: {parameter_id? OR name?,heading?,width_mm?,unit?:mm|m|m2|m3|kg|t,accuracy?,total?:bool,alignment?:left|center|right}. A schedulable Count field can be resolved by its inspected name/parameter ID."),
         ["sort_fields"]=NativeToolUtil.Array("integer","Optional field indices for ascending sort/group."),["filters"]=NativeToolUtil.Any("Optional [{field_index,value}] equality filters; values are raw internal numeric units or text. Use to select steel/timber and building section."),["scope"]=NativeToolUtil.Field("string","filtered or entire_category; explicit entire_category allows an unfiltered schedule."),
+        ["include_linked_files"]=NativeToolUtil.Field("boolean","Default false. Native live linked rows using fields already bound in the links; does not modify read-only linked documents."),
         ["is_itemized"]=NativeToolUtil.Field("boolean","Default false."),["font_name"]=NativeToolUtil.Field("string","Agreed installed font."),["text_height_mm"]=NativeToolUtil.Field("number","Default 2.5 mm."),["grand_total"]=NativeToolUtil.Field("boolean","Default false; set only when quantity/mass totals are meaningful."),["preview"]=NativeToolUtil.Field("boolean","Default true.")
     },"profile","standard_edition","category","name","fields","scope","font_name");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
@@ -27,14 +28,15 @@ public sealed class CreateSpdsSchedule:IRevitTool
         var fields=input["fields"].EnumerateArray().ToArray();if(fields.Length!=columns.Count)throw new ToolInputException("Each required profile column needs a field mapping.");
         var scope=ToolInput.RequiredString(input,"scope");if(scope is not ("filtered" or "entire_category"))throw new ToolInputException("scope must be filtered/entire_category.");
         var name=ToolInput.RequiredString(input,"name");Services.GeometryPreflight.Name(name);var size=ToolInput.OptionalDouble(input,"text_height_mm")??2.5;if(!double.IsFinite(size)||size<1.8||size>7)throw new ToolInputException("text_height_mm must be 1.8..7.");
-        var preview=NativeToolUtil.Preview(input);
+        var preview=NativeToolUtil.Preview(input);var categoryId=input["category"].GetString()=="multi_category"?ElementId.InvalidElementId:new ElementId(CategoryResolve.Parse(input["category"].GetString()??""));
         var (result,warnings)=NativeToolUtil.Commit(doc,"Claude: SPDS schedule",preview,()=>
         {
             ViewSchedule s;
             if(input.TryGetValue("existing_schedule_id",out var existing))
-            {var original=NativeToolUtil.Element(doc,existing.GetInt64()) as ViewSchedule??throw new ToolInputException("Not a ViewSchedule.");if(original.IsTemplate)throw new ToolInputException("Use an actual approved schedule, not a view template.");s=(ViewSchedule)doc.GetElement(original.Duplicate(ViewDuplicateOption.Duplicate));if(s.Definition.CategoryId.Value!=(long)CategoryResolve.Parse(input["category"].GetString()??""))throw new ToolInputException("Existing schedule category differs from requested category.");s.ViewTemplateId=ElementId.InvalidElementId;}
-            else s=ViewSchedule.CreateSchedule(doc,new ElementId(CategoryResolve.Parse(input["category"].GetString()??"")));
+            {var original=NativeToolUtil.Element(doc,existing.GetInt64()) as ViewSchedule??throw new ToolInputException("Not a ViewSchedule.");if(original.IsTemplate)throw new ToolInputException("Use an actual approved schedule, not a view template.");s=(ViewSchedule)doc.GetElement(original.Duplicate(ViewDuplicateOption.Duplicate));if(s.Definition.CategoryId!=categoryId)throw new ToolInputException("Existing schedule category differs from requested category.");s.ViewTemplateId=ElementId.InvalidElementId;}
+            else s=ViewSchedule.CreateSchedule(doc,categoryId);
             s.Name=name;var definition=s.Definition;
+            if(ToolInput.Flag(input,"include_linked_files")){if(!definition.CanIncludeLinkedFiles())throw new ToolInputException("This schedule category cannot include linked files.");definition.IncludeLinkedFiles=true;}
             // Filters/sort reference field IDs: snapshot approved ones only when reusing identical fields.
             var oldFilters=definition.GetFilters().ToArray();var available=definition.GetSchedulableFields();var added=new List<ScheduleField>();
             var oldOrder=definition.GetFieldOrder();definition.ClearFilters();definition.ClearSortGroupFields();

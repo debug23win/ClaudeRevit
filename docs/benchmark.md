@@ -10,6 +10,15 @@ Each graded task has three numbers, all out of 100:
 
 - **Quality Q**: independent judge evaluating actual before/after Revit evidence,
   accuracy, completeness, native editability and successful family flex scenarios.
+
+Development after v3.8.3 adds mandatory objective checks before judging: units,
+native categories/hosts, declared sizes, actual curved mesh samples, family flex,
+tag/dimension owner views, preserved baseline IDs and CSV contents. A confident
+judge cannot override a failed objective check. Quality is capped by the weighted
+fraction of passed mandatory checks; incomplete evidence cannot pass. If all
+objective evidence is missing, the result is ungraded, rather than a measured zero.
+The remaining requirements still need independent judging. Rebar checks sample
+centerlines and hosts; they do not certify every bar position, cover or design.
 - **Speed S**: `100 × min(1, reference_seconds / actual_seconds)`.
 - **Total**: `Q × (0.8 + 0.2 × S / 100)`.
 
@@ -20,6 +29,16 @@ rewarding tiny timing differences. Each task has a fixed reference (basics 30 s,
 ordinary tasks 120 s, new complex tasks 300–480 s). These are provisional
 comparison references, not measured/calibrated production performance targets.
 Changing a cancellation limit does not change the reference or formula.
+
+Use **Repeats** (1–10) with fresh document copies for repeated measurements.
+The summary JSON groups task/model/seed/environment/configuration and reports
+count, median, p95, range and pass rate. **Calibrate** accepts a group only with
+at least five runs, every run passed, objective checks complete and quality >=90.
+It records median modelling time and p95, without changing the scoring formula.
+Calibration is used only for a matching seed, Revit build/machine environment,
+judge/effort, limits/reset mode and objective-contract version. Otherwise the
+fixed provisional reference remains visible. No production timing calibration
+has been measured for the new native workflows yet.
 
 Timing includes the modeller and its tool calls, including CLI/model setup. It
 excludes the independent probes, judge and reset. Default limits are 60 tool

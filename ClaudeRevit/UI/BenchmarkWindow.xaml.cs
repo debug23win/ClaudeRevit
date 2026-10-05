@@ -133,7 +133,9 @@ public partial class BenchmarkWindow : Window
         var judge = Selection(JudgeBackendBox, JudgeBox, JudgeEffortBox);
         if (ModelStatusText.Text.Length > 0 && (execution.Backend == "codex" || judge.Backend == "codex"))
         { SummaryText.Text = "Refresh the Codex model catalog before running."; return; }
-        var tasks = SelectedTasks();
+        if (!int.TryParse(RepeatBox.Text, out var repeats) || repeats is <1 or >10) { SummaryText.Text="Use 1..10 repetitions."; return; }
+        if (repeats>1 && ResetBox.IsChecked!=true) { SummaryText.Text="Repeated comparisons require fresh document copies."; return; }
+        var tasks = Enumerable.Range(0,repeats).SelectMany(_=>SelectedTasks()).ToList();
         if (tasks.Count == 0) return;
         if (!int.TryParse(MaxRoundsBox.Text, out var maxRounds) || maxRounds is < 0 or > 1000 ||
             !int.TryParse(MaxMinutesBox.Text, out var maxMinutes) || maxMinutes is < 0 or > 600)
@@ -180,7 +182,10 @@ public partial class BenchmarkWindow : Window
                 },
                 ct: _cts.Token);
 
+            var distributions=BenchmarkStatistics.Group(_results);
             SummaryText.Text = "Done — " + SummaryText.Text;
+            SummaryText.ToolTip=string.Join("\n",distributions.Select(g=>$"{g.Key.Split('|')[0]}: n={g.Distribution.Count}, median {g.Distribution.Median:0.0}s, p95 {g.Distribution.P95:0.0}s, pass {g.Distribution.PassRate:0.0}%"));
+            BenchmarkRunner.WriteSummary(_results);
         }
         catch (OperationCanceledException) { SummaryText.Text = "Stopped. " + SummaryText.Text; }
         catch (Exception ex) { SummaryText.Text = "Error: " + ex.Message; }
@@ -198,6 +203,12 @@ public partial class BenchmarkWindow : Window
         }
     }
 
+    private void Calibrate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cts!=null) return;
+        try { BenchmarkCalibration.Save(_results); SummaryText.Text="Calibration saved: "+BenchmarkCalibration.PathName; }
+        catch(Exception ex) { SummaryText.Text=ex.Message; }
+    }
     private void CancelButton_Click(object sender, RoutedEventArgs e) => _cts?.Cancel();
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

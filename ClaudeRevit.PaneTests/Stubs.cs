@@ -83,6 +83,10 @@ namespace ClaudeRevit.Services
     public static class TextUtil { public static string Truncate(string text, int limit) => text.Length > limit ? text[..limit] : text; }
     public sealed class BenchmarkResult
     {
+        public string SeedFingerprint {get;set;}="";
+        public string EnvironmentKey {get;set;}="";
+        public string ComparisonKey {get;set;}="";
+        public ObjectiveReport? Objective {get;set;}
         public string RevitTime => "0.01s";
         public string TaskId { get; set; } = ""; public string Model { get; set; } = ""; public string Title { get; set; } = "";
         public string Verdict { get; set; } = "?"; public string Time { get; set; } = "0s"; public long Tokens { get; set; }
@@ -90,6 +94,7 @@ namespace ClaudeRevit.Services
     }
     public static class BenchmarkRunner
     {
+        public static void WriteSummary(IEnumerable<BenchmarkResult> rows) { }
         public static BenchmarkExecution? Execution, Judge;
         public static TaskCompletionSource Pending = new();
         public static Action<string>? Status;

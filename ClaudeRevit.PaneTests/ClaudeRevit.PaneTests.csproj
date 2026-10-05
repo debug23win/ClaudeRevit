@@ -19,6 +19,10 @@
     <Compile Include="..\ClaudeRevit\UI\BenchmarkWindow.xaml.cs" Link="BenchmarkWindow.xaml.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkExecution.cs" Link="BenchmarkExecution.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkTasks.cs" Link="BenchmarkTasks.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkStatistics.cs" Link="BenchmarkStatistics.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkCalibration.cs" Link="BenchmarkCalibration.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkObjective.cs" Link="BenchmarkObjective.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkGrading.cs" Link="BenchmarkGrading.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatPaneView.xaml.cs" Link="ChatPaneView.xaml.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatWindowHost.cs" Link="ChatWindowHost.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="ChatMessage.cs" />

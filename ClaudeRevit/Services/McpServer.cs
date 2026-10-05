@@ -64,6 +64,9 @@ public static class McpServer
         "For repeated tower geometry use generate_floor_stack, generate_facade_grid and generate_spire; discover exact schemas. Generators default to preview:true; use preview:false after validation. " +
         "For code call validate_csharp before execute_csharp; prefer System.Text.Json. Report warnings as structured fields. Use export_image for actual native view pixels. " +
         "Record sources, confidence and assumed dimensions with set_model_provenance; distinguish native BIM elements from DirectShape geometry. " +
+        "For optional experience use verify_model_result and get_verified_experience: execution history alone is not verification, and a previous approach never restricts a better method. " +
+        "For long supported native-tool sequences use run_checkpoint_job in bounded batches, inspect get_checkpoint_job before resuming, and save the RVT for durable checkpoints. " +
+        "Agree live schedule source categories and nesting_policy; audit_spds_schedule checks fields/totals and sheet overlaps, then inspect exports for wrapping/formatting. " +
         "The user authorizes subagents for independent planning and checking on complex tasks. Use at most three, give each a bounded task and snapshot, and collect compact findings. " +
         "Keep all Revit mutations in the parent agent in dependency order; subagents must not edit Revit. Revit API calls are serialized on one UI thread. Do not delegate simple one-call operations. " +
         "Finish concisely with changed IDs, dimensions and any failed checks. The pane already knows the selected driving model; no model-report call is needed.";

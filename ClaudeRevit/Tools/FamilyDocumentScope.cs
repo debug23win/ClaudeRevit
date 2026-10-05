@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 
@@ -10,6 +11,16 @@ internal sealed class FamilyDocumentScope : IDisposable
     private readonly bool _close;
     public FamilyDocumentScope(UIApplication app, IReadOnlyDictionary<string, JsonElement> input)
     {
+        if (input.TryGetValue("file_path", out var file))
+        {
+            if (input.ContainsKey("family_id")) throw new ToolInputException("Use file_path or family_id, not both.");
+            var path = Path.GetFullPath(file.GetString() ?? "");
+            if (!Path.IsPathFullyQualified(file.GetString() ?? "") || !path.EndsWith(".rfa", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) throw new ToolInputException("Supply an existing absolute RFA path.");
+            if (app.Application.Documents.Cast<Document>().Any(d => string.Equals(d.PathName, path, StringComparison.OrdinalIgnoreCase))) throw new ToolInputException("RFA is already open; inspect its active document instead of closing a user-owned file.");
+            Document = app.Application.OpenDocumentFile(path); _close = true;
+            if (!Document.IsFamilyDocument) { Document.Close(false); throw new ToolInputException("The file is not an ordinary family document."); }
+            return;
+        }
         var source = NativeToolUtil.Doc(app);
         if (source.IsModifiable) throw new InvalidOperationException("Finish the current transaction before inspecting a family.");
         if (input.TryGetValue("family_id", out var id) && id.ValueKind == JsonValueKind.Number)

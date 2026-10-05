@@ -13,6 +13,7 @@ public sealed class FlexFamily : IRevitTool
     public bool RequiresNoTurnGroup => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
+        ["file_path"] = NativeToolUtil.Field("string", "Optional absolute local RFA path: inspect in a background document, close unsaved; excludes family_id."),
         ["family_id"] = NativeToolUtil.Field("integer", "Optional loaded Family; otherwise active RFA."),
         ["scenarios"] = NativeToolUtil.Any("1..100 objects {name, type_name(optional), values:{parameterNameOrGUID:value}, require_solid(optional bool)}. Default tests all existing types."),
         ["require_geometry_change"] = NativeToolUtil.Field("boolean", "Default false. True rejects scenarios whose values change but solid mesh geometry remains identical. Test each independent size driver separately.")

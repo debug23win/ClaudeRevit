@@ -14,6 +14,7 @@ public sealed class AnalyzeFamilyStructure : IRevitTool
     public bool RequiresNoTurnGroup => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
+        ["file_path"] = NativeToolUtil.Field("string", "Optional absolute local RFA path: inspect in a background document, close unsaved; excludes family_id."),
         ["family_id"] = NativeToolUtil.Field("integer", "Optional loaded Family ID in active document; otherwise active RFA."),
         ["max_depth"] = NativeToolUtil.Field("integer", "Nested family depth 0..6, default 3."),
         ["max_families"] = NativeToolUtil.Field("integer", "Total family documents to inspect 1..50, default 20.")

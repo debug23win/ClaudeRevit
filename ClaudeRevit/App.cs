@@ -252,7 +252,13 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetConnectionNode());
             ToolRegistry.Instance.Register(new ValidateConnectionNode());
             ToolRegistry.Instance.Register(new CreateParametricSection());
+            ToolRegistry.Instance.Register(new InspectFamilyFiles());
+            ToolRegistry.Instance.Register(new VerifyModelResult());
+            ToolRegistry.Instance.Register(new RunCheckpointJob());
+            ToolRegistry.Instance.Register(new GetCheckpointJob());
+            ToolRegistry.Instance.Register(new GetVerifiedExperience());
             ToolRegistry.Instance.Register(new GetSpdsTableProfiles());
+            ToolRegistry.Instance.Register(new AuditSpdsSchedule());
             ToolRegistry.Instance.Register(new CreateSpdsSchedule());
             ToolRegistry.Instance.Register(new CreateSpdsTable());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
@@ -281,6 +287,8 @@ public class App : IExternalApplication
             // Learning mode: capture the model delta of script tool calls (see ScriptJournal).
             application.ControlledApplication.DocumentChanged += ScriptJournal.OnDocumentChanged;
             LiveSpdsUpdater.Register(application);
+            LiveSpdsUpdater.RegisterMaterialTriggers();
+            ConnectionNodeUpdater.Register(application);
 
             // Auto-dismiss Revit's modal warning/task dialogs WHILE ClaudeRevit is driving (a chat
             // turn or a benchmark) — otherwise an unattended run stalls on the first warning (e.g.
@@ -395,6 +403,7 @@ public class App : IExternalApplication
     public Result OnShutdown(UIControlledApplication application)
     {
         try { LiveSpdsUpdater.Unregister(); } catch { }
+        try { ConnectionNodeUpdater.Unregister(); } catch { }
         ChatWindowHost.Shutdown();
         // Events registered in OnStartup must be unregistered here (Revit add-in contract).
         try { application.ControlledApplication.DocumentChanged -= ScriptJournal.OnDocumentChanged; }

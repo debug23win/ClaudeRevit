@@ -25,11 +25,16 @@ public sealed class BenchmarkResult
     public double? Score { get; init; }
     public double Seconds { get; init; }
     public int ReferenceSeconds { get; init; }
+    public string ReferenceSource { get; init; } = "provisional task reference";
     public int Rounds { get; init; }
     public long Tokens { get; init; }
     public string UsageScope { get; init; } = "unavailable";
     public string Time { get; init; } = "";         // "12.3s"
     public string Reason { get; init; } = "";
+    public ObjectiveReport? Objective { get; init; }
+    public string SeedFingerprint { get; init; } = "";
+    public string EnvironmentKey { get; init; } = "";
+    public string ComparisonKey { get; init; } = "";
     public TurnTimings Timings { get; init; } = new();
     public string RevitTime => Timings.ModelAndToolsSeconds > 0 ? Timings.RevitExecutionSeconds.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "s" : "—";
 }
@@ -39,6 +44,11 @@ public sealed class BenchmarkResult
 // chat history. Results are appended to benchmark_results.jsonl for later comparison across runs.
 public static class BenchmarkRunner
 {
+    public static void WriteSummary(IEnumerable<BenchmarkResult> rows)
+    {
+        var path=Path.Combine(Path.GetDirectoryName(ResultsPath)!,"benchmark_summary.json");Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path,JsonSerializer.Serialize(BenchmarkStatistics.Group(rows).Select(g=>new {key=g.Key,statistics=g.Distribution})));
+    }
     private static int _running;
 
     private static string ResultsPath => Path.Combine(
@@ -115,12 +125,14 @@ public static class BenchmarkRunner
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the owned scratch copy is closed without saving.");
                 onStatus($"{task.Id} · {task.Title} · capturing final evidence…");
                 var after = await StatsAsync(task, true, documentKey, ct);
+                var objective = BenchmarkObjective.Evaluate(task.Id, before, after);
                 var evidence=JsonSerializer.Deserialize<Dictionary<string,object?>>(after)!;
                 evidence["modelling_revit_execution_seconds"]=chat.Timings.RevitExecutionSeconds;
                 after=JsonSerializer.Serialize(evidence);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
                     : await JudgeAsync(judgeChat, judge, task, before, after, finalText, ct);
+                verdict = BenchmarkObjective.Apply(verdict, objective);
                 if (budgetStopped) verdict = verdict with { Reason = "[task budget reached] " + verdict.Reason };
                 if (scopeStarted)
                 {
@@ -130,15 +142,20 @@ public static class BenchmarkRunner
                     scopeStarted = false;
                 }
                 var metrics = chat.LastTask;
-                var points = BenchmarkScoring.Calculate(verdict, seconds, task.ReferenceSeconds);
+                var seed=BenchmarkStatistics.SeedFingerprint(before);
+                var environment=BenchmarkStatistics.EnvironmentKey(InitialVersion(before));
+                var comparison=$"{judge.Tag}|{judge.Effort}|{maxRoundsPerTask}|{maxSecondsPerTask}|{resetBetweenTasks}|{BenchmarkObjective.Version}";
+                var reference=BenchmarkCalibration.Resolve(task.Id,seed,environment,comparison,task.ReferenceSeconds);
+                var points = BenchmarkScoring.Calculate(verdict, seconds, reference.Seconds);
                 var row = new BenchmarkResult
                 {
                     TaskId = task.Id, Title = task.Title, Model = metrics?.Model ?? execution.Tag,
                     Verdict = !verdict.Graded ? "?" : verdict.Pass ? "✓" : "✗",
                     Quality = points?.Quality, Speed = points?.Speed, Score = points?.Total,
-                    Seconds = seconds, ReferenceSeconds = task.ReferenceSeconds,
+                    Seconds = seconds, ReferenceSeconds = reference.Seconds, ReferenceSource = reference.Source,
                     UsageScope = metrics?.UsageScope ?? "unavailable", Rounds = metrics?.Rounds ?? 0, Tokens = (metrics?.InputTokens ?? 0) + (metrics?.OutputTokens ?? 0),
-                    Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason, Timings = chat.Timings
+                    Time = seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s", Reason = verdict.Reason, Timings = chat.Timings,
+                    Objective=objective, SeedFingerprint=seed, EnvironmentKey=environment, ComparisonKey=comparison
                 };
                 Append(row, execution, judge, runStamp, verdict.Pass, metrics?.InputTokens ?? 0, metrics?.OutputTokens ?? 0, row.Rounds, seconds, resultsPath, maxRoundsPerTask, maxSecondsPerTask, resetBetweenTasks);
                 onResult(row);
@@ -276,10 +293,14 @@ public static class BenchmarkRunner
                 speed_score = r.Speed,
                 scoring_version = BenchmarkScoring.Version,
                 scoring_formula = "quality * (0.8 + 0.2 * min(1, reference_seconds / seconds))",
-                reference_seconds = r.ReferenceSeconds,
+                reference_seconds = r.ReferenceSeconds, reference_source = r.ReferenceSource,
                 timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
                 execution_profile = execution.Backend == "api" ? "api_progressive_v1" : "compact_mcp_v1",
-                task_suite_version = "v3.8.0",
+                task_suite_version = "v3.8.4",
+                objective_checks = r.Objective,
+                seed_fingerprint = r.SeedFingerprint,
+                environment_key = r.EnvironmentKey,
+                comparison_key = r.ComparisonKey,
                 phase_seconds = new { catalog = r.Timings.CatalogSeconds, context = r.Timings.ContextSeconds,
                     model_and_tools = r.Timings.ModelAndToolsSeconds, mcp_tool_wait_sum = r.Timings.ToolWaitSeconds,
                     revit_queue_sum = r.Timings.QueueSeconds, revit_execution_sum = r.Timings.RevitExecutionSeconds },
@@ -303,6 +324,8 @@ public static class BenchmarkRunner
         : task.Id == "S1" ? " Use list_structural_connection_types and create_structural_connection for native joints. A generic logical link alone is insufficient; a detailed equivalent joint needs actual solids, verified dimensions and related member IDs recorded with set_model_provenance."
         : "";
 
+    private static string InitialVersion(string probe)
+    {using var d=JsonDocument.Parse(probe);return d.RootElement.TryGetProperty("revit_version",out var v)?v.GetString()??"unknown":"unknown";}
     private static string Truncate(string s, int max) =>
         string.IsNullOrEmpty(s) || s.Length <= max ? s ?? "" : s.Substring(0, max) + "…";
 }

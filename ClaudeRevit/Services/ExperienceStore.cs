@@ -38,7 +38,7 @@ public static class ExperienceStore
     {
         if (_digestBuilt) return _digest;
         _digestBuilt = true;
-        try { _digest = BuildDigest(); } catch { _digest = null; }
+        try { _digest = VerifiedExperienceStore.Digest(VerifiedExperienceStore.Read()); } catch { _digest = null; }
         return _digest;
     }
 
@@ -146,9 +146,9 @@ public static class ExperienceStore
         if (patterns.Count == 0) return null;
 
         var sb = new StringBuilder();
-        sb.Append("PROVEN SCRIPTS IN THIS ENVIRONMENT (learned from earlier sessions and kept ");
-        sb.Append("even after the chat is cleared — the model delta each produced is real and ");
-        sb.Append("reproducible here). Reuse these patterns instead of re-deriving them; adapt ");
+        sb.Append("EXECUTED SCRIPTS (UNVERIFIED RESULTS) (learned from earlier sessions and kept ");
+        sb.Append("even after the chat is cleared — execution success and model deltas do not prove ");
+        sb.Append("correct geometry. Validate applicability before optional reuse; adapt ");
         sb.Append("the numbers to the request:\n");
 
         int shown = 0;
@@ -224,7 +224,7 @@ public static class ExperienceStore
             if (!string.IsNullOrWhiteSpace(p.SampleCode))
             {
                 sb.AppendLine();
-                sb.AppendLine("Representative proven code:");
+                sb.AppendLine("Representative executed code (result correctness unverified):");
                 sb.AppendLine();
                 sb.AppendLine("```csharp");
                 sb.AppendLine(p.SampleCode!.Trim());

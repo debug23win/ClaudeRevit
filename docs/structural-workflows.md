@@ -1,6 +1,6 @@
 # Native components, keyed nodes and live SPDS specifications
 
-Available in v3.8.3. All tables are native **ViewSchedules**, with data from model
+The v3.8.3 baseline and the development additions below use native **ViewSchedules**, with data from model
 parameters. No text-note or drafting-table snapshots are used as specifications.
 
 ## Before modelling
@@ -24,15 +24,19 @@ between loading compatible resources and authoring custom parametric components.
 ## Geometry-driving family parameters
 
 `create_parametric_section` works in an active ordinary RFA and builds a rectangular,
-box or I extrusion. Width/height/web/flange dimensions drive reference-plane and
+box, I, channel, angle, circular tube or paired-timber extrusion. Width/height/web/flange/gap dimensions drive reference-plane and
 sketch constraints; formulas drive inner coordinates; Length drives the extrusion.
 Each independent driver is tested at 0.8 and 1.2 times its nominal value, with actual
-solid volume checked against the analytical section area times length. A failed
+solid bounds, origin and volume checked against the analytical section area times length. A failed
 check rolls back the whole operation. Default `preview:true` rolls back a valid
 test too; use `preview:false` to commit. The template category is preserved.
 
-The family needs a suitable parallel 2D view. This tool does not automatically tie
-its Length driver to the native structural beam placement length. Check template
+The family needs a suitable parallel 2D view. Circular tubes use native arcs and radial
+dimensions. `material_id` associates the family Material parameter with the extrusion;
+optional explicit `density_kg_m3` adds physical Area/Density/Mass formulas. Density
+does not automatically follow a later Material change. `placement_length_parameter`
+can link Length to an inspected existing template instance driver, also independently
+flexed. The tool does not infer the appropriate placement parameter. Check template
 reference planes, beam behaviour, materials and loading before placing it as framing.
 
 For every custom family component, use `flex_family(require_geometry_change:true)`
@@ -67,14 +71,25 @@ explicitly accepts them. Omitted parts require `remove_missing_parts:true`; dele
 that cascades to unmanaged dependents is rejected. `expected_revision` catches stale
 updates. External edits/deletions are visible in `get_connection_node`.
 
-After changing members, explicitly reapply the saved node (same `node_key`, omit
-`spec`) and run `validate_connection_node`. **Node geometry has no background updater.**
+New nodes default to `auto_update:true`. The required updater follows declared
+parent/face placements and Length mappings such as
+`value_from:{part_key:"beam",name:"Height",scope:"type",scale:1,offset_mm:10}`.
+Sources must be actual unique compatible parameters; dependency cycles are rejected.
+Existing legacy nodes retain manual refresh until explicitly enabled. Automatic
+refresh never creates replacement parts or deletes them. A missing part, invalid
+interface or direct edit to a managed child marks `needs_refresh` and preserves the
+last accepted state. Reapply the saved node (same `node_key`, omit `spec`) deliberately
+and run `validate_connection_node`. Relative points follow the parent frame; supplied
+orientation axes remain explicit global axes. Test rotated member cases separately.
 The manifest is reusable for other family assemblies, not only bridge joints.
 
 Checks use actual solids and transforms: declared clashes, bounded planar contact,
 bolt/hole axes, actual diameter/grip parameters, conservative stack envelopes and
 forbidden splice zones. A recorded void-cut relationship is not geometric proof of
-a bore. Missing or unsupported checks remain incomplete. Geometry, interfaces,
+a bore. Declared bolt/stack rules also inspect actual internal cylindrical faces,
+coaxial axes, bore diameter and full solid-envelope penetration. Unsupported/faceted
+geometry remains incomplete; clearance, threading and capacity are not certified.
+Geometry, interfaces,
 calculation evidence and documentation evidence have separate readiness states;
 calculation/documentation annotations are not verified engineering results.
 
@@ -101,13 +116,22 @@ filters and grouping. Every mapped field must resolve uniquely. It supports timb
 and scheme forms; it does not create a steel pivot matrix.
 
 `create_spds_table` creates live schedules with normalized calculated **model**
-parameters. It supports the seven categories returned by its schema and one category
-per table. Other categories use direct native fields through `create_spds_schedule`.
+parameters. It supports the seven categories returned by its schema, either one
+category or `category:"multi_category"` with `categories:[...]` and optional
+`category_mappings`. Other categories use direct native fields through `create_spds_schedule`.
 It reads explicit instance/type parameter mappings; numeric legacy mass fields need
 explicit kg/t, while physical Mass fields retain dimension identity. Material amounts
 need compatible m/m²/m³ mappings. Unit mass/amount is multiplied by quantity (default
 one actual instance). Mixing parent and shared nested-child quantities must be agreed
-before selecting sources.
+before selecting sources. Required `nesting_policy` is `explicit`, `parents_only`
+or `children_only`; filtering considers ancestors/descendants actually in the agreed
+source scope and handles more than two nesting levels. Shared-nesting catalog
+descriptions alone do not establish how quantities should be counted.
+
+`mass_kg:{source:"material_volumes"}` uses actual native material volumes and physical
+StructuralAsset density, without assuming 7850 kg/m³. It requires quantity 1 because
+volume already describes the whole source instance. Missing material density/volume
+marks the live data incomplete. Material/physical-asset edits trigger recalculation.
 
 ```json
 {
@@ -115,6 +139,7 @@ before selecting sources.
   "standard_edition": "2026",
   "table_key": "KM-steel-main",
   "category": "OST_StructuralFraming",
+  "nesting_policy": "explicit",
   "scope": "selected",
   "source_ids": [12345, 12346],
   "construction_groups": ["Фермы", "Связи"],
@@ -161,6 +186,38 @@ number into a Mass parameter does not make that source value correct.
 Use `place_view_on_sheet` and `export_image` to inspect wrapping, borders, font,
 split/repeated headers, totals and the title block before issuing drawings. These
 profiles do not certify the entire drawing set or project requirements.
+
+`create_spds_schedule(category:"multi_category",include_linked_files:true)` can
+include linked rows using compatible fields already present in those links. It does
+not write derived parameters into read-only links. Derived pivot matrices currently
+operate on the active document. `audit_spds_schedule` checks actual fields/specs,
+widths/totals, source nesting, sheet margins and overlaps with schedules, viewports
+and text. Visual exports are still required for row wrapping, fonts and repeated headers.
+
+## Verified experience and resumable jobs
+
+`verify_model_result` checks actual solids, parameters and declared native Rebar hosts.
+Attach a successful document-local `journal_run_id` only for IDs actually changed by
+that run and include a geometry check. Failed/incomplete reports remain diagnostic;
+only passed reports can be retrieved as compatible experience. `get_verified_experience`
+filters by exact Revit build and current family/type/parameter context. The prompt has
+only an optional evidence index; it does not force reuse or certify structural design.
+
+`run_checkpoint_job` stores step outputs, revision and signatures in RVT DataStorage
+with the same bounded transaction group as the edits. Default preview rolls back.
+Native transactional steps can reference earlier outputs by
+`{from_step:"level",json_pointer:"/id"}`. Each committed batch is one Undo; no transaction
+persists between MCP calls. Repeating completed jobs is a no-op. Changed plans,
+revisions, tracked transforms/parameters/bounds or missing IDs block continuation.
+Scripts, lifecycle/deletion tools and unsupported nontransactional tools are excluded.
+Signatures do not constitute a full geometric equivalence proof; use independent
+result checks for acceptance. Save the RVT to retain checkpoints after a process crash.
+
+`inspect_family_files` opens up to ten local RFA references in background documents,
+reports native parameters/types/nesting and optionally flexes supplied scenarios,
+then closes without saving or upgrading the originals. Never redistribute downloaded
+families without the owner's applicable license. Native acceptance for the development
+additions is pending; see [reference cases](bimstarter-reference-cases.md).
 
 ## Journal and execution
 

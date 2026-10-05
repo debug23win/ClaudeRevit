@@ -33,7 +33,7 @@ namespace ClaudeRevit.Tools
     {
         public static ToolDispatcher Instance { get; } = new();
         public static bool ForceSuppress;
-        public bool Family, ScopeActive;
+        public bool Family, ScopeActive, LevelCreated;
         public int Starts, Ends;
         private string _seedKey = "", _fixtureKey = "";
         public List<string> Tools { get; } = new();
@@ -54,7 +54,7 @@ namespace ClaudeRevit.Tools
             return Task.FromResult(ClaudeRevit.Services.DocumentSessions.CurrentDocumentKey);
         }
         public Task<string> BenchmarkProbeAsync(CancellationToken ct, bool eligibilityOnly = false)
-        { ct.ThrowIfCancellationRequested(); return Task.FromResult(JsonSerializer.Serialize(new { is_family_document = Family, total = 0, nested_seed_types = Array.Empty<object>() })); }
+        { ct.ThrowIfCancellationRequested(); return Task.FromResult(JsonSerializer.Serialize(new { is_family_document = Family, total = 0, levels = LevelCreated ? 1 : 0, level_elements = LevelCreated ? new[] { new { id = 42, name = "Bench B0", elevation_m = 3.5 } } : Array.Empty<object>(), nested_seed_types = Array.Empty<object>() })); }
         public Task<string> ExecuteAsync(string name, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey)
         {
             Tools.Add(name);

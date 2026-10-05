@@ -14,6 +14,11 @@ internal sealed class LiveSpdsRecord
     public string Key {get;set;}="";
     public string Profile {get;set;}="";
     public long CategoryId {get;set;}
+    public long[] CategoryIds {get;set;}=[];
+    public string NestingPolicy {get;set;}="explicit";
+    public Dictionary<long,JsonElement> CategoryMappings {get;set;}=new();
+    public IEnumerable<long> Categories=>CategoryIds.Length==0?[CategoryId]:CategoryIds;
+    public JsonElement Map(Element e)=>CategoryMappings.GetValueOrDefault(e.Category?.Id.Value??0,Mapping);
     public string Scope {get;set;}="";
     public string[] SourceUniqueIds {get;set;}=[];
     public JsonElement Mapping {get;set;}
@@ -43,6 +48,12 @@ internal sealed class LiveSpdsUpdater:IUpdater
             foreach(var change in new[]{Element.GetChangeTypeAny(),Element.GetChangeTypeElementAddition(),Element.GetChangeTypeElementDeletion()})UpdaterRegistry.AddTrigger(_instance._id,filter,change);
         }
     }
+    public static void RegisterMaterialTriggers()
+    {
+        if(_instance==null)return;
+        var filter=new LogicalOrFilter(new ElementClassFilter(typeof(Material)),new ElementClassFilter(typeof(PropertySetElement)));
+        UpdaterRegistry.AddTrigger(_instance._id,filter,Element.GetChangeTypeAny());
+    }
     public static void Unregister(){if(_instance!=null){UpdaterRegistry.UnregisterUpdater(_instance._id);_instance=null;}}
     public string GetAdditionalInformation()=>"Keeps SPDS schedule model parameters current; required for derived mass matrices.";
     public ChangePriority GetChangePriority()=>ChangePriority.Annotations;
@@ -53,8 +64,9 @@ internal sealed class LiveSpdsUpdater:IUpdater
         var doc=data.GetDocument();if(doc.IsFamilyDocument)return;
         var changed=data.GetModifiedElementIds().Concat(data.GetAddedElementIds()).Select(doc.GetElement).Where(e=>e?.Category!=null).Select(e=>e!.Category.Id.Value).ToHashSet();
         bool deleted=data.GetDeletedElementIds().Count>0;
+        bool materialsChanged=data.GetModifiedElementIds().Select(doc.GetElement).Any(e=>e is Material or PropertySetElement);
         foreach(var (_,record) in LiveSpds.All(doc))
-            if(deleted||changed.Contains(record.CategoryId))LiveSpds.Refresh(doc,record,false);
+            if(deleted||materialsChanged||record.Categories.Any(changed.Contains))LiveSpds.Refresh(doc,record,false);
     }
 }
 
@@ -78,14 +90,17 @@ internal static class LiveSpds
     {var s=Schema();var e=new Entity(s);e.Set(s.GetField("Json"),JsonSerializer.Serialize(record));storage.SetEntity(e);}
     public static List<Element> Sources(Document doc,LiveSpdsRecord r)
     {
-        var all=new FilteredElementCollector(doc).OfCategoryId(new ElementId(r.CategoryId)).WhereElementIsNotElementType().ToElements();
+        var all=Collect(doc,r);
         if(all.Count>10000)throw new ToolInputException("Live SPDS category exceeds 10000 instances; narrow the model/category before creating derived tables.");
         var selected=r.SourceUniqueIds.ToHashSet(StringComparer.Ordinal);
-        return all.Where(e=>r.Scope=="entire_category"||selected.Contains(e.UniqueId)).ToList();
+        var scoped=all.Where(e=>r.Scope=="entire_category"||selected.Contains(e.UniqueId)).ToArray();
+        var counted=NestingSelection.Select(scoped.Select(e=>(e.UniqueId,(e as FamilyInstance)?.SuperComponent?.UniqueId)),r.NestingPolicy);
+        return scoped.Where(e=>counted.Contains(e.UniqueId)).ToList();
     }
+    private static IList<Element> Collect(Document doc,LiveSpdsRecord r)=>new FilteredElementCollector(doc).WherePasses(new ElementMulticategoryFilter(r.Categories.Select(id=>new ElementId(id)).ToList())).WhereElementIsNotElementType().ToElements();
     public static void Bind(Document doc,LiveSpdsRecord r)
     {
-        var category=Category.GetCategory(doc,new ElementId(r.CategoryId));if(category==null||!category.AllowsBoundParameters)throw new ToolInputException("Category does not support project parameters.");
+        var categories=r.Categories.Select(id=>Category.GetCategory(doc,new ElementId(id))).ToArray();if(categories.Any(c=>c==null||!c.AllowsBoundParameters))throw new ToolInputException("A selected category does not support project parameters.");
         var app=doc.Application;var previous=app.SharedParametersFilename;var path=Path.Combine(Path.GetTempPath(),"ClaudeRevit-spds-"+Guid.NewGuid().ToString("N")+".txt");
         try
         {
@@ -99,7 +114,7 @@ internal static class LiveSpds
                 var spec=TextKeys.Contains(key)?SpecTypeId.String.Text:key is "position" or "include"?SpecTypeId.Int.Integer:key is "mass" or "total"||key.StartsWith("group_")?SpecTypeId.Mass:SpecTypeId.Number;
                 if(existing!=null){if(existing.GetDefinition().GetDataType()!=spec)throw new ToolInputException("Derived parameter identity has an incompatible data type.");continue;}
                 var options=new ExternalDefinitionCreationOptions("CR_SPDS_"+Convert.ToHexString(bytes)[..8]+"_"+key,spec){GUID=guid,UserModifiable=false,Description="Calculated from model parameters for live SPDS table "+r.Key};
-                var definition=group.Definitions.Create(options);var set=app.Create.NewCategorySet();set.Insert(category);
+                var definition=group.Definitions.Create(options);var set=app.Create.NewCategorySet();foreach(var category in categories)set.Insert(category);
                 if(!doc.ParameterBindings.Insert(definition,app.Create.NewInstanceBinding(set),GroupTypeId.Data))throw new ToolInputException("Cannot bind derived SPDS model parameter: "+key);
             }
             doc.Regenerate();
@@ -115,13 +130,13 @@ internal static class LiveSpds
     }
     public static (int Count,List<object> Errors) Refresh(Document doc,LiveSpdsRecord r,bool strict)
     {
-        var all=new FilteredElementCollector(doc).OfCategoryId(new ElementId(r.CategoryId)).WhereElementIsNotElementType().ToElements();if(all.Count>10000)throw new ToolInputException("Live SPDS category exceeds 10000 instances.");
-        var selected=r.SourceUniqueIds.ToHashSet(StringComparer.Ordinal);var items=new List<(Element Element,SpdsItem Item,Dictionary<string,object> Values)>();var errors=new List<object>();
+        var all=Collect(doc,r);if(all.Count>10000)throw new ToolInputException("Live SPDS category exceeds 10000 instances.");
+        var selected=Sources(doc,r).Select(e=>e.UniqueId).ToHashSet(StringComparer.Ordinal);var items=new List<(Element Element,SpdsItem Item,Dictionary<string,object> Values)>();var errors=new List<object>();
         foreach(var e in all)
         {
             if(strict)ToolContext.ThrowIfCancelled();
-            bool include=r.Scope=="entire_category"||selected.Contains(e.UniqueId);Set(e,r.Parameters["include"],include?1:0);if(!include)continue;
-            try{var i=SpdsSource.ReadElement(doc,e,r.Mapping);var values=Services.SpdsTables.ModelValues(r.Profile,i,r.Groups);items.Add((e,i,values));Set(e,r.Parameters["error"],"");}
+            bool include=selected.Contains(e.UniqueId);Set(e,r.Parameters["include"],include?1:0);if(!include)continue;
+            try{var i=SpdsSource.ReadElement(doc,e,r.Map(e));var values=Services.SpdsTables.ModelValues(r.Profile,i,r.Groups);items.Add((e,i,values));Set(e,r.Parameters["error"],"");}
             catch(Exception ex) when(ex is ToolInputException or ArgumentException)
             {
                 if(strict)throw new ToolInputException($"Source {e.Id.Value}: {ex.Message}");errors.Add(new {id=e.Id.Value,error=ex.Message});
@@ -151,7 +166,7 @@ internal static class LiveSpds
     }
     public static ViewSchedule CreateSchedule(Document doc,LiveSpdsRecord r,string name,string font,double size,bool gradeTotals=false)
     {
-        var schedule=ViewSchedule.CreateSchedule(doc,new ElementId(r.CategoryId));schedule.Name=name;var d=schedule.Definition;d.IsItemized=false;d.ShowHeaders=true;d.ShowTitle=true;
+        var schedule=ViewSchedule.CreateSchedule(doc,r.Categories.Count()>1?ElementId.InvalidElementId:new ElementId(r.CategoryId));schedule.Name=name;var d=schedule.Definition;d.IsItemized=false;d.ShowHeaders=true;d.ShowTitle=true;
         var columns=Services.SpdsTables.Columns(r.Profile,r.Groups);var added=new Dictionary<string,ScheduleField>();
         ScheduleField Field(string key,bool hidden=false,string? heading=null,double width=15)
         {

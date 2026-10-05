@@ -30,7 +30,11 @@ internal static class ConnectionNodeValidation
         {
             if(!elements.ContainsKey(p.Key)||!elements.ContainsKey(target))continue;
             bool registered=elements[p.Key] is FamilyInstance cutter&&InstanceVoidCutUtils.InstanceVoidCutExists(elements[target],cutter);
-            Result("void_cut",p.Key,target,registered?"incomplete":"failed",new {relationship_registered=registered,geometry_verified=false,reason="Registered cut alone does not prove its position/penetration; inspect the actual opening or a section."});
+            var rule=node.Spec.Rules.FirstOrDefault(r=>r.Kind=="bolt"&&r.B==p.Key&&r.StackParts.Contains(target));
+            BoreEvidence? bore=null;
+            if(rule!=null&&Length(elements[p.Key],rule.HoleDiameterParameter) is { } diameter)
+            {var frame=ConnectionNodes.Frame(elements[p.Key]);var axis=frame.OfVector(new XYZ(rule.LocalAxisB[0],rule.LocalAxisB[1],rule.LocalAxisB[2])).Normalize();bore=ConnectionOpeningGeometry.Inspect(elements[target],frame.Origin,axis,diameter,rule.ToleranceMm);}
+            Result("void_cut",p.Key,target,!registered||bore?.Verified==false?"failed":bore?.Verified==true?"passed":"incomplete",new {relationship_registered=registered,geometry_verified=bore?.Verified,bore,reason="The relationship alone is insufficient; a declared bolt-axis/diameter check inspects an actual cylindrical through bore."});
         }
         foreach(var r in node.Spec.Rules)
         {
@@ -72,9 +76,12 @@ internal static class ConnectionNodeValidation
                         {var e=elements[key];var positions=ConnectionNodes.Corners(e).Select(p=>ConnectionMath.Dot(ConnectionMath.Sub(p,origin),NativeToolUtil.Vector(axis))).ToArray();var min=positions.Min();var max=positions.Max();lo=Math.Min(lo,min);hi=Math.Max(hi,max);intervals.Add(new {part=key,start_mm=min,end_mm=max,method="projected bounding box, conservative envelope"});}
                         double? stack=r.StackParts.Count>0?hi-lo:null;
                         if(grip.HasValue&&stack.HasValue)ok&=grip.Value+r.ToleranceMm>=stack.Value;
-                        bool full=diameter.HasValue&&hole.HasValue&&grip.HasValue&&r.StackParts.Count>0;
+                        var bores=r.StackParts.Select(key=>new {part=key,evidence=ConnectionOpeningGeometry.Inspect(elements[key],fa.Origin,axis,diameter??double.PositiveInfinity,r.ToleranceMm)}).ToArray();
+                        if(bores.Any(bore=>bore.evidence.Verified==false))ok=false;
+                        if(hole.HasValue)ok&=bores.All(bore=>bore.evidence.DiameterMm==null||Math.Abs(bore.evidence.DiameterMm.Value-hole.Value)<=r.ToleranceMm);
+                        bool full=diameter.HasValue&&hole.HasValue&&grip.HasValue&&r.StackParts.Count>0&&bores.All(bore=>bore.evidence.Verified==true);
                         Result("bolt",r.A,r.B,!ok?"failed":full?"passed":"incomplete",new {centerline_distance_mm=metrics.DistanceMm,axis_angle_deg=metrics.AngleDeg,bolt_diameter_mm=diameter,hole_diameter_mm=hole,grip_mm=grip,stack_envelope_mm=stack,intervals,in_forbidden_zone=forbidden,
-                            opening_geometry_verified=false,coverage="Actual instance axes/length parameters, conservative stack envelope. Does not certify bore shape, connected plate count, capacity or thread engagement."});break;
+                            opening_geometry_verified=bores.Length>0&&bores.All(bore=>bore.evidence.Verified==true),bores,coverage="Actual axes and inner cylindrical through-bore geometry for every declared stack part; conservative grip envelope. Capacity and thread engagement are not certified."});break;
                     }
                 }
             }
@@ -95,7 +102,7 @@ internal static class ConnectionNodeValidation
 public sealed class ValidateConnectionNode:IRevitTool
 {
     public string Name=>"validate_connection_node";
-    public string Description=>"Read-only check of a saved connection node: missing/stale parts, declared solid clashes, planar face contact, actual family bolt/hole axes, diameter/grip length parameters, forbidden splice zones and registered void cuts. Reports passed/failed/incomplete separately. Does not certify structural capacity or hole geometry; absent dimensions/checks stay incomplete.";
+    public string Description=>"Read-only check of a saved connection node: missing/stale parts, declared solid clashes, planar face contact, actual family bolt/hole axes, diameter/grip length parameters, forbidden splice zones and registered void cuts. Reports passed/failed/incomplete separately. Actual cylindrical through-bores are checked for declared stack parts. Does not certify structural capacity; absent dimensions/checks stay incomplete.";
     public bool RequiresTransaction=>false;
     public InputSchema InputSchema=>NativeToolUtil.Schema(new(){["node_key"]=NativeToolUtil.Field("string","Saved document-local node key.")},"node_key");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
