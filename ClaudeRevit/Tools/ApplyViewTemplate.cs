@@ -51,7 +51,8 @@ public class ApplyViewTemplate : IRevitTool
         }
 
         if (template == null || !template.IsTemplate)
-            throw new InvalidOperationException("Template not found (or specified view is not a template).");
+            throw NameResolve.Missing(input.TryGetValue("template_name", out var wanted) && wanted.ValueKind == JsonValueKind.String ? wanted.GetString() : null,
+                "View template", new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).Select(v => v.Name));
 
         var viewIds = ToolInput.RequiredArray(input, "view_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();

@@ -60,7 +60,7 @@ public class CreateRoof : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         var roofTypes = new FilteredElementCollector(doc).OfClass(typeof(RoofType)).Cast<RoofType>()
             .ToList();

@@ -28,6 +28,10 @@ public sealed record ChatRedactedThinkingBlock(string Data) : ChatBlock;
 
 public sealed record ChatToolUseBlock(string Id, string Name, string InputJson) : ChatBlock;
 
+// A server-side compaction summary (Anthropic compact-2026-01-12). Must be sent back exactly as
+// received: the API uses it to stand in for the history it summarised.
+public sealed record ChatCompactionBlock(string Content, string? EncryptedContent) : ChatBlock;
+
 public sealed record ChatToolResultBlock(string ToolUseId, string Content, bool IsError) : ChatBlock;
 
 // A user-attached image (base64-encoded), sent to a vision-capable model. MediaType is a MIME

@@ -61,7 +61,7 @@ public class CreateFilledRegion : IRevitTool
             var name = rtn.GetString();
             type = new FilteredElementCollector(doc).OfClass(typeof(FilledRegionType)).Cast<FilledRegionType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"FilledRegionType '{name}' not found.");
+                ?? throw NameResolve.MissingType<FilledRegionType>(doc, name, "Filled region type");
         }
         else
         {

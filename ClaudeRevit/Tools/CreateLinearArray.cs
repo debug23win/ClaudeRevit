@@ -69,7 +69,7 @@ public class CreateLinearArray : IRevitTool
 
         var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         if (doc.GetElement(id) == null)
-            throw new InvalidOperationException($"Element {id.Value} not found.");
+            throw NameResolve.MissingId(id.Value);
 
         var count = ToolInput.RequiredInt(input, "count");
         if (count < 2)

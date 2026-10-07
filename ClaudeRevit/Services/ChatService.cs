@@ -808,14 +808,15 @@ public class ChatService
         // rest. Purely additive to what's already revealed this session.
         foreach (var cat in ToolCatalog.PrewarmCategories(lastUser)) Reveal(cat);
 
-        await CompactIfNeededAsync(conversation, ui, alt, ct);
+        var appendOnly = !alt && AppendOnlyHistory(model);
+        if (!appendOnly) await CompactIfNeededAsync(conversation, ui, alt, ct);
 
         // Tool-result aging (Headroom-style): every tool result from a PRIOR user prompt
         // is truncated in place and its original archived (get_full_result retrieves it).
         // Run here — before the new user turn is added — so results from the turn just
         // finished are still full when the model consumed them, but stop being replayed
         // verbatim from now on. This is the single biggest token sink in long sessions.
-        ToolResultAging.AgeAll(_history);
+        if (!appendOnly) ToolResultAging.AgeAll(_history);
 
         // Dynamic-per-turn context (current document + selection). NOT cached — trails the prompt.
         var contextJson = await ToolDispatcher.Instance.GetProjectContextAsync(ct,documentKey);
@@ -1453,6 +1454,23 @@ public class ChatService
 
     // advisor-tool beta header — enabled only when the tool list actually carries the advisor.
     private const string AdvisorBeta = "advisor-tool-2026-03-01";
+    private const string CompactionBeta = "compact-2026-01-12";
+
+    // Claude Fable 5.1 keeps its thinking across turns ("preserved thinking"), and any edit to an
+    // earlier turn invalidates it: for accounts created from 31 August 2026 the API answers an
+    // edited history with a 400. Two of our own mechanisms edit history — tool-result aging
+    // rewrites old results in place, and client-side compaction replaces old turns with a
+    // summary — so for this model both are off, and the server's compaction (which the API does
+    // not count as an edit) keeps the context bounded instead.
+    internal static bool AppendOnlyHistory(string model) => model is "fable-5-1";
+
+    private static List<ApiEnum<string, AnthropicBeta>>? BetasFor(string model, bool advisor)
+    {
+        var betas = new List<ApiEnum<string, AnthropicBeta>>();
+        if (advisor) betas.Add(AdvisorBeta);
+        if (AppendOnlyHistory(model)) betas.Add(CompactionBeta);
+        return betas.Count > 0 ? betas : null;
+    }
 
     private async Task<BackendTurn> StreamAnthropicTurnAsync(
         string model,
@@ -1476,7 +1494,11 @@ public class ChatService
             System = systemBlocks,
             Tools = toolDefs,
             OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null,
-            Betas = useAdvisorBeta ? new List<ApiEnum<string, AnthropicBeta>> { AdvisorBeta } : null
+            // Append-only models get the server's compaction instead of ours (see AppendOnlyHistory).
+            ContextManagement = AppendOnlyHistory(model)
+                ? new BetaContextManagementConfig { Edits = [new BetaCompact20260112Edit()] }
+                : null,
+            Betas = BetasFor(model, useAdvisorBeta)
         };
 
         var aggregator = new BetaMessageContentAggregator();
@@ -1516,6 +1538,8 @@ public class ChatService
                 turn.Blocks.Add(new ChatThinkingBlock(th.Thinking ?? "", th.Signature ?? ""));
             else if (block.TryPickRedactedThinking(out var rt))
                 turn.Blocks.Add(new ChatRedactedThinkingBlock(rt.Data ?? ""));
+            else if (block.TryPickCompaction(out var cb))
+                turn.Blocks.Add(new ChatCompactionBlock(cb.Content ?? "", cb.EncryptedContent));
             else if (block.TryPickToolUse(out var tu))
                 turn.Blocks.Add(new ChatToolUseBlock(tu.ID, tu.Name, JsonSerializer.Serialize(tu.Input)));
             // Advisor consult: count it. The server_tool_use / advisor_tool_result pair is NOT
@@ -1748,6 +1772,7 @@ public class ChatService
         ChatTextBlock t => new BetaTextBlockParam { Text = t.Text, CacheControl = cache },
         ChatThinkingBlock th => new BetaThinkingBlockParam { Thinking = th.Thinking, Signature = th.Signature },
         ChatRedactedThinkingBlock rt => new BetaRedactedThinkingBlockParam { Data = rt.Data },
+        ChatCompactionBlock cb => new BetaCompactionBlockParam { Content = cb.Content, EncryptedContent = cb.EncryptedContent, CacheControl = cache },
         ChatToolUseBlock tu => new BetaToolUseBlockParam
         {
             ID = tu.Id,

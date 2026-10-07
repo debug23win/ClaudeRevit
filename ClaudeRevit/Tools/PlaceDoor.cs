@@ -49,7 +49,7 @@ public class PlaceDoor : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         FamilySymbol symbol;
         if (input.TryGetValue("door_type_name", out var dt) && dt.ValueKind == JsonValueKind.String

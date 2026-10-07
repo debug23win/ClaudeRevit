@@ -50,7 +50,7 @@ public class SetParameter : IRevitTool
 
         var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var element = doc.GetElement(id)
-            ?? throw new InvalidOperationException($"Element {id.Value} not found.");
+            ?? throw NameResolve.MissingId(id.Value);
 
         Parameter? param;
         string paramName;

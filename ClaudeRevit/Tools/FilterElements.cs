@@ -130,7 +130,7 @@ public class FilterElements : IRevitTool
             levelFilter = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
             if (levelFilter == null)
-                return Services.Json.Serialize(new { error = $"Level '{name}' not found." });
+                return Services.Json.Serialize(new { error = NameResolve.MissingLevel(doc, name).Message });
         }
 
         var matched = new List<Element>();

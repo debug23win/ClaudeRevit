@@ -152,7 +152,7 @@ public class AutonumberElements : IRevitTool
             var lvlName = lv.GetString();
             var lvl = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .FirstOrDefault(x => string.Equals(x.Name, lvlName, StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException($"Level '{lvlName}' not found.");
+                ?? throw NameResolve.MissingLevel(doc, lvlName, "Level");
             q = q.Where(e => e.LevelId == lvl.Id).ToList();
         }
         return q;

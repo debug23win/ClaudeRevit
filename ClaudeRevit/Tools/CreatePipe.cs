@@ -45,7 +45,7 @@ public class CreatePipe : IRevitTool
         var levelName = ToolInput.RequiredText(input, "level_name")!;
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         var start = new XYZ(ToolInput.RequiredDouble(input, "start_x"), ToolInput.RequiredDouble(input, "start_y"), ToolInput.RequiredDouble(input, "start_z"));
         var end = new XYZ(ToolInput.RequiredDouble(input, "end_x"), ToolInput.RequiredDouble(input, "end_y"), ToolInput.RequiredDouble(input, "end_z"));
@@ -58,7 +58,7 @@ public class CreatePipe : IRevitTool
             var name = ptn.GetString();
             pipeType = new FilteredElementCollector(doc).OfClass(typeof(PipeType)).Cast<PipeType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Pipe type '{name}' not found.");
+                ?? throw NameResolve.MissingType<Autodesk.Revit.DB.Plumbing.PipeType>(doc, name, "Pipe type");
         }
         else
         {
@@ -74,7 +74,7 @@ public class CreatePipe : IRevitTool
             var name = stn.GetString();
             systemType = new FilteredElementCollector(doc).OfClass(typeof(PipingSystemType)).Cast<PipingSystemType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Piping system type '{name}' not found.");
+                ?? throw NameResolve.MissingType<Autodesk.Revit.DB.Plumbing.PipingSystemType>(doc, name, "Piping system type");
         }
         else
         {

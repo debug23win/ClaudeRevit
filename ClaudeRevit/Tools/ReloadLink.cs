@@ -33,7 +33,7 @@ public class ReloadLink : IRevitTool
 
         var id = new ElementId(ToolInput.RequiredLong(input, "link_id"));
         var el = doc.GetElement(id)
-            ?? throw new InvalidOperationException($"Element {id.Value} not found.");
+            ?? throw NameResolve.MissingId(id.Value);
 
         ElementId typeId;
         if (el is RevitLinkInstance rli) typeId = rli.GetTypeId();

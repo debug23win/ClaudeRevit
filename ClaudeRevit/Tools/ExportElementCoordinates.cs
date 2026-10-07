@@ -191,7 +191,7 @@ public class ExportElementCoordinates : IRevitTool
             var name = lv.GetString();
             var lvl = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException($"Level '{name}' not found.");
+                ?? throw NameResolve.MissingLevel(doc, name, "Level");
             q = q.Where(e => e.LevelId == lvl.Id).ToList();
         }
         return q;

@@ -43,7 +43,7 @@ public class CreateIsolatedFoundation : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         FamilySymbol symbol;
         if (input.TryGetValue("type_name", out var tn) && tn.ValueKind == JsonValueKind.String)
@@ -53,7 +53,7 @@ public class CreateIsolatedFoundation : IRevitTool
                 .OfCategory(BuiltInCategory.OST_StructuralFoundation)
                 .OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
                 .FirstOrDefault(s => s.Name == name)
-                ?? throw new InvalidOperationException($"Foundation type '{name}' not found.");
+                ?? throw NameResolve.MissingType(doc, name, "Foundation type", BuiltInCategory.OST_StructuralFoundation);
         }
         else
         {

@@ -53,9 +53,9 @@ public class CreateShaftOpening : IRevitTool
 
         var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().ToList();
         var bottom = levels.FirstOrDefault(l => l.Name == bottomName)
-            ?? throw new InvalidOperationException($"Bottom level '{bottomName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, bottomName, "Bottom level");
         var top = levels.FirstOrDefault(l => l.Name == topName)
-            ?? throw new InvalidOperationException($"Top level '{topName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, topName, "Top level");
 
         if (top.Elevation <= bottom.Elevation)
             throw new InvalidOperationException(

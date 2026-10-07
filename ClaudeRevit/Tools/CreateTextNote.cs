@@ -46,7 +46,7 @@ public class CreateTextNote : IRevitTool
             var name = ttn.GetString();
             type = new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).Cast<TextNoteType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Text note type '{name}' not found.");
+                ?? throw NameResolve.MissingType<TextNoteType>(doc, name, "Text note type");
         }
         else
         {
