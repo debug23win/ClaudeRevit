@@ -132,8 +132,9 @@ public static class CodexBackend
     }
 
     // `codex login status` used to run before EVERY message and every judge call: a process start
-    // and a few seconds each time. A confirmed sign-in is remembered for a while — a session that
-    // has really expired still fails, just with Codex's own message on the actual run. And a slow
+    // and a few seconds each time. A confirmed sign-in is remembered for a while, keyed by
+    // AuthFingerprint so that any change of credentials (an API key instead of the ChatGPT login)
+    // is checked again on the next message — this mode must never run on API billing. And a slow
     // check is reported as a slow check: it used to surface as a cancellation, which the pane
     // shows as "Cancelled" — as if the user had pressed Stop.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> SignedIn = new(StringComparer.OrdinalIgnoreCase);
@@ -141,7 +142,10 @@ public static class CodexBackend
 
     private static async Task EnsureSignedInAsync(string exe, string workDir, CancellationToken ct, string notSignedIn)
     {
-        if (SignedIn.TryGetValue(exe, out var at) && DateTime.UtcNow - at < SignInValidFor) return;
+        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME") is { Length: > 0 } h ? h
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+        var key = AuthFingerprint.For(exe, Path.Combine(codexHome, "auth.json"));
+        if (SignedIn.TryGetValue(key, out var at) && DateTime.UtcNow - at < SignInValidFor) return;
         using var login = Start(exe, new[] { "login", "status" }, workDir);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
@@ -160,10 +164,10 @@ public static class CodexBackend
         }
         if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
         {
-            SignedIn.TryRemove(exe, out _);
+            SignedIn.TryRemove(key, out _);
             throw new InvalidOperationException(notSignedIn);
         }
-        SignedIn[exe] = DateTime.UtcNow;
+        SignedIn[key] = DateTime.UtcNow;
     }
 
     public static async Task<Result> RunAsync(string prompt, string workDir, string url, string token,
