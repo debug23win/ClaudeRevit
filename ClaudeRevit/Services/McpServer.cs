@@ -402,6 +402,7 @@ public static class McpServer
             var props = new JsonObject();
             foreach (var kv in t.InputSchema.Properties ?? new Dictionary<string, JsonElement>())
                 props[kv.Key] = JsonSerializer.SerializeToNode(kv.Value);
+            PlanTokenSchema.AddTo(props);
             var required = new JsonArray();
             foreach (var r in t.InputSchema.Required ?? Array.Empty<string>())
                 required.Add(r);
@@ -427,7 +428,7 @@ public static class McpServer
                 description = "Find enabled Revit tools by exact name or keywords (English/Russian), and return up to 5 input schemas. Use offset for the next page. Invoke a discovered tool with invoke_revit_tool.",
                 inputSchema = new { type = "object", properties = new { query = new { type = "string" }, offset = new { type = "integer" } }, required = new[] { "query" } } }));
             arr.Add(JsonSerializer.SerializeToNode(new { name = "invoke_revit_tool",
-                description = "Run a native Revit tool by name using arguments from discover_revit_tools. Same document binding and cancellation as direct tool calls. Code execution is always available.",
+                description = "Run a native Revit tool by name using arguments from discover_revit_tools. Same document binding and cancellation as direct tool calls. Follows the code-execution switch in Settings (on by default).",
                 inputSchema = new { type = "object", properties = new { name = new { type = "string" }, arguments = new { type = "object", additionalProperties = true } }, required = new[] { "name", "arguments" } } }));
         }
         return arr;

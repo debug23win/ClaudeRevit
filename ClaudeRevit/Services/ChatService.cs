@@ -158,7 +158,7 @@ public class ChatService
         "matching the tool's schema exactly. Never describe a tool call in plain text instead of making it. " +
         "When no dedicated tool fits the request and execute_csharp is offered to you, USE execute_csharp — " +
         "write C# against the Revit API and run it, rather than explaining what could be done or asking the " +
-        "user to do it manually. Code execution is always available. Search for the tool if its schema is not loaded.";
+        "user to do it manually. Code execution is on unless the user switched it off in Settings. Search for the tool if its schema is not loaded.";
 
     // Default cap on tool-call rounds within a single user prompt; overridable in Settings.
     private const int DefaultMaxIterations = 24;
@@ -2032,7 +2032,7 @@ public class ChatService
             {
                 Name = t.Name,
                 Description = t.Description,
-                InputSchema = t.InputSchema,
+                InputSchema = Tools.WritePlans.Schema(t),
                 EagerInputStreaming = EagerInputTools.Contains(t.Name) ? true : null,
                 CacheControl = i == allTools.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }

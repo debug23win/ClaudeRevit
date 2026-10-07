@@ -23,6 +23,7 @@
     <Compile Include="..\ClaudeRevit\Services\CompactMcpTools.cs" Link="CompactMcpTools.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolSearchLogic.cs" Link="ToolSearchLogic.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="McpSchema.cs" />
+    <Compile Include="..\ClaudeRevit\Services\PlanTokenSchema.cs" Link="PlanTokenSchema.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSession.cs" Link="McpSession.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpClientState.cs" Link="McpClientState.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpTurnChannel.cs" Link="McpTurnChannel.cs" />

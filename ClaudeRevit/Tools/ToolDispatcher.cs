@@ -456,6 +456,25 @@ public class ToolDispatcher : IExternalEventHandler
             return;
         }
 
+        // undo_last drives Revit's own Undo over several idle cycles; nothing else may touch the
+        // undo stack meanwhile.
+        if (job.Name == "undo_last" && !(job.Input.TryGetValue("list", out var listFlag) && listFlag.ValueKind == JsonValueKind.True))
+        {
+            var target = Services.DocumentSessions.Find(job.DocumentKey);
+            if (target == null) { job.Tcs.TrySetResult(Services.ToolResult.Failure("validation", "No bound document. Nothing was undone.")); job.Operation.Dispose(); return; }
+            int? steps = job.Input.TryGetValue("steps", out var st) && st.ValueKind == JsonValueKind.Number ? Math.Max(1, st.GetInt32()) : null;
+            Services.Log.Info($"tool → undo_last steps={steps?.ToString() ?? "action"}");
+            job.Tcs.Task.ContinueWith(_ => job.Operation.Dispose(), TaskScheduler.Default);
+            UndoSequencer.Start(app, target, job.DocumentKey, steps, job.Tcs);
+            return;
+        }
+        if (UndoSequencer.Active)
+        {
+            job.Tcs.TrySetResult(Services.ToolResult.Failure("validation", "An undo is running; retry this call when it finishes. No changes were made."));
+            job.Operation.Dispose();
+            return;
+        }
+
         var queueTime = System.Diagnostics.Stopwatch.GetElapsedTime(job.QueuedAt);
         var executionWatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -490,6 +509,7 @@ public class ToolDispatcher : IExternalEventHandler
                 foreach(var key in new[]{"name","new_name"})if(job.Input.TryGetValue(key,out var value)&&value.ValueKind==JsonValueKind.String)Services.GeometryPreflight.Name(value.GetString()??"");
             if (job.PreparedScript != null && !ReferenceEquals(tool, job.PreparedScript))
                 throw new InvalidOperationException("Script tool changed during compilation. Retry the call.");
+            var plan = WritePlans.Check(job.DocumentKey, tool.Name, job.Input);
             if (job.PreparedBytes == null) tool.Preflight(job.Input,app);
             changes = new ModelChangeCapture(boundDocument,job.DocumentKey);
             if (_benchmarkFixture != null && job.Name is "open_family_editor" or "reload_family_into_document")
@@ -567,6 +587,7 @@ public class ToolDispatcher : IExternalEventHandler
                 }
                 catch { if (group?.GetStatus() == TransactionStatus.Started) group.RollBack(); throw; }
             }
+            result = WritePlans.Annotate(job.DocumentKey, tool.Name, job.Input, result, changes.Raw(), plan);
             // Script tools report failures as normal {"ok":false,...} results without
             // throwing — read the flag from the result, or the journal would advertise
             // broken snippets as proven.
@@ -629,6 +650,7 @@ public class ToolDispatcher : IExternalEventHandler
                 result_chars=completedResult?.Length??0,
                 ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message??Services.ToolResult.ErrorMessage(completedResult),
                 changes=changes?.Complete(rolledBack) });
+            if (changes != null && !rolledBack) ActionHistory.Record(job.DocumentKey, job.TaskId, job.Name, changes);
             }
             catch (Exception ex) { Services.Log.Error("Tool diagnostics failed",ex); }
             finally { ToolDispatcher.PopSuppress(); }

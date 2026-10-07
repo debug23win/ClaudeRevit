@@ -32,7 +32,7 @@ public static class ToolCatalog
         if (n is "BimStarterModelTools" or "RunBimStarterCommand") return "Modeling";
         if (n is "AuditNorms" or "AnnotateNormFindings" or "ComputeTep" or "CreateRoomExplication" or "CreateFloorExplication"
                 or "CreateFinishSchedule" or "FillTitleBlock" or "FitScheduleToSheet" or "NumberRooms") return "Documentation";
-        if (n is "CheckClashes" or "ExportIfc" or "ExportNwc") return "Coordination";
+        if (n is "CheckClashes" or "ExportIfc" or "ExportNwc" or "DwgToModel" or "IfcToNative" or "SnapshotModel" or "CompareModelVersions" or "CheckModelPackage") return "Coordination";
         if (n is "GetAnalyticalModel" or "CreateAnalyticalModel" or "CreateStructuralLoads" or "CreateBoundaryConditions"
                 or "CheckAnalyticalModel" or "CreateLoadCombinations") return "Structural analysis";
         if (n is "AuditRebar" or "CreateStirrupZones" or "ListFabricTypes" or "CreateFabricSheetType" or "CreateFabricArea" or "CreateFabricSheet"

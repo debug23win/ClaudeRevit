@@ -52,7 +52,7 @@ public class ToolRegistry
             {
                 Name = t.Name,
                 Description = t.Description,
-                InputSchema = t.InputSchema
+                InputSchema = WritePlans.Schema(t)
             }).ToList();
     }
 }

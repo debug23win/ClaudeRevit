@@ -23,25 +23,7 @@ public class SaveTool : IRevitTool
         "read it with get_tool_source, change the source, then call save_tool with the SAME name — this " +
         "overwrites a custom tool, or installs an editable override that shadows a built-in (delete_tool " +
         "reverts a built-in to its compiled original). Refine a tool rather than create near-duplicates. " +
-        "Code execution is always available. TEMPLATE:\n" +
-        "```\n" +
-        "using System; using System.Collections.Generic; using System.Text.Json;\n" +
-        "using Anthropic.Models.Beta.Messages; using Autodesk.Revit.DB; using Autodesk.Revit.UI;\n" +
-        "namespace ClaudeRevit.Dynamic {\n" +
-        "  public class RenameLevel : ClaudeRevit.Tools.IRevitTool {\n" +
-        "    public string Name => \"rename_level\";\n" +
-        "    public string Description => \"Renames a level by id.\";\n" +
-        "    public InputSchema InputSchema => new() { Properties = new Dictionary<string, JsonElement> {\n" +
-        "      [\"id\"] = JsonSerializer.SerializeToElement(new { type = \"integer\" }),\n" +
-        "      [\"name\"] = JsonSerializer.SerializeToElement(new { type = \"string\" }) }, Required = new[]{\"id\",\"name\"} };\n" +
-        "    public bool RequiresTransaction => true;   // dispatcher wraps Execute in a transaction\n" +
-        "    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) {\n" +
-        "      var doc = ToolContext.UiDocument(app).Document;\n" +
-        "      var lvl = doc.GetElement(new ElementId(input[\"id\"].GetInt64())) as Level;\n" +
-        "      lvl.Name = input[\"name\"].GetString();\n" +
-        "      return Services.Json.Serialize(new { ok = true, renamed = lvl.Name });\n" +
-        "    } } }\n" +
-        "```\n" +
+        "get_tool_source name=\"template\" returns a complete working template. " +
         "Set RequiresTransaction => true when the tool modifies the model (the host wraps Execute in a " +
         "managed transaction that rolls back on error and groups into one undo). Return a short JSON " +
         "string. Prefer a dedicated built-in tool when one already exists; use this to capture recurring " +

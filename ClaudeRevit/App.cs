@@ -308,6 +308,13 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new ConvertReinforcementSystem());
             ToolRegistry.Instance.Register(new SetRebarRounding());
             ToolRegistry.Instance.Register(new CreateBarBendingSchedule());
+            ToolRegistry.Instance.Register(new UndoLast());
+            ToolRegistry.Instance.Register(new SurveyChangeImpact());
+            ToolRegistry.Instance.Register(new DwgToModel());
+            ToolRegistry.Instance.Register(new IfcToNative());
+            ToolRegistry.Instance.Register(new SnapshotModel());
+            ToolRegistry.Instance.Register(new CompareModelVersions());
+            ToolRegistry.Instance.Register(new CheckModelPackage());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

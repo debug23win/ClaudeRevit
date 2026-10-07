@@ -490,6 +490,7 @@ public sealed class OpenAIBackend
                     po["description"] = Shorten(po["description"]!.GetValue<string>(), 70);
                 props[kv.Key] = node;
             }
+            PlanTokenSchema.AddTo(props);
             var required = new JsonArray();
             foreach (var r in t.InputSchema.Required ?? Array.Empty<string>())
                 required.Add(r);
