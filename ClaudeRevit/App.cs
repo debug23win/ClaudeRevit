@@ -261,6 +261,16 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new AuditSpdsSchedule());
             ToolRegistry.Instance.Register(new CreateSpdsSchedule());
             ToolRegistry.Instance.Register(new CreateSpdsTable());
+            // QA, annotation, circulation and site (ideas from mcp-servers-for-revit forks, native code).
+            ToolRegistry.Instance.Register(new DetectOffAxis());
+            ToolRegistry.Instance.Register(new FixOffAxis());
+            ToolRegistry.Instance.Register(new FindTagOverlaps());
+            ToolRegistry.Instance.Register(new ResolveTagOverlaps());
+            ToolRegistry.Instance.Register(new CreateStair());
+            ToolRegistry.Instance.Register(new CreateRailing());
+            ToolRegistry.Instance.Register(new CreateFloorOpening());
+            ToolRegistry.Instance.Register(new GetProjectLocation());
+            ToolRegistry.Instance.Register(new CreateToposolid());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
