@@ -100,7 +100,7 @@
                             • Выделяйте элементы в Revit и говорите «эти» / «выделенное» — текущее выделение видно ассистенту.&#10;
                             • Говорите в привычных единицах (мм, м) — конвертация в футы (внутренние единицы Revit) выполняется автоматически.&#10;
                             • Сообщайте стандарты проекта («защитный слой всегда 40 мм», «хомуты — форма 21») — они сохранятся в память проекта и применятся в следующих сессиях с этим файлом.&#10;
-                            • Один ваш запрос = один шаг отмены: Ctrl+Z откатывает все изменения этого запроса целиком.&#10;
+                            • Каждый вызов инструмента (или пакет run_batch, или скрипт) — отдельный шаг отмены: после запроса из нескольких шагов Ctrl+Z нужно нажать столько же раз (список шагов виден в меню отмены Revit).&#10;
                             • После массовых изменений просите проверку: «покажи статистику» (счётчики с дельтой) или «сделай разрез и картинку» — визуальный контроль дешевле переделки.
                         </TextBlock>
 
@@ -217,7 +217,7 @@
                             • Select elements in Revit and say “these” / “the selected” — the assistant sees the current selection.&#10;
                             • Use your normal units (mm, m) — conversion to feet (Revit's internal unit) is automatic.&#10;
                             • State project standards (“cover is always 40 mm”, “stirrups use shape 21”) — they are saved to per-project memory and applied in future sessions with this file.&#10;
-                            • One prompt = one undo step: Ctrl+Z reverts everything that prompt changed.&#10;
+                            • Each tool call (or run_batch, or script) is its own undo step: a prompt that took several steps needs as many Ctrl+Z (Revit's Undo list names each step).&#10;
                             • After bulk changes ask for verification: “show statistics” (counts with deltas) or “cut a section and render an image” — visual checks are cheaper than rework.
                         </TextBlock>
 

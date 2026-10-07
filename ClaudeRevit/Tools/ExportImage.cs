@@ -102,7 +102,11 @@ public class ExportImage : IRevitTool
             File.Move(files[0],outPath,true);
             var imageId=Services.ViewImageStore.Register(bytes,Services.DocumentSessions.Key(doc),Services.McpSession.Executing?.ChannelId);
             return Services.Json.Serialize(new { view=view.Name,view_id=view.Id.Value,path=outPath,width=frame.PixelWidth,height=frame.PixelHeight,
-                verified=true,image_id=imageId,mime_type="image/png",warnings=colors.Length==1?new[]{"Export has uniform colour; visual content may be empty."}:Array.Empty<string>() });
+                verified=true,image_id=imageId,mime_type="image/png",
+                warnings=new[]{
+                    colors.Length==1?"Export has uniform colour; visual content may be empty.":null,
+                    imageId==null?$"The PNG was exported ({bytes.Length/1_000_000.0:0.0} MB) but is too large to attach for viewing; re-export with a smaller pixel_size to inspect it.":null
+                }.Where(w=>w!=null).ToArray() });
         }
         finally
         {

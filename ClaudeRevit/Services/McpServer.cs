@@ -14,8 +14,8 @@ using ClaudeRevit.Tools;
 namespace ClaudeRevit.Services;
 
 // EXPERIMENTAL: exposes ClaudeRevit's Revit tools over a local MCP (Model Context Protocol)
-// server, so a user can drive Revit from Claude Code / Claude Desktop вЂ” which authenticate with a
-// Claude Pro/Max SUBSCRIPTION вЂ” instead of paying per-token API for the in-Revit chat pane. Using
+// server, so a user can drive Revit from Claude Code / Claude Desktop — which authenticate with a
+// Claude Pro/Max SUBSCRIPTION — instead of paying per-token API for the in-Revit chat pane. Using
 // a consumer subscription OAuth token directly in a third-party API call is prohibited by
 // Anthropic; routing through the client (Claude Code) over MCP is the sanctioned path, and puts
 // the token cost on the subscription.
@@ -26,6 +26,11 @@ namespace ClaudeRevit.Services;
 // arbitrary C#). Tool execution is marshalled to Revit's UI thread by the existing ToolDispatcher.
 public static class McpServer
 {
+    // How long one Revit tool call may run before the server gives up. Clients must wait at least
+    // this long (plus a margin): a client that abandons a call earlier leaves Revit to commit work
+    // the model was told had failed, and the retry duplicates it.
+    public static readonly TimeSpan ToolCallTimeout = TimeSpan.FromMinutes(10);
+
     private static HttpListener? _listener;
     private static CancellationTokenSource? _cts;
     private static readonly object Gate = new();
@@ -34,7 +39,7 @@ public static class McpServer
     public static bool IsRunning { get { lock (Gate) return _listener?.IsListening == true; } }
     public static string? LastError { get; private set; }
 
-    // Guidance handed to the driving model (Claude Code) via the MCP handshake вЂ” it has no access
+    // Guidance handed to the driving model (Claude Code) via the MCP handshake — it has no access
     // to the in-Revit chat pane's system prompt, so the key rules for working Revit efficiently and
     // correctly go here. Distilled from real field runs.
     // Also handed to the Claude Code CLI with --append-system-prompt on the subscription path: a
@@ -55,7 +60,7 @@ public static class McpServer
         "All enabled tools remain available this way. Prefer dedicated tools and run_batch for repeated operations. " +
         "Parameter suffixes control units: _mm millimetres, _m2/_m3 square/cubic metres, _deg degrees; _ft and unsuffixed spatial values are feet. " +
         "1 m = 3.280839895 ft. Do not convert _mm arguments to feet. " +
-        "Do not repeat a failed call unchanged. Code execution is always enabled. Preserve the active document unless explicitly asked to change it. " +
+        "Do not repeat a failed call unchanged. Code tools appear only while the user allows code execution. Preserve the active document unless explicitly asked to change it. " +
         "Before the first mutation inspect available resources and clarify unresolved modelling and drawing requirements together; wait for answers and save_project_memory, without re-asking agreed requirements. " +
         "For steel/timber inspect_structural_capabilities first; prefer loaded native profiles and detailed create_structural_connection types. Never quietly substitute Generic Models. Custom families must have geometry-driving parameters and pass independent flex_family(require_geometry_change:true) tests. " +
         "Use plan_truss_layout and upsert_connection_node to preview/validate a representative keyed assembly before replication; change_element_type preserves instance parameters. Joint geometry alone is not engineering verification. " +
@@ -78,7 +83,7 @@ public static class McpServer
     public static string Url => $"http://127.0.0.1:{SettingsStore.McpPort}/mcp";
     public static string AuthHeader => $"Authorization: Bearer {SettingsStore.McpToken}";
 
-    // Writes an .mcp.json pointing at this server (url + bearer token) and returns its path вЂ” for
+    // Writes an .mcp.json pointing at this server (url + bearer token) and returns its path — for
     // launching `claude --mcp-config <path>` (in-pane mode / the MCP benchmark).
     public static string WriteClientConfig(string? url = null)
     {
@@ -201,8 +206,7 @@ public static class McpServer
             if (ctx.Request.HttpMethod == "GET" && ctx.Request.Url?.AbsolutePath == "/health")
             {
                 // Authenticated health endpoint, separate from the MCP SSE transport.
-                var toolCount = ToolRegistry.Instance.All.Count(t =>
-                    t.RequiresCodeExecutionOptIn || !SettingsStore.DisabledToolGroups.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase));
+                var toolCount = ToolRegistry.Instance.All.Count(t => ToolPolicy.IsEnabled(t));
                 Write(ctx, 200, new JsonObject
                 {
                     ["status"] = "ok",
@@ -278,44 +282,51 @@ public static class McpServer
     }
 
     // The static driving rules PLUS the user's saved memory (project standards) and the proven-script
-    // digest вЂ” so a subscription/MCP session gets the same accumulated knowledge the API path injects
+    // digest — so a subscription/MCP session gets the same accumulated knowledge the API path injects
     // into its system prompt. Instructions are sent once at initialize, so memory saved mid-session
     // appears on the next reconnect.
     private static string BuildInstructions()
     {
         var compact = ExecutingChannel?.CompactTools == true;
-        var sb = new StringBuilder(compact ? CompactInstructions : Instructions);
+        var sb = new StringBuilder(ExecutingChannel?.RulesInSystemPrompt == true
+            ? "The rules for driving Revit are in your system prompt."
+            : compact ? CompactInstructions : Instructions);
         var memory = MemoryStore.Load();
         if (!string.IsNullOrWhiteSpace(memory))
-            sb.Append("\n\nSAVED MEMORY вЂ” user preferences and project standards; apply them:\n")
+            sb.Append("\n\nSAVED MEMORY — user preferences and project standards; apply them:\n")
               .Append(memory.Trim());
         var experience = ExperienceStore.Digest();
         if (!string.IsNullOrWhiteSpace(experience))
             sb.Append("\n\n").Append(experience!.Trim());
         // Full tool index in the handshake so the driving model knows every tool up front and can
-        // call the right one directly вЂ” no discovery round-trips even when the client defers the
+        // call the right one directly — no discovery round-trips even when the client defers the
         // (180) tool schemas. Generated once, cached, and mirrored to a settings .md for the user.
         if (!compact) sb.Append("\n\n").Append(ToolIndexMarkdown());
         return sb.ToString();
     }
 
+    // Keyed by the registry version: built once and kept forever, the index missed every custom
+    // tool that registered after the first handshake (they load in the background at startup) and
+    // every tool created with save_tool.
     private static string? _toolIndexCache;
+    private static int _toolIndexVersion = -1;
     private static string ToolCatalogPath => Path.Combine(DocumentSessions.CurrentWorkspace.DirectoryPath, "tools-catalog.md");
 
     private static string ToolIndexMarkdown()
     {
-        if (_toolIndexCache != null) return _toolIndexCache;
+        var version = ToolRegistry.Instance.Version;
+        if (_toolIndexCache != null && _toolIndexVersion == version) return _toolIndexCache;
 
         var byCat = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var t in ToolRegistry.Instance.All)
         {
             var cat = ClaudeRevit.Tools.ToolCatalog.CategoryOf(t);
             if (!byCat.TryGetValue(cat, out var list)) byCat[cat] = list = new List<string>();
-            list.Add($"- `{t.Name}` вЂ” {FirstSentence(t.Description)}");
+            list.Add($"- `{t.Name}` — {FirstSentence(t.Description)}");
         }
 
         var sb = new StringBuilder();
-        sb.Append("AVAILABLE TOOLS вЂ” the full set is listed here so you can call the right tool by its " +
+        sb.Append("AVAILABLE TOOLS — the full set is listed here so you can call the right tool by its " +
                   "exact name without searching first. Schemas load on first use.\n");
         foreach (var kv in byCat)
         {
@@ -324,6 +335,7 @@ public static class McpServer
             foreach (var line in kv.Value) sb.Append(line).Append('\n');
         }
         _toolIndexCache = sb.ToString();
+        _toolIndexVersion = version;
 
         try { Directory.CreateDirectory(Path.GetDirectoryName(ToolCatalogPath)!); File.WriteAllText(ToolCatalogPath, _toolIndexCache); }
         catch { /* the md mirror is a convenience, not required */ }
@@ -337,7 +349,7 @@ public static class McpServer
         var s = desc.Replace('\n', ' ').Trim();
         var dot = s.IndexOf(". ", StringComparison.Ordinal);
         if (dot > 0) s = s.Substring(0, dot);
-        return s.Length > 140 ? s.Substring(0, 140).TrimEnd() + "вЂ¦" : s;
+        return s.Length > 140 ? s.Substring(0, 140).TrimEnd() + "…" : s;
     }
 
     private static async Task<(JsonNode? value, JsonObject? error)> Dispatch(string? method, JsonNode? prms, CancellationToken ct, string documentKey)
@@ -352,7 +364,7 @@ public static class McpServer
                     ["protocolVersion"] = clientVer ?? "2025-06-18",
                     ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
                     ["serverInfo"] = new JsonObject { ["name"] = "ClaudeRevit", ["version"] = "1.0" },
-                    // Surfaced to the model by the client вЂ” the hard-won rules for driving Revit well,
+                    // Surfaced to the model by the client — the hard-won rules for driving Revit well,
                     // plus the user's saved standards and proven-script digest (parity with the API path,
                     // whose system prompt carries the same). Built at session start.
                     ["instructions"] = BuildInstructions()
@@ -384,9 +396,8 @@ public static class McpServer
 
             // The groups the user switched off in Settings apply here too. They did not apply
             // before, so a user who disabled rebar to save tokens still paid for every rebar
-            // schema on this path вЂ” and, worse, the model still had tools the user had said no to.
-            if (!t.RequiresCodeExecutionOptIn && disabled.Count > 0 &&
-                disabled.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase))
+            // schema on this path — and, worse, the model still had tools the user had said no to.
+            if (!ToolPolicy.IsEnabled(t, disabled))
                 continue;
             var props = new JsonObject();
             foreach (var kv in t.InputSchema.Properties ?? new Dictionary<string, JsonElement>())
@@ -427,7 +438,7 @@ public static class McpServer
     {
         try { return await CallToolCore(prms, ct, documentKey); }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true), null); }
+        catch (Exception ex) { return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true, attachUserUpdate: !ct.IsCancellationRequested), null); }
     }
 
     private static async Task<(JsonNode? value, JsonObject? error)> CallToolCore(JsonNode? prms, CancellationToken ct, string documentKey)
@@ -441,8 +452,7 @@ public static class McpServer
         {
             var query = arguments?["query"]?.GetValue<string>() ?? "";
             var offset = Math.Max(0, arguments?["offset"]?.GetValue<int>() ?? 0);
-            var enabled = ToolRegistry.Instance.All.Where(t =>
-                (t.RequiresCodeExecutionOptIn || !SettingsStore.DisabledToolGroups.Contains(Tools.ToolCatalog.CategoryOf(t), StringComparer.OrdinalIgnoreCase)));
+            var enabled = ToolRegistry.Instance.All.Where(t => ToolPolicy.IsEnabled(t));
             var matches = CompactMcpTools.Search(enabled.Select(t => new ToolSearchLogic.ToolInfo(t.Name, t.Description, Tools.ToolCatalog.CategoryOf(t), false)), query);
             var selected = matches.Skip(offset).Take(5).ToHashSet(StringComparer.Ordinal);
             var descriptors = BuildToolList(McpSession.Executing?.ClientName, selected).ToDictionary(t => t!["name"]!.GetValue<string>());
@@ -461,8 +471,8 @@ public static class McpServer
                 return (ToolResult("Provide a native tool name and an arguments object from discover_revit_tools.", true), null);
         }
         var target = ToolRegistry.Instance.All.FirstOrDefault(t => t.Name == name);
-        if (target == null || (!target.RequiresCodeExecutionOptIn && SettingsStore.DisabledToolGroups.Contains(Tools.ToolCatalog.CategoryOf(target), StringComparer.OrdinalIgnoreCase)))
-            return (ToolResult("Tool is unknown or disabled: " + name, true), null);
+        if (target == null || !ToolPolicy.IsEnabled(target))
+            return (ToolResult(target?.RequiresCodeExecutionOptIn == true ? ToolPolicy.CodeDisabledMessage : "Tool is unknown or disabled: " + name, true), null);
 
         var args = new Dictionary<string, JsonElement>();
         if (arguments is JsonObject argObj)
@@ -472,7 +482,7 @@ public static class McpServer
                 args[kv.Key] = doc.RootElement.Clone();
             }
 
-        // Auto-resolve Revit warning/error dialogs for the span of this call вЂ” the MCP client
+        // Auto-resolve Revit warning/error dialogs for the span of this call — the MCP client
         // (Claude Code) drives unattended, so a modal would otherwise stall the whole session.
         ToolDispatcher.PushSuppress();
         var toolWait = Stopwatch.StartNew();
@@ -481,14 +491,14 @@ public static class McpServer
             // A modal dialog in Revit (or a genuinely stuck tool) would otherwise hold this HTTP
             // request open forever, and the client just waits with no idea why.
             using var toolCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            toolCts.CancelAfter(TimeSpan.FromMinutes(10));
+            toolCts.CancelAfter(ToolCallTimeout);
             string text;
             try { text = await ToolDispatcher.Instance.ExecuteAsync(name!, args, toolCts.Token, documentKey); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 throw new TimeoutException(
                     $"'{name}' did not finish within 10 minutes. Revit may be showing a modal dialog " +
-                    "вЂ” check the Revit window.");
+                    "— check the Revit window.");
             }
             // The only way anything from the plugin reaches the model: a client never asks whether
             // the user wanted something, so a pending request rides out on the result of whatever
@@ -501,12 +511,15 @@ public static class McpServer
         catch (Exception ex)
         {
             // MCP convention: tool failures are a normal result with isError=true, not a protocol error.
-            return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true), null);
+            // When the CLIENT cancelled this call, its response is discarded (202, no body), so a
+            // pending user supplement must stay in the inbox for the next result instead of being
+            // taken here and lost.
+            return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true, attachUserUpdate: !ct.IsCancellationRequested), null);
         }
         finally { channel?.RecordToolWait(toolWait.Elapsed); ToolDispatcher.PopSuppress(); }
     }
 
-    private static JsonObject ToolResult(string text, bool isError)
+    private static JsonObject ToolResult(string text, bool isError, bool attachUserUpdate = true)
     {
         if (isError)
         {
@@ -514,7 +527,7 @@ public static class McpServer
             catch(JsonException) { text=Services.ToolResult.Failure("tool_error",text); }
         }
         else text=Services.ToolResult.Complete(text);
-        if (ExecutingChannel?.TakeUserUpdate?.Invoke() is { } update)
+        if (attachUserUpdate && ExecutingChannel?.TakeUserUpdate?.Invoke() is { } update)
         {
             var value = JsonNode.Parse(text)!.AsObject();
             value["user_update"] = update;

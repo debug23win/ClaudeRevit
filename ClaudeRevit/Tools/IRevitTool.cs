@@ -17,7 +17,8 @@ public interface IRevitTool
     // default). Use for destructive or arbitrary-code operations.
     bool RequiresConfirmation => false;
 
-    // Legacy compatibility marker for script/custom tools. Execution is always enabled;
+    // Marks arbitrary-code tools (scripts, custom tools). They follow the code-execution setting
+    // (on by default, see ToolPolicy);
     // this marker exempts code tools from native group filters and confirmation settings.
     bool RequiresCodeExecutionOptIn => false;
 

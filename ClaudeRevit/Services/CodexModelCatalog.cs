@@ -20,8 +20,11 @@ public static class CodexModelCatalog
     // File metadata invalidates on CLI/config/account changes; credentials are never read here.
     public static async Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct, bool forceRefresh = false)
     {
-        var resolved = CodexBackend.ResolveExecutable(exe)
-            ?? throw new IOException("Codex CLI not found. Set its path in Settings → MCP.");
+        // The search walks PATH and several install folders, and this is awaited from the pane's
+        // UI thread — so it runs on the pool, and only once (DiscoverAsync used to repeat it).
+        var resolved = await Task.Run(() => CodexBackend.ResolveExecutable(exe), ct);
+        if (resolved == null || !CodexCli.LooksLikeCodexBinary(resolved))
+            throw new IOException("Codex CLI not found. Set its path in Settings → MCP.");
         var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
         if (string.IsNullOrWhiteSpace(codexHome)) codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
         static string Stamp(string path)
@@ -45,11 +48,8 @@ public static class CodexModelCatalog
     }
     // Discovery starts no model turn and consumes no inference tokens. Use the user's ordinary
     // Codex home/login. Keep it separate from the Revit MCP server and its bearer token.
-    private static async Task<IReadOnlyList<CodexModel>> DiscoverAsync(string exe, string workDir, CancellationToken ct)
+    private static async Task<IReadOnlyList<CodexModel>> DiscoverAsync(string resolved, string workDir, CancellationToken ct)
     {
-        var resolved = CodexBackend.ResolveExecutable(exe);
-        if (resolved == null || !CodexCli.LooksLikeCodexBinary(resolved))
-            throw new IOException("Codex CLI not found. Set its path in Settings → MCP.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         var token = timeout.Token;

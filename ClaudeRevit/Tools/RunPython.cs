@@ -156,7 +156,7 @@ public class RunPython : IRevitTool
                 traceback = traceback == null ? null : Trim(traceback, 4000),
                 document = doc?.Title,
                 note = traceback == null
-                    ? "Ran in-process (no Dynamo). Changes are in this turn's transaction — one Ctrl+Z."
+                    ? "Ran in-process (no Dynamo). Changes are in this call's transaction — one Ctrl+Z undoes this script."
                     : "The script raised. Model changes made before the error may have been applied — " +
                       "the traceback is reported verbatim rather than re-running the snippet."
             });

@@ -20,9 +20,11 @@ internal sealed class FamilyInspectionFailures : IDisposable
         _application = application;
         _existing = application.Documents.Cast<Document>().ToHashSet();
         _previous = _current; _current = this;
-        application.FailuresProcessing += OnFailures;
+        // No subscription of its own: App.OnFailuresProcessing, registered for the add-in's whole
+        // lifetime, calls Handle first on every event. Subscribing here as well processed each
+        // event twice — every warning recorded twice, and a second DeleteWarning on a message the
+        // first pass had already removed.
     }
-    private void OnFailures(object? sender, FailuresProcessingEventArgs e) => Handle(e);
     public static bool Handle(FailuresProcessingEventArgs e)
     {
         var scope = _current;
@@ -47,7 +49,6 @@ internal sealed class FamilyInspectionFailures : IDisposable
     }
     public void Dispose()
     {
-        _application.FailuresProcessing -= OnFailures;
         _current = _previous;
     }
 }

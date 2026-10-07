@@ -68,7 +68,7 @@ public class ChatService
         "DEFAULT escape hatch is execute_csharp: C# directly against the Revit API, no Dynamo dependency, " +
         "runs inside a managed transaction that rolls back automatically on error. Use run_dynamo_python " +
         "only when Python is specifically better — a proven Python snippet from get_script_journal, code " +
-        "adapted from the Dynamo community, or the user asked for Python. Code execution is always enabled; " +
+        "adapted from the Dynamo community, or the user asked for Python. Code tools are offered only while the user allows code execution; " +
         "there is no permission toggle. Prefer dedicated native tools for reliability and lower overhead. " +
         "UNITS: a parameter's NAME SUFFIX decides its unit, and it always wins over any general rule: " +
         "`_mm` is millimetres, `_m2`/`_m3` are square/cubic metres, `_deg` is degrees, `_ft` and any " +
@@ -610,6 +610,7 @@ public class ChatService
         var toolCount = 0;
         var runWatch = System.Diagnostics.Stopwatch.StartNew();
         var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
+        channel.RulesInSystemPrompt = true; // ClaudeCodeBackend passes McpServer.DrivingRules via --append-system-prompt
         channel.AttachmentScope = _attachmentScope;
         channel.TakeUserUpdate = () => _updates.Take()?.Prompt;
         channel.Progress = phase => OnStatus?.Invoke(phase);
@@ -924,7 +925,14 @@ public class ChatService
         var taskRounds = 0;
         var modelsUsed = new HashSet<string>(StringComparer.Ordinal);
 
-        await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct,documentKey);
+        try { await ToolDispatcher.Instance.BeginTurnAsync(turnLabel, ct,documentKey); }
+        catch
+        {
+            // The turn never started, so the user prompt must not stay in the history: it would
+            // be replayed (unanswered) in front of the next message.
+            _history.Remove(userTurn);
+            throw;
+        }
         try
         {
             for (int iter = 0; ; iter++)
@@ -1062,6 +1070,7 @@ public class ChatService
                 }
 
                 var resultTurn = new ApiTurn { Role = "user" };
+                var roundImages = new List<ChatBlock>();
                 // A successful save_tool/delete_tool changes the registered tool set; when it
                 // does we rebuild the tool list at the end of this round so a just-created
                 // tool is callable on the very next round of the SAME turn (not just the next
@@ -1154,7 +1163,7 @@ public class ChatService
 
                     // Confirmation gate for destructive / arbitrary-code tools — only when
                     // the user re-enabled it in settings (off by default: every turn is one
-                    // undo step; code execution is always enabled).
+                    // undo step; whether code may run at all is the separate code-execution setting).
                     if (SettingsStore.ConfirmOperations && tool?.RequiresConfirmation == true && !tool.RequiresCodeExecutionOptIn && ConfirmToolAsync != null)
                     {
                         var approved = await ConfirmToolAsync(name, FormatInput(inp));
@@ -1223,11 +1232,21 @@ public class ChatService
                     }
 
                     resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, content, isError));
-                    if(name is "export_image" or "read_attachment" && !isError)
+                    // Images go AFTER all of this round's tool results (collected, appended below),
+                    // only on the Anthropic path — a text-only alt model answers an image part with
+                    // a 400 — and only when small enough to ride along in every later request.
+                    if(!alt && name is "export_image" or "read_attachment" && !isError)
                     {
-                        using var imageResult=JsonDocument.Parse(content);
-                        if(imageResult.RootElement.TryGetProperty("image_id",out var imageId)&&ViewImageStore.Find(imageId.GetString()??"",documentKey,null) is { } image)
-                            resultTurn.Blocks.Add(new ChatImageBlock("image/png",image.Base64));
+                        try
+                        {
+                            using var imageResult=JsonDocument.Parse(content);
+                            if(imageResult.RootElement.TryGetProperty("image_id",out var imageId)&&ViewImageStore.Find(imageId.GetString()??"",documentKey,null) is { } image)
+                            {
+                                if(image.Base64.Length<=ChatBlockOrder.MaxInlineImageBase64) roundImages.Add(new ChatImageBlock("image/png",image.Base64));
+                                else roundImages.Add(new ChatTextBlock($"[Image from {name} not attached: {image.Base64.Length/1_000_000.0:0.0} MB base64 exceeds the inline limit. Re-export with a smaller pixel_size to inspect it.]"));
+                            }
+                        }
+                        catch (JsonException) { /* a non-JSON result simply has no image */ }
                     }
                     if (!isError && (name == "save_tool" || name == "delete_tool"))
                     {
@@ -1236,6 +1255,7 @@ public class ChatService
                     }
                 }
 
+                resultTurn.Blocks.AddRange(roundImages);
                 _history.Add(assistantTurn);
                 _history.Add(resultTurn);
 
@@ -1620,8 +1640,7 @@ public class ChatService
         // Script/custom tools are always available, including with legacy group settings.
         var disabledGroups = new HashSet<string>(SettingsStore.DisabledToolGroups, StringComparer.OrdinalIgnoreCase);
 
-        bool Ok(IRevitTool t) =>
-            (t.RequiresCodeExecutionOptIn || disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(t)));
+        bool Ok(IRevitTool t) => ToolPolicy.IsEnabled(t, disabledGroups);
 
         var all = ToolRegistry.Instance.All.Where(Ok).ToList();
 
@@ -1704,13 +1723,14 @@ public class ChatService
             var turn = _history[i];
             bool isLast = i == _history.Count - 1;
             var blocks = new List<BetaContentBlockParam>(turn.Blocks.Count + 1);
-            for (int j = 0; j < turn.Blocks.Count; j++)
+            var ordered = turn.Role == "user" ? ChatBlockOrder.ToolResultsFirst(turn.Blocks) : turn.Blocks;
+            for (int j = 0; j < ordered.Count; j++)
             {
-                if (turn.Blocks[j] is ChatOpenAIReasoningBlock) continue;
-                var cache = isLast && j == turn.Blocks.Count - 1
+                if (ordered[j] is ChatOpenAIReasoningBlock) continue;
+                var cache = isLast && j == ordered.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null;
-                blocks.Add(ToParam(turn.Blocks[j], cache));
+                blocks.Add(ToParam(ordered[j], cache));
             }
             if (isLast)
                 blocks.Add(new BetaTextBlockParam { Text = dynamicContext }); // trailing, uncached

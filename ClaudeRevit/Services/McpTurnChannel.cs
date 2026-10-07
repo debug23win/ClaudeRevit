@@ -22,6 +22,10 @@ public sealed class McpTurnChannel
     public Action<string>? Progress { get; set; }
     public string? AttachmentScope { get; set; }
     public Func<string?>? TakeUserUpdate { get; set; }
+    // Set when the CLI on this channel already received the driving rules in its system prompt
+    // (Claude Code's --append-system-prompt); the handshake then omits them instead of sending the
+    // same text a second time on every run.
+    public bool RulesInSystemPrompt { get; set; }
     private long _toolWaitTicks;
     private long _queueTicks, _executionTicks;
     public double ToolWaitSeconds => TimeSpan.FromTicks(Interlocked.Read(ref _toolWaitTicks)).TotalSeconds;

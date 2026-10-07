@@ -40,6 +40,8 @@ public static class ScriptJournal
     private static readonly Dictionary<string, int> Modified = new();
     private static readonly List<long> AddedIds = new();
     private static int _deleted;
+    private const int MaxResolved = 500, MaxIds = 200;
+    private static int _resolved;
 
     // Wired once at add-in startup: ControlledApplication.DocumentChanged fires after
     // every committed transaction, including the ones a Python script manages itself.
@@ -51,16 +53,18 @@ public static class ScriptJournal
         {
             var doc = e.GetDocument();
 
-            // Capture every category. The task journal also records final deltas after rollback.
+            // This runs inside the commit event on Revit's UI thread, and one script can create
+            // tens of thousands of elements: categories are resolved for a bounded prefix (the rest
+            // are counted, not looked up) and only a bounded number of ids is kept. Counts stay exact.
             foreach (var id in e.GetAddedElementIds())
             {
-                var cat=doc.GetElement(id)?.Category?.Name ?? "(no category)";
-                Added[cat]=Added.GetValueOrDefault(cat)+1;AddedIds.Add(id.Value);
+                var cat=_resolved++<MaxResolved ? doc.GetElement(id)?.Category?.Name ?? "(no category)" : "(not resolved)";
+                Added[cat]=Added.GetValueOrDefault(cat)+1;if(AddedIds.Count<MaxIds)AddedIds.Add(id.Value);
             }
             foreach (var id in e.GetModifiedElementIds())
             {
-                var cat=doc.GetElement(id)?.Category?.Name ?? "(no category)";
-                Modified[cat]=Modified.GetValueOrDefault(cat)+1;ModifiedIds.Add(id.Value);
+                var cat=_resolved++<MaxResolved ? doc.GetElement(id)?.Category?.Name ?? "(no category)" : "(not resolved)";
+                Modified[cat]=Modified.GetValueOrDefault(cat)+1;if(ModifiedIds.Count<MaxIds)ModifiedIds.Add(id.Value);
             }
             _deleted += e.GetDeletedElementIds().Count;
         }
@@ -81,6 +85,7 @@ public static class ScriptJournal
         Added.Clear();
         Modified.Clear();
         AddedIds.Clear();
+        _resolved = 0;
         _deleted = 0;
         _recording = true;
     }

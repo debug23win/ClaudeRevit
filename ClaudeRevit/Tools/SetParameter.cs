@@ -54,7 +54,9 @@ public class SetParameter : IRevitTool
 
         Parameter? param;
         string paramName;
-        if (input.TryGetValue("parameter_guid", out var guidValue))
+        // Models send explicit nulls / empty strings for the field they are not using.
+        if (input.TryGetValue("parameter_guid", out var guidValue) &&
+            guidValue.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(guidValue.GetString()))
         {
             if (!Guid.TryParse(guidValue.GetString(), out var guid) || guid == Guid.Empty)
                 throw new InvalidOperationException("parameter_guid is not a valid shared parameter GUID.");
@@ -144,41 +146,46 @@ public class SetParameter : IRevitTool
 
         var name = value.GetString() ?? "";
 
-        // Candidates whose Name matches, searched where ElementId params usually point:
-        // element types (rebar bar type, wall type, family type...), then materials, then levels.
-        // Reading .Name is a parameter lookup per element, so scanning every type in a large model
-        // is expensive — and run_batch pays it again for each item. Two bounds: stop at the first
-        // collector that yields anything (a type match makes materials and levels irrelevant), and
-        // stop after a handful of matches, since the loop below only needs candidates to try.
+        // Candidates whose Name matches, searched where ElementId params usually point: element
+        // types (rebar bar type, wall type, family type...), materials and levels. Reading .Name
+        // is a parameter lookup per element, so each group is scanned only until a candidate is
+        // actually ACCEPTED by the parameter — and a material parameter looks at materials first.
+        // (Stopping at the first group that merely had a name match was wrong: with a wall type
+        // and a material both called "Бетон", a material parameter never got to see the material.)
+        bool materialParam = false;
+        try { materialParam = param.Definition.GetDataType() == SpecTypeId.Reference.Material; } catch { }
+        var groups = materialParam
+            ? new Func<FilteredElementCollector>[] {
+                () => new FilteredElementCollector(doc).OfClass(typeof(Material)),
+                () => new FilteredElementCollector(doc).WhereElementIsElementType(),
+                () => new FilteredElementCollector(doc).OfClass(typeof(Level)) }
+            : new Func<FilteredElementCollector>[] {
+                () => new FilteredElementCollector(doc).WhereElementIsElementType(),
+                () => new FilteredElementCollector(doc).OfClass(typeof(Material)),
+                () => new FilteredElementCollector(doc).OfClass(typeof(Level)) };
+
+        const int MaxCandidatesPerGroup = 8;
         var candidates = new List<Element>();
-        const int MaxCandidates = 8;
-        bool AddNamed(FilteredElementCollector c)
+        foreach (var group in groups)
         {
-            foreach (var e in c)
+            var found = 0;
+            foreach (var e in group())
             {
                 string n;
                 try { n = e.Name; } catch { continue; }
                 if (n != name) continue;
                 candidates.Add(e);
-                if (candidates.Count >= MaxCandidates) break;
-            }
-            return candidates.Count > 0;
-        }
-        var _ = AddNamed(new FilteredElementCollector(doc).WhereElementIsElementType())
-             || AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Material)))
-             || AddNamed(new FilteredElementCollector(doc).OfClass(typeof(Level)));
-
-        foreach (var cand in candidates)
-        {
-            try
-            {
-                if (param.Set(cand.Id))
+                try
                 {
-                    detail = $"resolved name '{name}' to {cand.GetType().Name} id {cand.Id.Value}";
-                    return true;
+                    if (param.Set(e.Id))
+                    {
+                        detail = $"resolved name '{name}' to {e.GetType().Name} id {e.Id.Value}";
+                        return true;
+                    }
                 }
+                catch { /* wrong element for this parameter - try the next candidate */ }
+                if (++found >= MaxCandidatesPerGroup) break;
             }
-            catch { /* wrong element for this parameter - try the next candidate */ }
         }
 
         detail = candidates.Count == 0
