@@ -43,11 +43,23 @@ namespace ClaudeRevit.Tools
     public sealed class ToolRegistry
     {
         public static ToolRegistry Instance { get; } = new();
+        public int Version => 0;
         public IEnumerable<TestTool> All => CompactMcpTools.DirectNames.Select(n => new TestTool(n))
             .Concat(new[] { new TestTool("probe"), new TestTool("wait"), new TestTool("export_image"), new TestTool("execute_csharp", "Code", true) })
             .Concat(Enumerable.Range(0, 130).Select(i => new TestTool("rebar_tool_" + i, "Rebar")));
     }
     public static class ToolCatalog { public static string CategoryOf(TestTool tool) => tool.Category; }
+    // Mirrors ClaudeRevit/Tools/ToolPolicy.cs for the stub tool type.
+    public static class ToolPolicy
+    {
+        public static bool IsEnabled(TestTool tool, IReadOnlyCollection<string>? disabledGroups = null)
+        {
+            if (tool.RequiresCodeExecutionOptIn) return ClaudeRevit.Services.SettingsStore.AllowCodeExecution;
+            disabledGroups ??= ClaudeRevit.Services.SettingsStore.DisabledToolGroups;
+            return disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase);
+        }
+        public const string CodeDisabledMessage = "Code execution is turned off in Settings.";
+    }
     // Only the Revit dispatcher is replaced. HTTP parsing, session headers, schemas,
     // cancellation routing and turn binding use the real production server.
     public sealed class ToolDispatcher

@@ -384,20 +384,26 @@ public static class ClaudeCodeBackend
     }
 
     // Checked before every CLI run, so a confirmed sign-in is remembered for a while instead of
-    // paying a process start each message; an expired one still fails on the real run with the
-    // CLI's own message. A slow check is reported as such, not as a cancellation (which the pane
+    // paying a process start each message — keyed by AuthFingerprint, so switching the CLI to an
+    // API key is caught on the next message rather than billed. An expired session still fails on
+    // the real run with the CLI's own message. A slow check is reported as such, not as a cancellation (which the pane
     // shows as "Cancelled", as if the user had pressed Stop).
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> SignedIn = new(StringComparer.OrdinalIgnoreCase);
 
     private static async Task VerifySubscriptionAsync(string exe, string workDir, CancellationToken ct)
     {
-        if (SignedIn.TryGetValue(exe, out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(30)) return;
+        var home = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") is { Length: > 0 } dir ? dir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+        var key = AuthFingerprint.For(exe, Path.Combine(home, ".credentials.json"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json"));
+        if (SignedIn.TryGetValue(key, out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(30)) return;
         try { await VerifySubscriptionCoreAsync(exe, workDir, ct); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new InvalidOperationException("'claude auth status' did not answer within 15 seconds. Check that Claude Code starts in a terminal, then retry.");
         }
-        SignedIn[exe] = DateTime.UtcNow;
+        catch { SignedIn.TryRemove(key, out _); throw; }
+        SignedIn[key] = DateTime.UtcNow;
     }
 
     private static async Task VerifySubscriptionCoreAsync(string exe, string workDir, CancellationToken ct)
