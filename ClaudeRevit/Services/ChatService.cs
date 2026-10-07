@@ -994,7 +994,9 @@ public class ChatService
                     break;
                 }
 
-                TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn, turn);
+                TrackUsage(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : turn.ServedModelTag ?? claudeModelForTurn, turn);
+                if (turn.FallbackNote is { } fallbackNote)
+                    await ui.InvokeAsync(() => conversation.Add(new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = fallbackNote }));
 
                 // Advisor sub-inference: bill each consult at the advisor model's own rate, and
                 // count consults so the per-turn backstop can retire the advisor tool once hit.
@@ -1017,7 +1019,7 @@ public class ChatService
                     taskInTok += au.InputTokens + au.CacheReadTokens + au.CacheCreationTokens;
                     taskOutTok += au.OutputTokens;
                 }
-                modelsUsed.Add(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : claudeModelForTurn);
+                modelsUsed.Add(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : turn.ServedModelTag ?? claudeModelForTurn);
 
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
@@ -1455,6 +1457,17 @@ public class ChatService
     // advisor-tool beta header — enabled only when the tool list actually carries the advisor.
     private const string AdvisorBeta = "advisor-tool-2026-03-01";
     private const string CompactionBeta = "compact-2026-01-12";
+    private const string ServerFallbackBeta = "server-side-fallback-2026-07-01";
+
+    // Models whose safety classifier can decline a request (stop_reason "refusal"). For them the
+    // API can answer a declined request on Anthropic's recommended fallback model instead
+    // (fallbacks: "default"), so the user gets an answer rather than a dead end.
+    internal static bool SupportsServerFallback(string model) => model is "fable-5" or "fable-5-1" or "opus-5";
+
+    // Set when the API rejected `fallbacks` for this session (a request feature the routed
+    // fallback model lacks is refused up front); from then on requests go without it.
+    private static volatile bool _serverFallbackRejected;
+    private static bool UseServerFallback(string model) => SettingsStore.ServerFallback && !_serverFallbackRejected && SupportsServerFallback(model);
 
     // Claude Fable 5.1 keeps its thinking across turns ("preserved thinking"), and any edit to an
     // earlier turn invalidates it: for accounts created from 31 August 2026 the API answers an
@@ -1464,11 +1477,12 @@ public class ChatService
     // not count as an edit) keeps the context bounded instead.
     internal static bool AppendOnlyHistory(string model) => model is "fable-5-1";
 
-    private static List<ApiEnum<string, AnthropicBeta>>? BetasFor(string model, bool advisor)
+    private static List<ApiEnum<string, AnthropicBeta>>? BetasFor(string model, bool advisor, bool fallback = false)
     {
         var betas = new List<ApiEnum<string, AnthropicBeta>>();
         if (advisor) betas.Add(AdvisorBeta);
         if (AppendOnlyHistory(model)) betas.Add(CompactionBeta);
+        if (fallback) betas.Add(ServerFallbackBeta);
         return betas.Count > 0 ? betas : null;
     }
 
@@ -1485,12 +1499,13 @@ public class ChatService
         var client = GetClient();
         var effort = EffortFor(model);
         var thinking = ThinkingFor(model);
-        var parameters = new MessageCreateParams
+        var messages = BuildApiMessages(dynamicContext);
+        MessageCreateParams Build(bool fallback) => new()
         {
             Model = ResolveModel(model),
             MaxTokens = MaxOutputTokens,
             Thinking = thinking,
-            Messages = BuildApiMessages(dynamicContext),
+            Messages = messages,
             System = systemBlocks,
             Tools = toolDefs,
             OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null,
@@ -1498,40 +1513,88 @@ public class ChatService
             ContextManagement = AppendOnlyHistory(model)
                 ? new BetaContextManagementConfig { Edits = [new BetaCompact20260112Edit()] }
                 : null,
-            Betas = BetasFor(model, useAdvisorBeta)
+            Fallbacks = fallback ? new Default() : null,
+            Betas = BetasFor(model, useAdvisorBeta, fallback)
         };
 
         var aggregator = new BetaMessageContentAggregator();
-        var stream = client.Beta.Messages.CreateStreaming(parameters, ct);
-
         ChatMessage? assistantBubble = null;
 
-        await foreach (var ev in stream.CollectAsync(aggregator).WithCancellation(ct))
+        async Task Run(MessageCreateParams parameters)
         {
-            if (ev.TryPickContentBlockDelta(out var bd) &&
-                bd.Delta.TryPickText(out var td) &&
-                !string.IsNullOrEmpty(td.Text))
+            var stream = client.Beta.Messages.CreateStreaming(parameters, ct);
+            await foreach (var ev in stream.CollectAsync(aggregator).WithCancellation(ct))
             {
-                if (assistantBubble == null)
+                if (ev.TryPickContentBlockDelta(out var bd) &&
+                    bd.Delta.TryPickText(out var td) &&
+                    !string.IsNullOrEmpty(td.Text))
                 {
-                    var bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" };
-                    assistantBubble = bubble;
-                    await ui.InvokeAsync(() => conversation.Add(bubble));
+                    if (assistantBubble == null)
+                    {
+                        var bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" };
+                        assistantBubble = bubble;
+                        await ui.InvokeAsync(() => conversation.Add(bubble));
+                    }
+                    var append = td.Text;
+                    var existing = assistantBubble;
+                    await ui.InvokeAsync(() => existing.Text += append);
                 }
-                var append = td.Text;
-                var existing = assistantBubble;
-                await ui.InvokeAsync(() => existing.Text += append);
             }
         }
 
-        return ToBackendTurn(aggregator.Message());
+        var fallback = UseServerFallback(model);
+        try
+        {
+            await Run(Build(fallback));
+        }
+        catch (Exception ex) when (fallback && assistantBubble == null && !ct.IsCancellationRequested &&
+                                   ex.Message.Contains("fallback", StringComparison.OrdinalIgnoreCase))
+        {
+            // The API refuses `fallbacks` up front when a fallback model could not serve this
+            // request as sent. Answer this turn without it and stop asking for the session.
+            _serverFallbackRejected = true;
+            Log.Info("Server-side fallback rejected; continuing without it: " + Truncate(ex.Message, 300));
+            aggregator = new BetaMessageContentAggregator();
+            await Run(Build(false));
+        }
+
+        BetaMessage message;
+        try { message = aggregator.Message(); }
+        catch (JsonException ex)
+        {
+            // Eagerly streamed tool input is not validated by the server; a reply cut off inside
+            // one (max_tokens) leaves JSON that cannot be read back.
+            throw new InvalidOperationException("The reply ended inside a tool call's input (likely the output limit); the call was not run.", ex);
+        }
+        return ToBackendTurn(message);
     }
 
     private static BackendTurn ToBackendTurn(BetaMessage message)
     {
         var turn = new BackendTurn();
-        foreach (var block in message.Content)
+        // After a server-side fallback the content can hold the declined model's blocks before the
+        // last `fallback` marker. Its thinking and client tool calls are dropped (the API rejects
+        // them on replay, and the calls belong to an answer that was abandoned); everything after
+        // the marker, the text, and the marker itself are kept in place.
+        var content = message.Content;
+        var lastFallback = -1;
+        for (int i = 0; i < content.Count; i++)
+            if (content[i].TryPickFallback(out _)) lastFallback = i;
+        for (int i = 0; i < content.Count; i++)
         {
+            var block = content[i];
+            if (block.TryPickFallback(out var fb))
+            {
+                turn.Blocks.Add(new ChatFallbackBlock(JsonSerializer.Serialize(fb)));
+                string? category = null;
+                try { category = fb.Trigger?.Category.Raw(); } catch { }
+                turn.FallbackNote = $"[Answered by {fb.To.Model.Raw()}: {fb.From.Model.Raw()} declined this request" +
+                                    (string.IsNullOrEmpty(category) ? "" : $" (classifier category: {category})") +
+                                    ". Server-side fallback can be switched off in Settings.]";
+                continue;
+            }
+            if (i < lastFallback && (block.TryPickThinking(out _) || block.TryPickRedactedThinking(out _) || block.TryPickToolUse(out _)))
+                continue;
             if (block.TryPickText(out var t))
                 turn.Blocks.Add(new ChatTextBlock(t.Text));
             else if (block.TryPickThinking(out var th))
@@ -1559,12 +1622,26 @@ public class ChatService
             // the advisor model — capture them so the caller bills each at that model's rate.
             try
             {
-                foreach (var iter in u.Iterations ?? Enumerable.Empty<BetaIterationsUsageItems>())
-                    if (iter.TryPickAdvisorMessageIterationUsage(out var adv))
+                var iterations = u.Iterations ?? [];
+                // A fallback_message iteration means another model served the turn: the top-level
+                // usage is that model's, and the requested model's declined attempt is its own
+                // "message" iteration (billed only for some refusal categories, so this is an
+                // upper bound).
+                var fellBack = iterations.Any(it => it.TryPickBetaFallbackMessageIterationUsage(out _));
+                foreach (var iter in iterations)
+                {
+                    if (iter.TryPickBetaAdvisorMessageIterationUsage(out var adv))
                         turn.AdvisorUsages.Add(new AdvisorUsage(
-                            TagFromModel(adv.Model.ToString() ?? ""),
+                            TagFromModel(adv.Model.Raw() ?? ""),
                             adv.InputTokens, adv.OutputTokens,
                             adv.CacheCreationInputTokens, adv.CacheReadInputTokens));
+                    else if (fellBack && iter.TryPickBetaMessageIterationUsage(out var declined))
+                        turn.AdvisorUsages.Add(new AdvisorUsage(
+                            TagFromModel(declined.Model.Raw() ?? ""),
+                            declined.InputTokens, declined.OutputTokens,
+                            declined.CacheCreationInputTokens, declined.CacheReadInputTokens));
+                }
+                if (fellBack || turn.FallbackNote != null) turn.ServedModelTag = TagFromModel(message.Model.Raw() ?? "");
             }
             catch { /* usage iterations are best-effort */ }
         }
@@ -1773,6 +1850,7 @@ public class ChatService
         ChatThinkingBlock th => new BetaThinkingBlockParam { Thinking = th.Thinking, Signature = th.Signature },
         ChatRedactedThinkingBlock rt => new BetaRedactedThinkingBlockParam { Data = rt.Data },
         ChatCompactionBlock cb => new BetaCompactionBlockParam { Content = cb.Content, EncryptedContent = cb.EncryptedContent, CacheControl = cache },
+        ChatFallbackBlock fb => JsonSerializer.Deserialize<BetaFallbackBlockParam>(fb.Json)!,
         ChatToolUseBlock tu => new BetaToolUseBlockParam
         {
             ID = tu.Id,
@@ -1933,6 +2011,17 @@ public class ChatService
         catch { /* non-fatal */ }
     }
 
+    // Tools whose input is one long blob of code. Eager input streaming sends their input as it is
+    // generated instead of buffering it for validation, so a multi-kilobyte script doesn't stall
+    // the stream for tens of seconds; their input is parsed and checked on our side anyway.
+    // (Strict tool schemas are deliberately not used: they need additionalProperties:false and
+    // every field required, which the ~280 optional-heavy schemas here don't follow, and the
+    // tools already validate input themselves with typed errors — see ToolInput.)
+    private static readonly HashSet<string> EagerInputTools = new(StringComparer.Ordinal)
+    {
+        "execute_csharp", "validate_csharp", "run_dynamo_python", "run_python", "save_tool", "run_batch"
+    };
+
     private static List<BetaToolUnion> BuildToolDefs(List<IRevitTool> allTools)
     {
         var toolDefs = new List<BetaTool>(allTools.Count);
@@ -1944,6 +2033,7 @@ public class ChatService
                 Name = t.Name,
                 Description = t.Description,
                 InputSchema = t.InputSchema,
+                EagerInputStreaming = EagerInputTools.Contains(t.Name) ? true : null,
                 CacheControl = i == allTools.Count - 1
                     ? new BetaCacheControlEphemeral { Ttl = Ttl.Ttl1h }
                     : null

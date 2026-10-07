@@ -31,6 +31,14 @@ public static class SettingsStore
         set { Current.CodeExecutionDisabled = !value; Save(); }
     }
 
+    // Server-side refusal fallback (Fable 5 / 5.1, Opus 5): on by default, stored as a "disabled"
+    // flag so existing settings files get the default.
+    public static bool ServerFallback
+    {
+        get => !Current.ServerFallbackDisabled;
+        set { Current.ServerFallbackDisabled = !value; Save(); }
+    }
+
     // Optional confirmations apply to destructive native operations, not script permission.
     public static bool ConfirmOperations
     {
@@ -321,6 +329,7 @@ public static class SettingsStore
     {
         public bool ConfirmOperations { get; set; } = false;
         public bool CodeExecutionDisabled { get; set; } = false;
+        public bool ServerFallbackDisabled { get; set; } = false;
         public string AltProvider { get; set; } = "";
         public string AltBaseUrl { get; set; } = "";
         public string AltModel { get; set; } = "";
