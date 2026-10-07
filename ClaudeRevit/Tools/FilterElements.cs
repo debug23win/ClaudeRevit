@@ -102,7 +102,7 @@ public class FilterElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var category = input["category"].GetString()
+        var category = ToolInput.RequiredText(input, "category")
             ?? throw new InvalidOperationException("category is required.");
         var bic = CategoryResolve.Parse(category);
 

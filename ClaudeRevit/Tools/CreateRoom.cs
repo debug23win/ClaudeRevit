@@ -37,9 +37,9 @@ public class CreateRoom : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
-        var levelName = input["level_name"].GetString()!;
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)

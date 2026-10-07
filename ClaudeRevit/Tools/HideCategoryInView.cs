@@ -44,7 +44,7 @@ public class HideCategoryInView : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var category = input["category"].GetString()!;
+        var category = ToolInput.RequiredText(input, "category")!;
         var bic = CategoryResolve.Parse(category);
 
         var catId = new ElementId(bic);

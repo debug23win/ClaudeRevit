@@ -62,7 +62,7 @@ public class QueryLinkedElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var bic = CategoryResolve.Parse(input["category"].GetString());
+        var bic = CategoryResolve.Parse(ToolInput.RequiredText(input, "category"));
         var limit = input.TryGetValue("limit", out var l) ? Math.Clamp(l.GetInt32(), 1, 1000) : 100;
         var wantParams = input.TryGetValue("include_parameters", out var ip) && ip.ValueKind == JsonValueKind.Array
             ? ip.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList()

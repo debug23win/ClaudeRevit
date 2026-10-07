@@ -50,7 +50,7 @@ public class SetElementMaterial : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var materialId = new ElementId(input["material_id"].GetInt64());
+        var materialId = new ElementId(ToolInput.RequiredLong(input, "material_id"));
         var material = doc.GetElement(materialId) as Material
             ?? throw new InvalidOperationException($"Element {materialId.Value} is not a Material.");
 
@@ -58,7 +58,7 @@ public class SetElementMaterial : IRevitTool
             ? p.GetString()!
             : null;
 
-        var elementIds = input["element_ids"].EnumerateArray()
+        var elementIds = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var updated = new List<long>();

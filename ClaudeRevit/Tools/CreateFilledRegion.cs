@@ -49,7 +49,7 @@ public class CreateFilledRegion : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var pts = input["points"].EnumerateArray()
+        var pts = ToolInput.RequiredArray(input, "points").EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), 0))
             .ToList();
         if (pts.Count < 3)

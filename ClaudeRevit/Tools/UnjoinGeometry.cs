@@ -31,9 +31,9 @@ public class UnjoinGeometry : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var a = doc.GetElement(new ElementId(input["element_a_id"].GetInt64()))
+        var a = doc.GetElement(new ElementId(ToolInput.RequiredLong(input, "element_a_id")))
             ?? throw new InvalidOperationException("element_a_id not found.");
-        var b = doc.GetElement(new ElementId(input["element_b_id"].GetInt64()))
+        var b = doc.GetElement(new ElementId(ToolInput.RequiredLong(input, "element_b_id")))
             ?? throw new InvalidOperationException("element_b_id not found.");
 
         if (!JoinGeometryUtils.AreElementsJoined(doc, a, b))

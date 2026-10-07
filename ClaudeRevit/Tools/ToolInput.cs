@@ -42,7 +42,8 @@ internal static class ToolInput
         if (!input.TryGetValue(name, out var v) || v.ValueKind == JsonValueKind.Null)
             throw new ToolInputException($"Missing required parameter '{name}' (an integer).");
         if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)) return n;
-        if (v.ValueKind == JsonValueKind.Number) return (int)System.Math.Round(v.GetDouble());
+        // 3.0 is an integer; 2.5 is not, and silently rounding a count or an index is a bug.
+        if (v.ValueKind == JsonValueKind.Number && IsWhole(v.GetDouble(), out var whole) && whole is >= int.MinValue and <= int.MaxValue) return (int)whole;
         if (v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out var parsed))
             return parsed;
         throw new ToolInputException(
@@ -52,12 +53,13 @@ internal static class ToolInput
     public static long RequiredLong(IReadOnlyDictionary<string, JsonElement> input, string name)
     {
         if (!input.TryGetValue(name, out var v) || v.ValueKind == JsonValueKind.Null)
-            throw new ToolInputException($"Missing required parameter '{name}' (an element id).");
+            throw new ToolInputException($"Missing required parameter '{name}' (an integer, usually an element id).");
         if (v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var n)) return n;
+        if (v.ValueKind == JsonValueKind.Number && IsWhole(v.GetDouble(), out var whole)) return (long)whole;
         if (v.ValueKind == JsonValueKind.String && long.TryParse(v.GetString(), out var parsed))
             return parsed;
         throw new ToolInputException(
-            $"Parameter '{name}' must be an element id (a number), got {Describe(v)}.");
+            $"Parameter '{name}' must be an integer (usually an element id), got {Describe(v)}.");
     }
 
     public static string RequiredString(IReadOnlyDictionary<string, JsonElement> input, string name)
@@ -73,6 +75,36 @@ internal static class ToolInput
         throw new ToolInputException($"Parameter '{name}' must be a string, got {Describe(v)}.");
     }
 
+    // The element itself, for callers that inspect it further (raw text, kind). Missing is an
+    // error naming the parameter instead of a bare KeyNotFoundException.
+    public static JsonElement Required(IReadOnlyDictionary<string, JsonElement> input, string name) =>
+        input.TryGetValue(name, out var v)
+            ? v
+            : throw new ToolInputException($"Missing required parameter '{name}'.");
+
+    // Drop-in for input[name].GetString(): same result for a string and for JSON null (null), so
+    // call sites that treat null as "not given" keep working — but a missing key or a number/array
+    // in its place is reported by name instead of as "requires an element of type 'String'".
+    public static string? RequiredText(IReadOnlyDictionary<string, JsonElement> input, string name)
+    {
+        var v = Required(input, name);
+        return v.ValueKind switch
+        {
+            JsonValueKind.String => v.GetString(),
+            JsonValueKind.Null => null,
+            _ => throw new ToolInputException($"Parameter '{name}' must be a string, got {Describe(v)}.")
+        };
+    }
+
+    // Drop-in for input[name] before .EnumerateArray(). A single value where a list is expected is
+    // a common model slip; it is named rather than failing as "requires an element of type 'Array'".
+    public static JsonElement RequiredArray(IReadOnlyDictionary<string, JsonElement> input, string name)
+    {
+        var v = Required(input, name);
+        if (v.ValueKind == JsonValueKind.Array) return v;
+        throw new ToolInputException($"Parameter '{name}' must be an array, got {Describe(v)}.");
+    }
+
     private static string Describe(JsonElement v) => v.ValueKind switch
     {
         JsonValueKind.String => $"the string \"{Trim(v.GetString())}\"",
@@ -82,6 +114,12 @@ internal static class ToolInput
         JsonValueKind.Number => "a number",
         _ => v.ValueKind.ToString().ToLowerInvariant()
     };
+
+    private static bool IsWhole(double d, out double whole)
+    {
+        whole = System.Math.Round(d);
+        return double.IsFinite(d) && System.Math.Abs(d - whole) < 1e-9 && System.Math.Abs(whole) < 9e15;
+    }
 
     private static string Trim(string? s) =>
         s == null ? "" : s.Length <= 40 ? s : s.Substring(0, 40) + "…";

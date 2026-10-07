@@ -41,7 +41,7 @@ public class PlaceSymbol : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var typeId = new ElementId(input["symbol_type_id"].GetInt64());
+        var typeId = new ElementId(ToolInput.RequiredLong(input, "symbol_type_id"));
         var symbol = doc.GetElement(typeId) as FamilySymbol
             ?? throw new InvalidOperationException($"Element {typeId.Value} is not a FamilySymbol.");
 
@@ -51,8 +51,8 @@ public class PlaceSymbol : IRevitTool
         // regenerations of a model that had nothing new to activate after the first.
         if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
         var instance = doc.Create.NewFamilyInstance(new XYZ(x, y, 0), symbol, view);
 
         return Services.Json.Serialize(new

@@ -40,7 +40,7 @@ public class DeleteElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var arr = input["element_ids"];
+        var arr = ToolInput.Required(input, "element_ids");
         if (arr.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("'element_ids' must be an array of integers.");
 

@@ -37,7 +37,7 @@ public class UngroupElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["group_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "group_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var results = new List<object>();

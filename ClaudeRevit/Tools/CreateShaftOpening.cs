@@ -48,8 +48,8 @@ public class CreateShaftOpening : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var bottomName = input["bottom_level_name"].GetString()!;
-        var topName = input["top_level_name"].GetString()!;
+        var bottomName = ToolInput.RequiredText(input, "bottom_level_name")!;
+        var topName = ToolInput.RequiredText(input, "top_level_name")!;
 
         var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().ToList();
         var bottom = levels.FirstOrDefault(l => l.Name == bottomName)
@@ -61,7 +61,7 @@ public class CreateShaftOpening : IRevitTool
             throw new InvalidOperationException(
                 $"Top level '{topName}' ({top.Elevation}) must be above bottom level '{bottomName}' ({bottom.Elevation}).");
 
-        var pts = input["points"].EnumerateArray()
+        var pts = ToolInput.RequiredArray(input, "points").EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), 0))
             .ToList();
         if (pts.Count < 3)

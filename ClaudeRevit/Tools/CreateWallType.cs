@@ -63,7 +63,7 @@ public class CreateWallType : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString();
+        var name = ToolInput.RequiredText(input, "name");
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("name is empty.");
 

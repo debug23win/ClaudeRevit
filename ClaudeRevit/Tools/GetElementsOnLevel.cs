@@ -33,7 +33,7 @@ public class GetElementsOnLevel : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var levelId = new ElementId(input["level_id"].GetInt64());
+        var levelId = new ElementId(ToolInput.RequiredLong(input, "level_id"));
         var level = doc.GetElement(levelId) as Level
             ?? throw new InvalidOperationException($"Element {levelId.Value} is not a Level.");
 

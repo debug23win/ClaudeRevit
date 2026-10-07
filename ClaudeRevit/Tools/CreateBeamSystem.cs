@@ -27,7 +27,7 @@ public sealed class CreateBeamSystem : IRevitTool
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = NativeToolUtil.Doc(app);
-        var points = input["boundary_mm"].EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToList();
+        var points = ToolInput.RequiredArray(input, "boundary_mm").EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToList();
         if (points.Count is < 3 or > 200) throw new ToolInputException("Boundary requires 3..200 vertices.");
         var curves = points.Select((p, i) => (Curve)Line.CreateBound(p, points[(i + 1) % points.Count])).ToList();
         var level = NativeToolUtil.Element(doc, ToolInput.RequiredLong(input, "level_id")) as Level ?? throw new ToolInputException("level_id must be a Level.");

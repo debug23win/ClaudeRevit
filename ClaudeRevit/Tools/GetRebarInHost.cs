@@ -34,7 +34,7 @@ public class GetRebarInHost : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
+        var host = doc.GetElement(new ElementId(ToolInput.RequiredLong(input, "host_id")))
             ?? throw new InvalidOperationException("Host element not found.");
 
         var hostData = RebarHostData.GetRebarHostData(host);

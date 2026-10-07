@@ -54,8 +54,8 @@ public class ReloadFamilyIntoDocument : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var srcSub = input["source_title_contains"].GetString();
-        var tgtSub = input["target_title_contains"].GetString();
+        var srcSub = ToolInput.RequiredText(input, "source_title_contains");
+        var tgtSub = ToolInput.RequiredText(input, "target_title_contains");
         if (string.IsNullOrWhiteSpace(srcSub) || string.IsNullOrWhiteSpace(tgtSub))
             throw new InvalidOperationException("Both source_title_contains and target_title_contains are required.");
 

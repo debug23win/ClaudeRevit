@@ -33,7 +33,7 @@ public class ExportScheduleCsv : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var id = new ElementId(input["schedule_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "schedule_id"));
         var schedule = doc.GetElement(id) as ViewSchedule
             ?? throw new InvalidOperationException($"Element {id.Value} is not a ViewSchedule.");
 

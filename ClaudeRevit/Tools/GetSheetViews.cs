@@ -32,7 +32,7 @@ public class GetSheetViews : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sheetId = new ElementId(input["sheet_id"].GetInt64());
+        var sheetId = new ElementId(ToolInput.RequiredLong(input, "sheet_id"));
         var sheet = doc.GetElement(sheetId) as ViewSheet
             ?? throw new InvalidOperationException($"Element {sheetId.Value} is not a ViewSheet.");
 

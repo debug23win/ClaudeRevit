@@ -41,13 +41,13 @@ public class RotateElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["element_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64()))
             .ToList();
 
-        var px = input["pivot_x"].GetDouble();
-        var py = input["pivot_y"].GetDouble();
-        var deg = input["angle_deg"].GetDouble();
+        var px = ToolInput.RequiredDouble(input, "pivot_x");
+        var py = ToolInput.RequiredDouble(input, "pivot_y");
+        var deg = ToolInput.RequiredDouble(input, "angle_deg");
         var rad = deg * Math.PI / 180.0;
 
         var axis = Line.CreateBound(new XYZ(px, py, 0), new XYZ(px, py, 1));

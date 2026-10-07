@@ -52,7 +52,7 @@ public sealed class CreateFamilyForm : IRevitTool
             {
                 Line.CreateBound(RectPoint(0,0),RectPoint(width,0)), Line.CreateBound(RectPoint(width,0),RectPoint(width,height)),
                 Line.CreateBound(RectPoint(width,height),RectPoint(0,height)), Line.CreateBound(RectPoint(0,height),RectPoint(0,0))
-            } : NativeCurveInput.Read(input["profile_mm"], true);
+            } : NativeCurveInput.Read(ToolInput.Required(input, "profile_mm"), true);
             var depth = ToolInput.OptionalDouble(input, "depth_mm") / Units.MmPerFoot;
             GenericForm form;
             if (kind is "extrusion" or "blend" or "revolution") NativeCurveInput.InPlane(profile, plane);
@@ -63,7 +63,7 @@ public sealed class CreateFamilyForm : IRevitTool
                     form = factory.NewExtrusion(solid, NativeCurveInput.Loops(profile), sketchPlane, depth.Value); break;
                 case "blend":
                     if (depth is null or <= 0) throw new ToolInputException("Positive depth_mm required.");
-                    var top = NativeCurveInput.Read(input["top_profile_mm"], true); NativeCurveInput.InPlane(top, plane);
+                    var top = NativeCurveInput.Read(ToolInput.Required(input, "top_profile_mm"), true); NativeCurveInput.InPlane(top, plane);
                     var blend = factory.NewBlend(solid, NativeCurveInput.Array(top), NativeCurveInput.Array(profile), sketchPlane);
                     blend.get_Parameter(BuiltInParameter.BLEND_END_PARAM).Set(depth.Value); form = blend; break;
                 case "sweep":
@@ -71,14 +71,14 @@ public sealed class CreateFamilyForm : IRevitTool
                 {
                     using var localPlane = Autodesk.Revit.DB.Plane.CreateByNormalAndOrigin(XYZ.BasisZ, XYZ.Zero);
                     NativeCurveInput.InPlane(profile, localPlane);
-                    var path = NativeCurveInput.Read(input["path_mm"], false); NativeCurveInput.InPlane(path, plane);
+                    var path = NativeCurveInput.Read(ToolInput.Required(input, "path_mm"), false); NativeCurveInput.InPlane(path, plane);
                     using (var bottomProfile = app.Application.Create.NewCurveLoopsProfile(NativeCurveInput.Loops(profile)))
                     {
                         if (kind == "sweep") form = factory.NewSweep(solid, NativeCurveInput.Array(path), sketchPlane, bottomProfile, 0, ProfilePlaneLocation.Start);
                         else
                         {
                             if (path.Count != 1) throw new ToolInputException("swept_blend requires exactly one path line or arc.");
-                            var topCurves = NativeCurveInput.Read(input["top_profile_mm"], true);
+                            var topCurves = NativeCurveInput.Read(ToolInput.Required(input, "top_profile_mm"), true);
                             NativeCurveInput.InPlane(topCurves, localPlane);
                             using var topProfile = app.Application.Create.NewCurveLoopsProfile(NativeCurveInput.Loops(topCurves));
                             form = factory.NewSweptBlend(solid, path[0], sketchPlane, bottomProfile, topProfile);
@@ -87,7 +87,7 @@ public sealed class CreateFamilyForm : IRevitTool
                     break;
                 }
                 case "revolution":
-                    var axis = input["axis_mm"].EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
+                    var axis = ToolInput.RequiredArray(input, "axis_mm").EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
                     if (axis.Length != 2) throw new ToolInputException("axis_mm requires two points.");
                     var axisLine = Line.CreateBound(axis[0], axis[1]); NativeCurveInput.InPlane([axisLine], plane);
                     form = factory.NewRevolution(solid, NativeCurveInput.Loops(profile), sketchPlane, axisLine,

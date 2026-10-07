@@ -21,7 +21,7 @@ public sealed class CombineFamilyForms : IRevitTool
     {
         var doc = NativeToolUtil.Doc(app);
         if (!doc.IsFamilyDocument || doc.OwnerFamily.FamilyCategory?.Id.Value == (long)BuiltInCategory.OST_Mass) throw new ToolInputException("Open an ordinary editable family document.");
-        var ids = NativeToolUtil.Ids(input["element_ids"], 100);
+        var ids = NativeToolUtil.Ids(ToolInput.Required(input, "element_ids"), 100);
         if (ids.Count < 2) throw new ToolInputException("At least two native forms are required.");
         var preview = NativeToolUtil.Preview(input);
         var (result, warnings) = NativeToolUtil.Commit(doc, "Claude: combine family forms", preview, () =>

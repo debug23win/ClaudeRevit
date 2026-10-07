@@ -35,8 +35,8 @@ public class CreateDetailLine : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var start = new XYZ(input["start_x"].GetDouble(), input["start_y"].GetDouble(), 0);
-        var end = new XYZ(input["end_x"].GetDouble(), input["end_y"].GetDouble(), 0);
+        var start = new XYZ(ToolInput.RequiredDouble(input, "start_x"), ToolInput.RequiredDouble(input, "start_y"), 0);
+        var end = new XYZ(ToolInput.RequiredDouble(input, "end_x"), ToolInput.RequiredDouble(input, "end_y"), 0);
         if (start.IsAlmostEqualTo(end))
             throw new InvalidOperationException("Detail line has zero length.");
 

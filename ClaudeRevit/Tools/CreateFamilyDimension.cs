@@ -88,8 +88,8 @@ public class CreateFamilyDimension : IRevitTool
         var view = doc.ActiveView
             ?? throw new InvalidOperationException("No active view.");
 
-        var (ref1, pos1) = ResolveAnchor(doc, input["anchor1"], "anchor1");
-        var (ref2, pos2) = ResolveAnchor(doc, input["anchor2"], "anchor2");
+        var (ref1, pos1) = ResolveAnchor(doc, ToolInput.Required(input, "anchor1"), "anchor1");
+        var (ref2, pos2) = ResolveAnchor(doc, ToolInput.Required(input, "anchor2"), "anchor2");
 
         var offset = ReadOffset(input);
         var start = pos1.Add(offset);

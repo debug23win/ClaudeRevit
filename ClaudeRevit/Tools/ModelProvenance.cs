@@ -43,10 +43,10 @@ public sealed class SetModelProvenance : IRevitTool
     public bool RequiresTransaction => true;
     public InputSchema InputSchema => NativeToolUtil.Schema(new() { ["element_ids"]=NativeToolUtil.Array("integer","Target IDs."),["metadata"]=NativeToolUtil.Any("Provenance JSON object, max 32,000 characters.") },"element_ids","metadata");
     public void Preflight(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
-    { if (input["metadata"].ValueKind!=JsonValueKind.Object || input["metadata"].GetRawText().Length>32_000) throw new ToolInputException("metadata must be an object <=32,000 characters."); }
+    { if (ToolInput.Required(input, "metadata").ValueKind!=JsonValueKind.Object || ToolInput.Required(input, "metadata").GetRawText().Length>32_000) throw new ToolInputException("metadata must be an object <=32,000 characters."); }
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        Preflight(input,app); var doc=NativeToolUtil.Doc(app); var ids=NativeToolUtil.Ids(input["element_ids"]);
+        Preflight(input,app); var doc=NativeToolUtil.Doc(app); var ids=NativeToolUtil.Ids(ToolInput.Required(input, "element_ids"));
         foreach (var id in ids)
         {
             ToolContext.ThrowIfCancelled();var element=NativeToolUtil.Element(doc,id.Value);
@@ -54,10 +54,10 @@ public sealed class SetModelProvenance : IRevitTool
             if(existing is { } saved && saved.TryGetProperty("generator",out _))
             {
                 var merged=System.Text.Json.Nodes.JsonNode.Parse(saved.GetRawText())!.AsObject();
-                merged["provenance"]=System.Text.Json.Nodes.JsonNode.Parse(input["metadata"].GetRawText());
+                merged["provenance"]=System.Text.Json.Nodes.JsonNode.Parse(ToolInput.Required(input, "metadata").GetRawText());
                 ModelProvenance.Write(element,merged);
             }
-            else ModelProvenance.Write(element,input["metadata"]);
+            else ModelProvenance.Write(element,ToolInput.Required(input, "metadata"));
         }
         return Services.Json.Serialize(new { updated_ids=ids.Select(i=>i.Value).ToArray() });
     }

@@ -59,7 +59,7 @@ public class SetFamilyParameterValue : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var fm = FamilyEditorUtil.Manager(doc);
 
-        var name = input["name"].GetString() ?? "";
+        var name = ToolInput.RequiredText(input, "name") ?? "";
         var p = FamilyEditorUtil.Require(fm, name);
         if (p.IsDeterminedByFormula)
             throw new InvalidOperationException(
@@ -69,7 +69,7 @@ public class SetFamilyParameterValue : IRevitTool
             throw new InvalidOperationException(
                 "The family has no types, so there is nothing to set the value on. Add a family type first.");
 
-        var value = input["value"];
+        var value = ToolInput.Required(input, "value");
         switch (p.StorageType)
         {
             case StorageType.Double:

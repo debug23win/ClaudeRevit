@@ -49,9 +49,9 @@ public class SetFamilyParameterFormula : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var fm = FamilyEditorUtil.Manager(doc);
 
-        var name = input["name"].GetString() ?? "";
+        var name = ToolInput.RequiredText(input, "name") ?? "";
         var p = FamilyEditorUtil.Require(fm, name);
-        var formula = input["formula"].GetString() ?? "";
+        var formula = ToolInput.RequiredText(input, "formula") ?? "";
 
         try
         {

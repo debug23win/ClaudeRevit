@@ -40,7 +40,7 @@ public class CreateBeam : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var levelName = input["level_name"].GetString()!;
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)

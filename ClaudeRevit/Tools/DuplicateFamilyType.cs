@@ -54,8 +54,8 @@ public class DuplicateFamilyType : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sourceId = new ElementId(input["source_type_id"].GetInt64());
-        var newName = input["new_name"].GetString()!;
+        var sourceId = new ElementId(ToolInput.RequiredLong(input, "source_type_id"));
+        var newName = ToolInput.RequiredText(input, "new_name")!;
 
         var source = doc.GetElement(sourceId) as FamilySymbol
             ?? throw new InvalidOperationException(

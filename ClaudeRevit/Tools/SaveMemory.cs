@@ -34,7 +34,7 @@ public class SaveMemory : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var note = input["note"].GetString();
+        var note = ToolInput.RequiredText(input, "note");
         if (string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("note is empty.");
         MemoryStore.Append(note);

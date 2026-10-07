@@ -37,7 +37,7 @@ public class DeleteView : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["view_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "view_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var deleted = new List<long>();

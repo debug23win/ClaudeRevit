@@ -43,13 +43,13 @@ public class MirrorElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["element_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
-        var sx = input["line_start_x"].GetDouble();
-        var sy = input["line_start_y"].GetDouble();
-        var ex = input["line_end_x"].GetDouble();
-        var ey = input["line_end_y"].GetDouble();
+        var sx = ToolInput.RequiredDouble(input, "line_start_x");
+        var sy = ToolInput.RequiredDouble(input, "line_start_y");
+        var ex = ToolInput.RequiredDouble(input, "line_end_x");
+        var ey = ToolInput.RequiredDouble(input, "line_end_y");
         var copy = !input.TryGetValue("copy", out var c) || c.ValueKind != JsonValueKind.False;
 
         var lineDir = new XYZ(ex - sx, ey - sy, 0);

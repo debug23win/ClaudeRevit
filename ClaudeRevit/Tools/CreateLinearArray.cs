@@ -67,15 +67,15 @@ public class CreateLinearArray : IRevitTool
         var view = doc.ActiveView
             ?? throw new InvalidOperationException("No active view.");
 
-        var id = new ElementId(input["element_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         if (doc.GetElement(id) == null)
             throw new InvalidOperationException($"Element {id.Value} not found.");
 
-        var count = input["count"].GetInt32();
+        var count = ToolInput.RequiredInt(input, "count");
         if (count < 2)
             throw new InvalidOperationException("count must be at least 2.");
 
-        var spacingFt = input["spacing_mm"].GetDouble() * MmToFeet;
+        var spacingFt = ToolInput.RequiredDouble(input, "spacing_mm") * MmToFeet;
         var dir = (input.TryGetValue("direction", out var dEl) && dEl.ValueKind == JsonValueKind.String
             ? dEl.GetString() : "x")!.ToLowerInvariant();
         var unit = dir switch

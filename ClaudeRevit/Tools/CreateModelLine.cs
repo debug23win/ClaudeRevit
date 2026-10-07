@@ -38,13 +38,13 @@ public class CreateModelLine : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var start = new XYZ(
-            input["start_x"].GetDouble(),
-            input["start_y"].GetDouble(),
-            input["start_z"].GetDouble());
+            ToolInput.RequiredDouble(input, "start_x"),
+            ToolInput.RequiredDouble(input, "start_y"),
+            ToolInput.RequiredDouble(input, "start_z"));
         var end = new XYZ(
-            input["end_x"].GetDouble(),
-            input["end_y"].GetDouble(),
-            input["end_z"].GetDouble());
+            ToolInput.RequiredDouble(input, "end_x"),
+            ToolInput.RequiredDouble(input, "end_y"),
+            ToolInput.RequiredDouble(input, "end_z"));
 
         if (start.IsAlmostEqualTo(end))
             throw new InvalidOperationException("Model line has zero length.");

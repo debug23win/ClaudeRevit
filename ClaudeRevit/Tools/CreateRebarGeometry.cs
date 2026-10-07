@@ -47,7 +47,7 @@ public sealed class CreateRebarGeometry : IRevitTool
             {
                 if (input.ContainsKey("layout") || input.ContainsKey("start_hook_type_id") || input.ContainsKey("end_hook_type_id") || input.ContainsKey("start_end_treatment_id") || input.ContainsKey("end_end_treatment_id"))
                     throw new ToolInputException("Free-form uses explicit complete bar curves; omit shape layout/hooks/terminations.");
-                var entries = input["bars_mm"].EnumerateArray().ToArray();
+                var entries = ToolInput.RequiredArray(input, "bars_mm").EnumerateArray().ToArray();
                 if (entries.Length is < 1 or > 2000) throw new ToolInputException("bars_mm must contain 1..2000 bars.");
                 IList<CurveLoop> loops = entries.Select(entry =>
                 {
@@ -65,8 +65,8 @@ public sealed class CreateRebarGeometry : IRevitTool
             }
             else if (mode == "shape_driven")
             {
-                var curves = NativeCurveInput.Read(input["curves_mm"], false);
-                var normal = NativeToolUtil.Point(input["normal"], false).Normalize();
+                var curves = NativeCurveInput.Read(ToolInput.Required(input, "curves_mm"), false);
+                var normal = NativeToolUtil.Point(ToolInput.Required(input, "normal"), false).Normalize();
                 using var plane = Plane.CreateByNormalAndOrigin(normal, curves[0].GetEndPoint(0));
                 NativeCurveInput.InPlane(curves, plane);
                 RebarHookType? Hook(string key) => input.TryGetValue(key, out var id) ? NativeToolUtil.Element(doc, id.GetInt64()) as RebarHookType ?? throw new ToolInputException(key + " must be RebarHookType.") : null;

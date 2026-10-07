@@ -32,12 +32,12 @@ public class MoveViewportOnSheet : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var vpId = new ElementId(input["viewport_id"].GetInt64());
+        var vpId = new ElementId(ToolInput.RequiredLong(input, "viewport_id"));
         var vp = doc.GetElement(vpId) as Viewport
             ?? throw new InvalidOperationException($"Element {vpId.Value} is not a Viewport.");
 
-        var x = input["x_ft"].GetDouble();
-        var y = input["y_ft"].GetDouble();
+        var x = ToolInput.RequiredDouble(input, "x_ft");
+        var y = ToolInput.RequiredDouble(input, "y_ft");
         vp.SetBoxCenter(new XYZ(x, y, 0));
 
         return Services.Json.Serialize(new

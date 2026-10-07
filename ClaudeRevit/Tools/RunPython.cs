@@ -79,7 +79,7 @@ public class RunPython : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var code = input["code"].GetString();
+        var code = ToolInput.RequiredText(input, "code");
         if (string.IsNullOrWhiteSpace(code))
             return Services.Json.Serialize(new { error = "code is empty." });
 

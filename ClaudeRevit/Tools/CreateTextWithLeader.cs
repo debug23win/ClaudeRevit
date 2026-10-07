@@ -44,11 +44,11 @@ public class CreateTextWithLeader : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var text = input["text"].GetString()!;
-        var tx = input["text_x"].GetDouble();
-        var ty = input["text_y"].GetDouble();
-        var lx = input["leader_end_x"].GetDouble();
-        var ly = input["leader_end_y"].GetDouble();
+        var text = ToolInput.RequiredText(input, "text")!;
+        var tx = ToolInput.RequiredDouble(input, "text_x");
+        var ty = ToolInput.RequiredDouble(input, "text_y");
+        var lx = ToolInput.RequiredDouble(input, "leader_end_x");
+        var ly = ToolInput.RequiredDouble(input, "leader_end_y");
 
         var direction = input.TryGetValue("leader_direction", out var ld) && ld.ValueKind == JsonValueKind.String
             ? ld.GetString()!.ToLowerInvariant()

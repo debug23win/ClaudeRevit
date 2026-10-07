@@ -15,7 +15,7 @@ public sealed class ValidateCSharp : IRevitTool
         => Validate(input, ToolContext.Current);
     internal static string Validate(IReadOnlyDictionary<string, JsonElement> input, System.Threading.CancellationToken ct)
     {
-        try { ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct); return Services.Json.Serialize(new { ok=true, compiled=true, executed=false }); }
+        try { ExecuteCSharp.Prepare(ToolInput.RequiredText(input, "code") ?? "", ct); return Services.Json.Serialize(new { ok=true, compiled=true, executed=false }); }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return Services.ToolResult.Failure("compilation",ex.Message); }
     }

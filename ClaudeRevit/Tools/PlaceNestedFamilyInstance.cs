@@ -25,7 +25,7 @@ public sealed class PlaceNestedFamilyInstance : IRevitTool
         var doc = NativeToolUtil.Doc(app); var fm = FamilyEditorUtil.Manager(doc);
         var symbol = NativeToolUtil.Element(doc, ToolInput.RequiredLong(input, "type_id")) as FamilySymbol ?? throw new ToolInputException("type_id must be a loaded FamilySymbol in this RFA.");
         if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
-        var point = NativeToolUtil.Point(input["point_mm"]);
+        var point = NativeToolUtil.Point(ToolInput.Required(input, "point_mm"));
         FamilyInstance instance;
         if (symbol.Family.FamilyPlacementType == FamilyPlacementType.OneLevelBased)
             instance = doc.FamilyCreate.NewFamilyInstance(point, symbol, StructuralType.NonStructural);
@@ -33,7 +33,7 @@ public sealed class PlaceNestedFamilyInstance : IRevitTool
         {
             if (NativeToolUtil.Text(input, "document_key") != Services.DocumentSessions.Key(doc)) throw new ToolInputException("Face reference document differs; inspect again.");
             instance = doc.FamilyCreate.NewFamilyInstance(Reference.ParseFromStableRepresentation(doc, ToolInput.RequiredString(input, "face_reference")), point,
-                NativeToolUtil.Point(input["reference_direction"], false).Normalize(), symbol);
+                NativeToolUtil.Point(ToolInput.Required(input, "reference_direction"), false).Normalize(), symbol);
         }
         else throw new ToolInputException("Unsupported nested hosting: " + symbol.Family.FamilyPlacementType + ". Use an unhosted/work-plane family or an explicit host workflow.");
         if (input.TryGetValue("associations", out var associations))

@@ -41,7 +41,7 @@ public class CreateMaterial : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString()!;
+        var name = ToolInput.RequiredText(input, "name")!;
 
         // Idempotent: Material.Create throws if the name is taken, which sent weaker models into
         // a retry loop (the field log had create_material called 6× with the same name, erroring

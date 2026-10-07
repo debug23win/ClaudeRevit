@@ -58,7 +58,7 @@ public class AssignWorksets : IRevitTool
             throw new InvalidOperationException(
                 "This document is not workshared — worksets don't exist. Enable worksharing in Revit first.");
 
-        var name = input["workset_name"].GetString()
+        var name = ToolInput.RequiredText(input, "workset_name")
             ?? throw new InvalidOperationException("workset_name is required.");
         var createIfMissing = !input.TryGetValue("create_if_missing", out var c) || c.ValueKind != JsonValueKind.False;
 

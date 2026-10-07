@@ -88,7 +88,7 @@ public class RunDynamoPython : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var code = input["code"].GetString();
+        var code = ToolInput.RequiredText(input, "code");
         if (string.IsNullOrWhiteSpace(code))
             throw new InvalidOperationException("code is empty.");
 

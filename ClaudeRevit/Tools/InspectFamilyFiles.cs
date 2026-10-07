@@ -18,7 +18,7 @@ public sealed class InspectFamilyFiles : IRevitTool
     }, "files");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input, UIApplication app)
     {
-        var files = input["files"].EnumerateArray().ToArray(); if (files.Length is <1 or >10) throw new ToolInputException("Supply 1..10 RFA files.");
+        var files = ToolInput.RequiredArray(input, "files").EnumerateArray().ToArray(); if (files.Length is <1 or >10) throw new ToolInputException("Supply 1..10 RFA files.");
         var rows = new List<object>();
         for (int i = 0; i < files.Length; i++)
         {

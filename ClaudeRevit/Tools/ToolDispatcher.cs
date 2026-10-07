@@ -128,7 +128,7 @@ public class ToolDispatcher : IExternalEventHandler
         ReportProgress(documentKey, "compiling C# on a worker…", channel);
         var watch = System.Diagnostics.Stopwatch.StartNew();
         byte[] bytes;Exception? compileError=null;
-        try { bytes=await Task.Run(() => ExecuteCSharp.Prepare(input["code"].GetString() ?? "", ct), ct).ConfigureAwait(false); }
+        try { bytes=await Task.Run(() => ExecuteCSharp.Prepare(ToolInput.RequiredText(input, "code") ?? "", ct), ct).ConfigureAwait(false); }
         catch(Exception ex){compileError=ex;throw;}
         finally
         {

@@ -44,7 +44,7 @@ public class SetViewScale : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var scale = input["scale"].GetInt32();
+        var scale = ToolInput.RequiredInt(input, "scale");
         if (scale < 1) throw new InvalidOperationException("scale must be 1 or greater.");
 
         view.Scale = scale;

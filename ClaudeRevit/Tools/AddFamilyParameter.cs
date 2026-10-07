@@ -62,7 +62,7 @@ public class AddFamilyParameter : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var fm = FamilyEditorUtil.Manager(doc);
 
-        var name = input["name"].GetString();
+        var name = ToolInput.RequiredText(input, "name");
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("name is empty.");
 
@@ -77,7 +77,7 @@ public class AddFamilyParameter : IRevitTool
                 note = "A parameter with this name already exists; returned unchanged."
             });
 
-        var spec = FamilyEditorUtil.SpecFor(input["type"].GetString() ?? "");
+        var spec = FamilyEditorUtil.SpecFor(ToolInput.RequiredText(input, "type") ?? "");
         var group = FamilyEditorUtil.GroupFor(
             input.TryGetValue("group", out var g) && g.ValueKind == JsonValueKind.String ? g.GetString() : null);
         var isInstance = ToolInput.Flag(input, "is_instance");

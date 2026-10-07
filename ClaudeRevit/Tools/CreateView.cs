@@ -39,8 +39,8 @@ public class CreateView : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var viewType = input["view_type"].GetString()!.ToLowerInvariant();
-        var levelName = input["level_name"].GetString()!;
+        var viewType = ToolInput.RequiredText(input, "view_type")!.ToLowerInvariant();
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)

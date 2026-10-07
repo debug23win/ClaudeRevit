@@ -38,7 +38,7 @@ public class DuplicateView : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sourceId = new ElementId(input["source_view_id"].GetInt64());
+        var sourceId = new ElementId(ToolInput.RequiredLong(input, "source_view_id"));
         var source = doc.GetElement(sourceId) as View
             ?? throw new InvalidOperationException($"Element {sourceId.Value} is not a view.");
 

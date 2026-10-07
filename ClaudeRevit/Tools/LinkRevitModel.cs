@@ -32,7 +32,7 @@ public class LinkRevitModel : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var path = input["file_path"].GetString()
+        var path = ToolInput.RequiredText(input, "file_path")
             ?? throw new InvalidOperationException("file_path is required.");
         if (!File.Exists(path))
             throw new InvalidOperationException($"File not found: {path}");

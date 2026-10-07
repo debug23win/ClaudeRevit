@@ -68,7 +68,7 @@ public class CreateSchedule : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var category = input["category"].GetString()!;
+        var category = ToolInput.RequiredText(input, "category")!;
         var bic = CategoryResolve.Parse(category);
 
         var schedule = ViewSchedule.CreateSchedule(doc, new ElementId(bic));
@@ -81,7 +81,7 @@ public class CreateSchedule : IRevitTool
             if (!fieldMap.ContainsKey(name)) fieldMap[name] = sf;
         }
 
-        var requested = input["fields"].EnumerateArray()
+        var requested = ToolInput.RequiredArray(input, "fields").EnumerateArray()
             .Select(e => e.GetString()!)
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .ToList();

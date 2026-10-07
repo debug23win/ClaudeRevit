@@ -43,7 +43,7 @@ public class RemoveFamilyParameter : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var fm = FamilyEditorUtil.Manager(doc);
 
-        var name = input["name"].GetString() ?? "";
+        var name = ToolInput.RequiredText(input, "name") ?? "";
         var p = FamilyEditorUtil.Require(fm, name);
         fm.RemoveParameter(p);
         doc.Regenerate();

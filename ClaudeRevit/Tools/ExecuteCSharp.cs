@@ -167,10 +167,10 @@ public class ExecuteCSharp : IRevitTool
         return assemblyBytes;
     }
 
-    public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => Prepare(input["code"].GetString() ?? "");
+    public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => Prepare(ToolInput.RequiredText(input, "code") ?? "");
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
-        => ExecutePrepared(input, app, Prepare(input["code"].GetString() ?? "", ToolContext.Current));
+        => ExecutePrepared(input, app, Prepare(ToolInput.RequiredText(input, "code") ?? "", ToolContext.Current));
 
     internal string ExecutePrepared(IReadOnlyDictionary<string, JsonElement> input, UIApplication app, byte[] assemblyBytes)
     {

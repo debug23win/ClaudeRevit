@@ -19,7 +19,7 @@ public sealed class GenerateSpire : IRevitTool
     },"profile_mm");
     private static List<XYZ> Profile(IReadOnlyDictionary<string,JsonElement> input)
     {
-        var rows=input["profile_mm"].EnumerateArray().Select(r=>r.EnumerateArray().Select(v=>v.GetDouble()).ToArray()).ToArray();
+        var rows=ToolInput.RequiredArray(input, "profile_mm").EnumerateArray().Select(r=>r.EnumerateArray().Select(v=>v.GetDouble()).ToArray()).ToArray();
         if(rows.Length is <2 or >200||rows.Any(r=>r.Length!=2||r.Any(v=>!double.IsFinite(v))||r[0]<0)||rows.All(r=>r[0]==0))throw new ToolInputException("Invalid radius/elevation table.");
         for(var i=1;i<rows.Length;i++)if(rows[i][1]<=rows[i-1][1])throw new ToolInputException("Elevations must increase strictly.");
         if(rows.Skip(1).SkipLast(1).Any(r=>r[0]==0))throw new ToolInputException("An interior zero radius would split or pinch the solid; use separate spires.");

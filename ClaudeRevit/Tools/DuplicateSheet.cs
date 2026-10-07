@@ -33,7 +33,7 @@ public class DuplicateSheet : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sourceId = new ElementId(input["sheet_id"].GetInt64());
+        var sourceId = new ElementId(ToolInput.RequiredLong(input, "sheet_id"));
         var source = doc.GetElement(sourceId) as ViewSheet
             ?? throw new InvalidOperationException($"Element {sourceId.Value} is not a ViewSheet.");
 

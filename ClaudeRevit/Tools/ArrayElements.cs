@@ -46,10 +46,10 @@ public class ArrayElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["element_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
-        var count = input["count"].GetInt32();
+        var count = ToolInput.RequiredInt(input, "count");
         if (count < 2) throw new InvalidOperationException("count must be at least 2.");
 
         var dx = input.TryGetValue("dx_ft", out var x) ? x.GetDouble() : 0.0;

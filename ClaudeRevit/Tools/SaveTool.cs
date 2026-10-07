@@ -76,10 +76,10 @@ public class SaveTool : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var name = input["name"].GetString();
+        var name = ToolInput.RequiredText(input, "name");
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("name is empty.");
-        var source = input["source"].GetString();
+        var source = ToolInput.RequiredText(input, "source");
         if (string.IsNullOrWhiteSpace(source))
             throw new InvalidOperationException("source is empty.");
 

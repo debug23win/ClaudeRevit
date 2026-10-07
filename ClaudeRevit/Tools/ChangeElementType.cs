@@ -46,11 +46,11 @@ public class ChangeElementType : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var newTypeId = new ElementId(input["new_type_id"].GetInt64());
+        var newTypeId = new ElementId(ToolInput.RequiredLong(input, "new_type_id"));
         var newType = doc.GetElement(newTypeId) as ElementType
             ?? throw new InvalidOperationException($"Element {newTypeId.Value} is not an ElementType.");
 
-        var elementIds = input["element_ids"].EnumerateArray()
+        var elementIds = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var changed = new List<long>();

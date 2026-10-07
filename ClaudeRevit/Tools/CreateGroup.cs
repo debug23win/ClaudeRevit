@@ -38,7 +38,7 @@ public class CreateGroup : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["element_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var group = doc.Create.NewGroup(ids);

@@ -53,7 +53,7 @@ public class ApplyViewTemplate : IRevitTool
         if (template == null || !template.IsTemplate)
             throw new InvalidOperationException("Template not found (or specified view is not a template).");
 
-        var viewIds = input["view_ids"].EnumerateArray()
+        var viewIds = ToolInput.RequiredArray(input, "view_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var applied = new List<long>();

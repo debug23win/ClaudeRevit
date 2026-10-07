@@ -34,18 +34,18 @@ public class SetTypeParameter : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var typeId = new ElementId(input["type_id"].GetInt64());
+        var typeId = new ElementId(ToolInput.RequiredLong(input, "type_id"));
         var type = doc.GetElement(typeId) as ElementType
             ?? throw new InvalidOperationException($"Element {typeId.Value} is not an ElementType.");
 
-        var paramName = input["parameter_name"].GetString()!;
+        var paramName = ToolInput.RequiredText(input, "parameter_name")!;
         var param = type.LookupParameter(paramName)
             ?? throw new InvalidOperationException($"Parameter '{paramName}' not found on type '{type.Name}'.");
 
         if (param.IsReadOnly)
             throw new InvalidOperationException($"Parameter '{paramName}' is read-only.");
 
-        var raw = input["value"];
+        var raw = ToolInput.Required(input, "value");
         switch (param.StorageType)
         {
             case StorageType.String:

@@ -30,7 +30,7 @@ public sealed class VerifyModelResult : IRevitTool
     }, "checks");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input, UIApplication app)
     {
-        var doc = NativeToolUtil.Doc(app); var raw = input["checks"].EnumerateArray().ToArray(); if (raw.Length is <1 or >100) throw new ToolInputException("Supply 1..100 checks.");
+        var doc = NativeToolUtil.Doc(app); var raw = ToolInput.RequiredArray(input, "checks").EnumerateArray().ToArray(); if (raw.Length is <1 or >100) throw new ToolInputException("Supply 1..100 checks.");
         var checks=new List<ObjectiveCheck>(); var signatures=new Dictionary<string,string>(); var ids=new HashSet<long>(); bool geometryAssertion=false;
         foreach(var c in raw)
         {

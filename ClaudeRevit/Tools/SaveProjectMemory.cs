@@ -38,7 +38,7 @@ public class SaveProjectMemory : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var note = input["note"].GetString();
+        var note = ToolInput.RequiredText(input, "note");
         if (string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("note is empty.");
 
