@@ -271,6 +271,25 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new CreateFloorOpening());
             ToolRegistry.Instance.Register(new GetProjectLocation());
             ToolRegistry.Instance.Register(new CreateToposolid());
+            // Russian norm audit, documentation, PDF import, coordination and analytical model (ideas from
+            // mcp-servers-for-revit forks, native code).
+            ToolRegistry.Instance.Register(new AuditNorms());
+            ToolRegistry.Instance.Register(new AnnotateNormFindings());
+            ToolRegistry.Instance.Register(new ComputeTep());
+            ToolRegistry.Instance.Register(new CreateRoomExplication());
+            ToolRegistry.Instance.Register(new CreateFloorExplication());
+            ToolRegistry.Instance.Register(new CreateFinishSchedule());
+            ToolRegistry.Instance.Register(new FillTitleBlock());
+            ToolRegistry.Instance.Register(new FitScheduleToSheet());
+            ToolRegistry.Instance.Register(new NumberRooms());
+            ToolRegistry.Instance.Register(new PdfToModel());
+            ToolRegistry.Instance.Register(new CheckClashes());
+            ToolRegistry.Instance.Register(new ExportIfc());
+            ToolRegistry.Instance.Register(new ExportNwc());
+            ToolRegistry.Instance.Register(new GetAnalyticalModel());
+            ToolRegistry.Instance.Register(new CreateAnalyticalModel());
+            ToolRegistry.Instance.Register(new CreateStructuralLoads());
+            ToolRegistry.Instance.Register(new CreateBoundaryConditions());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

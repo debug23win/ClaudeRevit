@@ -47,6 +47,10 @@
   <ItemGroup>
     <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="src\ToolResult.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultCap.cs" Link="src\ToolResultCap.cs" />
+    <Compile Include="..\ClaudeRevit\Services\NormRules.cs" Link="src\NormRules.cs" />
+    <Compile Include="..\ClaudeRevit\Services\TepCalculator.cs" Link="src\TepCalculator.cs" />
+    <Compile Include="..\ClaudeRevit\Services\PdfDrawing.cs" Link="src\PdfDrawing.cs" />
+    <Compile Include="..\ClaudeRevit\Services\RoomNumbering.cs" Link="src\RoomNumbering.cs" />
     <Compile Include="..\ClaudeRevit\Tools\ScriptCompiler.cs" Link="src\ScriptCompiler.cs" />
     <Compile Include="..\ClaudeRevit\Tools\ScriptLoopInstrumentation.cs" Link="src\ScriptLoopInstrumentation.cs" />
     <Compile Include="..\ClaudeRevit\Services\GeometryPreflight.cs" Link="src\GeometryPreflight.cs" />

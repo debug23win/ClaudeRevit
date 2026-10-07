@@ -16,7 +16,8 @@ public static class ToolCatalog
     public static readonly string[] Order =
     {
         "Query", "Modeling", "Family editor", "Rebar", "Annotation", "Views",
-        "Visibility", "Sheets", "Schedules", "Groups", "MEP", "Export", "Code & learning"
+        "Visibility", "Sheets", "Schedules", "Documentation", "Coordination", "Structural analysis",
+        "Groups", "MEP", "Export", "Code & learning"
     };
 
     public static string CategoryOf(IRevitTool tool)
@@ -29,6 +30,11 @@ public static class ToolCatalog
         if (n.StartsWith("Generate",StringComparison.Ordinal) || n is "SetModelProvenance") return "Modeling";
         if (n is "ValidateCSharp" or "GetVerifiedExperience" or "VerifyModelResult") return "Code & learning";
         if (n is "BimStarterModelTools" or "RunBimStarterCommand") return "Modeling";
+        if (n is "AuditNorms" or "AnnotateNormFindings" or "ComputeTep" or "CreateRoomExplication" or "CreateFloorExplication"
+                or "CreateFinishSchedule" or "FillTitleBlock" or "FitScheduleToSheet" or "NumberRooms") return "Documentation";
+        if (n is "CheckClashes" or "ExportIfc" or "ExportNwc") return "Coordination";
+        if (n is "GetAnalyticalModel" or "CreateAnalyticalModel" or "CreateStructuralLoads" or "CreateBoundaryConditions") return "Structural analysis";
+        if (n is "PdfToModel" or "CreateStair" or "CreateRailing" or "CreateToposolid") return "Modeling";
 
         // Specific groups first so a broad keyword (e.g. "Delete", "Family") doesn't steal a
         // tool that belongs to a narrower group.
