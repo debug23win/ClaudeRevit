@@ -12,7 +12,7 @@ public sealed class AuditSpdsSchedule : IRevitTool
     public InputSchema InputSchema=>NativeToolUtil.Schema(new(){["schedule_id"]=NativeToolUtil.Field("integer","Native live ViewSchedule."),["sheet_margin_mm"]=NativeToolUtil.Field("number","Agreed uniform sheet margin, default 5 mm; title-block-specific safe area still needs review.")},"schedule_id");
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        var doc=NativeToolUtil.Doc(app);var s=NativeToolUtil.Element(doc,input["schedule_id"].GetInt64()) as ViewSchedule??throw new ToolInputException("Not a native schedule.");
+        var doc=NativeToolUtil.Doc(app);var s=NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "schedule_id")) as ViewSchedule??throw new ToolInputException("Not a native schedule.");
         double margin=ToolInput.OptionalDouble(input,"sheet_margin_mm")??5;if(!double.IsFinite(margin)||margin<0||margin>100)throw new ToolInputException("Margin must be 0..100 mm.");
         var placements=new FilteredElementCollector(doc).OfClass(typeof(ScheduleSheetInstance)).Cast<ScheduleSheetInstance>().Where(p=>p.ScheduleId==s.Id&&!p.IsTitleblockRevisionSchedule).ToArray();
         var layout=placements.Select(p=>

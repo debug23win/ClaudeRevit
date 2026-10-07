@@ -42,7 +42,7 @@ public class LoadFamily : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var path = input["file_path"].GetString()!;
+        var path = ToolInput.RequiredText(input, "file_path")!;
         if (!File.Exists(path))
             throw new InvalidOperationException($"File not found: {path}");
         if (!path.EndsWith(".rfa", StringComparison.OrdinalIgnoreCase))

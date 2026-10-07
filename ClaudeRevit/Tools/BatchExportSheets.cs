@@ -68,7 +68,7 @@ public class BatchExportSheets : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var folder = input["output_folder"].GetString()
+        var folder = ToolInput.RequiredText(input, "output_folder")
             ?? throw new InvalidOperationException("output_folder is required.");
         Directory.CreateDirectory(folder);
 

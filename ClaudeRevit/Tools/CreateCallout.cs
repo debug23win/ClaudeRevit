@@ -44,8 +44,8 @@ public class CreateCallout : IRevitTool
         else
             parent = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var p1 = new XYZ(input["start_x"].GetDouble(), input["start_y"].GetDouble(), 0);
-        var p2 = new XYZ(input["end_x"].GetDouble(), input["end_y"].GetDouble(), 0);
+        var p1 = new XYZ(ToolInput.RequiredDouble(input, "start_x"), ToolInput.RequiredDouble(input, "start_y"), 0);
+        var p2 = new XYZ(ToolInput.RequiredDouble(input, "end_x"), ToolInput.RequiredDouble(input, "end_y"), 0);
 
         var detailTypeId = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType)).Cast<ViewFamilyType>()
             .FirstOrDefault(v => v.ViewFamily == ViewFamily.Detail)?.Id

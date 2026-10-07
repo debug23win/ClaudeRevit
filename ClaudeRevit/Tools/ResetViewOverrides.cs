@@ -45,7 +45,7 @@ public class ResetViewOverrides : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var ids = input["element_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var blank = new OverrideGraphicSettings();

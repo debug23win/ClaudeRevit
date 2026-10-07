@@ -35,7 +35,7 @@ public class SelectSimilar : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var doc = uidoc.Document;
 
-        var id = new ElementId(input["element_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var template = doc.GetElement(id)
             ?? throw new InvalidOperationException($"Element {id.Value} not found.");
 

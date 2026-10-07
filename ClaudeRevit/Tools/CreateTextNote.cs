@@ -36,9 +36,9 @@ public class CreateTextNote : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
-        var text = input["text"].GetString()!;
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
+        var text = ToolInput.RequiredText(input, "text")!;
 
         TextNoteType type;
         if (input.TryGetValue("text_type_name", out var ttn) && ttn.ValueKind == JsonValueKind.String)

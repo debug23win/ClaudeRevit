@@ -32,7 +32,7 @@ public class UnloadFamily : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var id = new ElementId(input["family_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "family_id"));
         var family = doc.GetElement(id) as Family
             ?? throw new InvalidOperationException($"Element {id.Value} is not a Family.");
 

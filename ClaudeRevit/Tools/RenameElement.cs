@@ -37,11 +37,11 @@ public class RenameElement : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var id = new ElementId(input["element_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var el = doc.GetElement(id)
             ?? throw new InvalidOperationException($"Element {id.Value} not found.");
 
-        var newName = input["new_name"].GetString()!;
+        var newName = ToolInput.RequiredText(input, "new_name")!;
         var oldName = el.Name;
         el.Name = newName;
 

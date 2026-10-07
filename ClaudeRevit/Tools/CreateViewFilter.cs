@@ -39,8 +39,8 @@ public class CreateViewFilter : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString()!;
-        var categoryNames = input["categories"].EnumerateArray()
+        var name = ToolInput.RequiredText(input, "name")!;
+        var categoryNames = ToolInput.RequiredArray(input, "categories").EnumerateArray()
             .Select(e => e.GetString()!).ToList();
 
         var catIds = new List<ElementId>();

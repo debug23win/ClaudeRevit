@@ -68,7 +68,7 @@ public class CreatePathReinforcement : IRevitTool
                 "Path reinforcement supports structural walls and floors only.");
         var host = ReinforcementHelpers.ValidateRebarHost(rawHost);
 
-        var pts = input["points"].EnumerateArray()
+        var pts = ToolInput.RequiredArray(input, "points").EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), p.GetProperty("z").GetDouble()))
             .ToList();
         if (pts.Count < 2)

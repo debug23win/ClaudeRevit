@@ -42,7 +42,7 @@ public sealed class CreateRebarScheduleImages : IRevitTool
         try
         {
             var data = new List<(Rebar Bar, string Path, bool NonPlanar, double Length)>();
-            foreach (var id in NativeToolUtil.Ids(input["element_ids"], 200))
+            foreach (var id in NativeToolUtil.Ids(ToolInput.Required(input, "element_ids"), 200))
             {
                 ToolContext.ThrowIfCancelled();
                 var bar = NativeToolUtil.Element(doc, id.Value) as Rebar ?? throw new ToolInputException("Images require native Rebar, not IFC families.");

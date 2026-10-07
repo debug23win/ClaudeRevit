@@ -72,7 +72,7 @@ public class CreateRebarBatch : IRevitTool
         var created = new List<object>();
         var failed = new List<object>();
         int index = 0;
-        foreach (var barEl in input["bars"].EnumerateArray())
+        foreach (var barEl in ToolInput.RequiredArray(input, "bars").EnumerateArray())
         {
             try
             {

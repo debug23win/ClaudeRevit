@@ -25,10 +25,10 @@ public sealed class CreateSpdsSchedule:IRevitTool
         var doc=NativeToolUtil.Doc(app);var profile=ToolInput.RequiredString(input,"profile");var columns=Services.SpdsTables.Columns(profile);
         if(profile=="steel_rollup")throw new ToolInputException("The steel construction-group matrix needs create_spds_table.");
         var edition=ToolInput.RequiredString(input,"standard_edition");if(edition is not ("2020" or "2026"))throw new ToolInputException("Choose standard edition 2020/2026.");
-        var fields=input["fields"].EnumerateArray().ToArray();if(fields.Length!=columns.Count)throw new ToolInputException("Each required profile column needs a field mapping.");
+        var fields=ToolInput.RequiredArray(input, "fields").EnumerateArray().ToArray();if(fields.Length!=columns.Count)throw new ToolInputException("Each required profile column needs a field mapping.");
         var scope=ToolInput.RequiredString(input,"scope");if(scope is not ("filtered" or "entire_category"))throw new ToolInputException("scope must be filtered/entire_category.");
         var name=ToolInput.RequiredString(input,"name");Services.GeometryPreflight.Name(name);var size=ToolInput.OptionalDouble(input,"text_height_mm")??2.5;if(!double.IsFinite(size)||size<1.8||size>7)throw new ToolInputException("text_height_mm must be 1.8..7.");
-        var preview=NativeToolUtil.Preview(input);var categoryId=input["category"].GetString()=="multi_category"?ElementId.InvalidElementId:new ElementId(CategoryResolve.Parse(input["category"].GetString()??""));
+        var preview=NativeToolUtil.Preview(input);var categoryId=ToolInput.RequiredText(input, "category")=="multi_category"?ElementId.InvalidElementId:new ElementId(CategoryResolve.Parse(ToolInput.RequiredText(input, "category")??""));
         var (result,warnings)=NativeToolUtil.Commit(doc,"Claude: SPDS schedule",preview,()=>
         {
             ViewSchedule s;
@@ -48,7 +48,7 @@ public sealed class CreateSpdsSchedule:IRevitTool
                 var field=existingField??definition.AddField(candidates[0]);if(added.Any(a=>a.FieldId==field.FieldId))throw new ToolInputException("Duplicate mapped field.");added.Add(field);
                 field.IsHidden=false;field.ColumnHeading=f.TryGetProperty("heading",out var heading)?heading.GetString()??columns[index].Heading:columns[index].Heading;
                 var width=f.TryGetProperty("width_mm",out var ww)?ww.GetDouble():columns[index].WidthMm;if(!double.IsFinite(width)||width<8)throw new ToolInputException("Column width must be at least 8 mm.");field.GridColumnWidth=width/Units.MmPerFoot;field.SheetColumnWidth=width/Units.MmPerFoot;
-                var style=field.GetStyle();style.FontName=input["font_name"].GetString();style.TextSize=size*72/25.4;
+                var style=field.GetStyle();style.FontName=ToolInput.RequiredText(input, "font_name");style.TextSize=size*72/25.4;
                 style.FontHorizontalAlignment=f.TryGetProperty("alignment",out var alignment)?alignment.GetString() switch {"center"=>HorizontalAlignmentStyle.Center,"right"=>HorizontalAlignmentStyle.Right,"left"=>HorizontalAlignmentStyle.Left,_=>throw new ToolInputException("Invalid alignment.")}:HorizontalAlignmentStyle.Left;
                 var flags=style.GetCellStyleOverrideOptions();flags.Font=true;flags.FontSize=true;flags.HorizontalAlignment=true;style.SetCellStyleOverrideOptions(flags);field.SetStyle(style);
                 if(f.TryGetProperty("unit",out var unit))
@@ -74,7 +74,7 @@ public sealed class CreateSpdsSchedule:IRevitTool
             definition.ShowGrandTotal=input.TryGetValue("grand_total",out var grand)&&grand.GetBoolean();
             // Dedicated text types apply to title/header/body without changing shared project styles.
             var seed=new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).Cast<TextNoteType>().FirstOrDefault()??throw new ToolInputException("No text type available.");
-            var tt=(TextNoteType)seed.Duplicate("SPDS schedule "+Guid.NewGuid().ToString("N")[..8]);tt.get_Parameter(BuiltInParameter.TEXT_FONT).Set(input["font_name"].GetString());tt.get_Parameter(BuiltInParameter.TEXT_SIZE).Set(size/Units.MmPerFoot);
+            var tt=(TextNoteType)seed.Duplicate("SPDS schedule "+Guid.NewGuid().ToString("N")[..8]);tt.get_Parameter(BuiltInParameter.TEXT_FONT).Set(ToolInput.RequiredText(input, "font_name"));tt.get_Parameter(BuiltInParameter.TEXT_SIZE).Set(size/Units.MmPerFoot);
             s.BodyTextTypeId=tt.Id;s.HeaderTextTypeId=tt.Id;s.TitleTextTypeId=tt.Id;doc.Regenerate();
             ModelProvenance.Write(s,new {generator="spds_schedule",profile,standard_edition=edition,live=true,scope});
             return new {id=preview?(long?)null:s.Id.Value,name=s.Name,profile,standard_edition=edition,live=true,fields=added.Select(f=>new {id=f.FieldId.IntegerValue,heading=f.ColumnHeading,width_mm=f.SheetColumnWidth*Units.MmPerFoot}).ToArray(),filter_count=definition.GetFilterCount()};

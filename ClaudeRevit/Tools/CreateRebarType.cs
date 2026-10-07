@@ -20,15 +20,15 @@ public sealed class CreateRebarType : IRevitTool
     }, "name", "diameter_mm");
     public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        Services.GeometryPreflight.Name(input["name"].GetString() ?? "");
-        var diameter = input["diameter_mm"].GetDouble();
+        Services.GeometryPreflight.Name(ToolInput.RequiredText(input, "name") ?? "");
+        var diameter = ToolInput.RequiredDouble(input, "diameter_mm");
         if (!double.IsFinite(diameter) || diameter is < 1 or > 100) throw new ToolInputException("diameter_mm must be 1..100.");
     }
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         Preflight(input, app);
-        var doc = NativeToolUtil.Doc(app); var name = input["name"].GetString()!;
-        var diameter = input["diameter_mm"].GetDouble()/Units.MmPerFoot;
+        var doc = NativeToolUtil.Doc(app); var name = ToolInput.RequiredText(input, "name")!;
+        var diameter = ToolInput.RequiredDouble(input, "diameter_mm")/Units.MmPerFoot;
         var type = new FilteredElementCollector(doc).OfClass(typeof(RebarBarType)).Cast<RebarBarType>().FirstOrDefault(t=>t.Name == name);
         var created = type == null;
         if (type != null && Math.Abs(type.BarNominalDiameter-diameter)>1e-8) throw new ToolInputException("Existing type has a different diameter; use another name.");

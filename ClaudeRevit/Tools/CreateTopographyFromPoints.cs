@@ -48,7 +48,7 @@ public class CreateTopographyFromPoints : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var pts = input["points"].EnumerateArray()
+        var pts = ToolInput.RequiredArray(input, "points").EnumerateArray()
             .Select(p => new XYZ(
                 p.GetProperty("x").GetDouble(),
                 p.GetProperty("y").GetDouble(),

@@ -48,15 +48,15 @@ public class CreateFloor : IRevitTool
     public bool RequiresTransaction => true;
 
     public void Preflight(IReadOnlyDictionary<string,JsonElement> input,UIApplication app) =>
-        Services.GeometryPreflight.Contour(input["points"].EnumerateArray().Select(p=>new Services.PlanPoint(p.GetProperty("x").GetDouble()*Units.MmPerFoot,p.GetProperty("y").GetDouble()*Units.MmPerFoot)),NativeToolUtil.Doc(app).Application.ShortCurveTolerance*Units.MmPerFoot);
+        Services.GeometryPreflight.Contour(ToolInput.RequiredArray(input, "points").EnumerateArray().Select(p=>new Services.PlanPoint(p.GetProperty("x").GetDouble()*Units.MmPerFoot,p.GetProperty("y").GetDouble()*Units.MmPerFoot)),NativeToolUtil.Doc(app).Application.ShortCurveTolerance*Units.MmPerFoot);
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var levelName = input["level_name"].GetString()!;
-        var pointsArray = input["points"];
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
+        var pointsArray = ToolInput.Required(input, "points");
         if (pointsArray.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("'points' must be an array.");
 

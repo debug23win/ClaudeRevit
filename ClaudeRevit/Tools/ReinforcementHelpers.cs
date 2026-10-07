@@ -37,7 +37,7 @@ internal static class ReinforcementHelpers
     // Split out so tools with extra host-kind requirements (path reinforcement: wall/floor
     // only) can fetch once, run their own check, then validate — no double GetElement.
     public static Element FetchHost(Document doc, IReadOnlyDictionary<string, JsonElement> input) =>
-        doc.GetElement(new ElementId(input["host_id"].GetInt64()))
+        doc.GetElement(new ElementId(ToolInput.RequiredLong(input, "host_id")))
             ?? throw new InvalidOperationException("Host element not found.");
 
     public static Element ValidateRebarHost(Element host)

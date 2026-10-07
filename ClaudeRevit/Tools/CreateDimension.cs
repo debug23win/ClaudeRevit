@@ -46,17 +46,17 @@ public class CreateDimension : IRevitTool
         var view = doc.ActiveView
             ?? throw new InvalidOperationException("No active view.");
 
-        var elementIds = input["element_ids"].EnumerateArray()
+        var elementIds = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64()))
             .ToList();
         if (elementIds.Count < 2)
             throw new InvalidOperationException(
                 $"Dimension needs at least 2 elements (got {elementIds.Count}).");
 
-        var sx = input["line_start_x"].GetDouble();
-        var sy = input["line_start_y"].GetDouble();
-        var ex = input["line_end_x"].GetDouble();
-        var ey = input["line_end_y"].GetDouble();
+        var sx = ToolInput.RequiredDouble(input, "line_start_x");
+        var sy = ToolInput.RequiredDouble(input, "line_start_y");
+        var ex = ToolInput.RequiredDouble(input, "line_end_x");
+        var ey = ToolInput.RequiredDouble(input, "line_end_y");
 
         var start = new XYZ(sx, sy, 0);
         var end = new XYZ(ex, ey, 0);

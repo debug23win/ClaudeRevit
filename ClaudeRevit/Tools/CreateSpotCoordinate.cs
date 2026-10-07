@@ -36,7 +36,7 @@ public class CreateSpotCoordinate : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var id = new ElementId(input["element_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var element = doc.GetElement(id)
             ?? throw new InvalidOperationException($"Element {id.Value} not found.");
 
@@ -48,8 +48,8 @@ public class CreateSpotCoordinate : IRevitTool
         var z = bbox.Max.Z;
         var origin = new XYZ(centerX, centerY, z);
 
-        var bend = new XYZ(input["bend_x"].GetDouble(), input["bend_y"].GetDouble(), z);
-        var end = new XYZ(input["leader_end_x"].GetDouble(), input["leader_end_y"].GetDouble(), z);
+        var bend = new XYZ(ToolInput.RequiredDouble(input, "bend_x"), ToolInput.RequiredDouble(input, "bend_y"), z);
+        var end = new XYZ(ToolInput.RequiredDouble(input, "leader_end_x"), ToolInput.RequiredDouble(input, "leader_end_y"), z);
 
         var reference = new Reference(element);
         var spot = doc.Create.NewSpotCoordinate(view, reference, origin, bend, end, origin, true);

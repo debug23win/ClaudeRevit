@@ -32,7 +32,7 @@ public class GetTypeParameters : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var typeId = new ElementId(input["type_id"].GetInt64());
+        var typeId = new ElementId(ToolInput.RequiredLong(input, "type_id"));
         var type = doc.GetElement(typeId) as ElementType
             ?? throw new InvalidOperationException($"Element {typeId.Value} is not an ElementType.");
 

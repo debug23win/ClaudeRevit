@@ -44,7 +44,7 @@ public class QueryElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var category = input["category"].GetString()
+        var category = ToolInput.RequiredText(input, "category")
             ?? throw new InvalidOperationException("category is required.");
 
         var limit = input.TryGetValue("limit", out var l) ? l.GetInt32() : 50;

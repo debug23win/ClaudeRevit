@@ -53,7 +53,7 @@ public class TagElements : IRevitTool
         }
 
         var leader = input.TryGetValue("leader", out var l) && l.ValueKind == JsonValueKind.True;
-        var elementIds = input["element_ids"].EnumerateArray()
+        var elementIds = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64()))
             .ToList();
 

@@ -57,7 +57,7 @@ public sealed class RunCheckpointJob : IRevitTool
         var doc=NativeToolUtil.Doc(app);var key=ToolInput.RequiredString(input,"job_key");if(key.Length>64)throw new ToolInputException("job_key exceeds 64 chars.");
         var matches=CheckpointJobs.All(doc).Where(p=>p.Record.Key==key).Take(2).ToArray();if(matches.Length>1)throw new ToolInputException("Duplicate copied job key; resolve its DataStorage first.");
         var storage=matches.FirstOrDefault().Storage;var old=matches.FirstOrDefault().Record;
-        if(input["expected_revision"].GetInt32()!=(old?.Revision??0))throw new ToolInputException("Checkpoint revision differs; inspect get_checkpoint_job.");
+        if(ToolInput.RequiredInt(input, "expected_revision")!=(old?.Revision??0))throw new ToolInputException("Checkpoint revision differs; inspect get_checkpoint_job.");
         var plan=input.TryGetValue("plan",out var p)?p.Deserialize<CheckpointPlan>(CheckpointPlan.Options)??throw new ToolInputException("Plan is empty."):old?.Plan??throw new ToolInputException("A new job requires a plan.");plan.Validate();
         if(old!=null&&old.PlanHash!=plan.Hash())throw new ToolInputException("Saved plan hash differs; start an explicit new job instead of reusing completed steps.");
         if(old!=null&&CheckpointJobs.Stale(doc,old).Length>0)throw new ToolInputException("Completed elements were edited/deleted externally; inspect before continuation.");

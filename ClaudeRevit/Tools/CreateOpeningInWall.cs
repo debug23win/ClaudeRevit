@@ -38,18 +38,18 @@ public class CreateOpeningInWall : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var wallId = new ElementId(input["wall_id"].GetInt64());
+        var wallId = new ElementId(ToolInput.RequiredLong(input, "wall_id"));
         var wall = doc.GetElement(wallId) as Wall
             ?? throw new InvalidOperationException($"Element {wallId.Value} is not a wall.");
 
         var p1 = new XYZ(
-            input["start_x"].GetDouble(),
-            input["start_y"].GetDouble(),
-            input["start_z"].GetDouble());
+            ToolInput.RequiredDouble(input, "start_x"),
+            ToolInput.RequiredDouble(input, "start_y"),
+            ToolInput.RequiredDouble(input, "start_z"));
         var p2 = new XYZ(
-            input["end_x"].GetDouble(),
-            input["end_y"].GetDouble(),
-            input["end_z"].GetDouble());
+            ToolInput.RequiredDouble(input, "end_x"),
+            ToolInput.RequiredDouble(input, "end_y"),
+            ToolInput.RequiredDouble(input, "end_z"));
 
         var opening = doc.Create.NewOpening(wall, p1, p2);
 

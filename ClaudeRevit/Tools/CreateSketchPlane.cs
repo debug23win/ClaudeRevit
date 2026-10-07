@@ -36,8 +36,8 @@ public class CreateSketchPlane : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var origin = new XYZ(input["origin_x"].GetDouble(), input["origin_y"].GetDouble(), input["origin_z"].GetDouble());
-        var normal = new XYZ(input["normal_x"].GetDouble(), input["normal_y"].GetDouble(), input["normal_z"].GetDouble());
+        var origin = new XYZ(ToolInput.RequiredDouble(input, "origin_x"), ToolInput.RequiredDouble(input, "origin_y"), ToolInput.RequiredDouble(input, "origin_z"));
+        var normal = new XYZ(ToolInput.RequiredDouble(input, "normal_x"), ToolInput.RequiredDouble(input, "normal_y"), ToolInput.RequiredDouble(input, "normal_z"));
         if (normal.IsZeroLength())
             throw new InvalidOperationException("Normal vector cannot be zero.");
         normal = normal.Normalize();

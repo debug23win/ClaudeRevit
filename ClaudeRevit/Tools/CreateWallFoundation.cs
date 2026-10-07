@@ -33,7 +33,7 @@ public class CreateWallFoundation : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var wallId = new ElementId(input["wall_id"].GetInt64());
+        var wallId = new ElementId(ToolInput.RequiredLong(input, "wall_id"));
         var wall = doc.GetElement(wallId) as Wall
             ?? throw new InvalidOperationException($"Element {wallId.Value} is not a Wall.");
 

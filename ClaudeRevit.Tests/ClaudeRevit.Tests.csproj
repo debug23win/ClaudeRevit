@@ -60,6 +60,8 @@
     <Compile Include="..\ClaudeRevit\Services\CompactMcpTools.cs" Link="src\CompactMcpTools.cs" />
     <Compile Include="..\ClaudeRevit\Services\TurnTimings.cs" Link="src\TurnTimings.cs" />
     <Compile Include="..\ClaudeRevit\Tools\Units.cs" Link="src\Units.cs" />
+    <Compile Include="..\ClaudeRevit\Tools\ToolInput.cs" Link="src\ToolInput.cs" />
+    <Compile Include="..\ClaudeRevit\Tools\ToolInputException.cs" Link="src\ToolInputException.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSchema.cs" Link="src\McpSchema.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultAging.cs" Link="src\ToolResultAging.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultArchive.cs" Link="src\ToolResultArchive.cs" />

@@ -59,7 +59,7 @@ public sealed class BimStarterModelTools : IRevitTool
         {
             if (op is "join_order" or "unjoin" or "cut" or "remove_cut" or "cope" or "remove_cope")
             {
-                var pairs = input["pairs"].EnumerateArray().ToArray();
+                var pairs = ToolInput.RequiredArray(input, "pairs").EnumerateArray().ToArray();
                 if (pairs.Length is < 1 or > 1000) throw new ToolInputException("Supply 1..1000 pairs.");
                 foreach (var pair in pairs)
                 {
@@ -107,7 +107,7 @@ public sealed class BimStarterModelTools : IRevitTool
                                 FamilyInstance instance => instance.SuperComponent ?? instance.Host,
                                 _ => null
                             } ?? throw new ToolInputException("Element has no supported native host/parent.");
-                            var mappings = input["mappings"].EnumerateArray().ToArray();
+                            var mappings = ToolInput.RequiredArray(input, "mappings").EnumerateArray().ToArray();
                             if (mappings.Length is < 1 or > 200) throw new ToolInputException("Supply 1..200 explicit parameter mappings.");
                             foreach (var mapping in mappings)
                             {
@@ -124,7 +124,7 @@ public sealed class BimStarterModelTools : IRevitTool
                             foreach (var end in ends) { if (ToolInput.Flag(input, "allow_join")) StructuralFramingUtils.AllowJoinAtEnd(beam, end); else StructuralFramingUtils.DisallowJoinAtEnd(beam, end); }
                             rows.Add(new { id = id.Value, ends }); break;
                         case "rebar_layout":
-                            CreateRebarGeometry.ApplyLayout(element as Rebar ?? throw new ToolInputException("Select native Rebar."), input["layout"]);
+                            CreateRebarGeometry.ApplyLayout(element as Rebar ?? throw new ToolInputException("Select native Rebar."), ToolInput.Required(input, "layout"));
                             rows.Add(new { id = id.Value }); break;
                         case "rebar_display":
                             var rebar = element as Rebar ?? throw new ToolInputException("Select native Rebar.");
@@ -173,7 +173,7 @@ public sealed class BimStarterModelTools : IRevitTool
                             targetView.ViewTemplateId = template.Id; rows.Add(new { id = id.Value, template_id = template.Id.Value }); break;
                         case "remove_view_filters":
                             var filtered = element as View ?? throw new ToolInputException("Select views.");
-                            foreach (var filter in NativeToolUtil.Ids(input["filter_ids"], 200)) if (filtered.GetFilters().Contains(filter)) filtered.RemoveFilter(filter);
+                            foreach (var filter in NativeToolUtil.Ids(ToolInput.Required(input, "filter_ids"), 200)) if (filtered.GetFilters().Contains(filter)) filtered.RemoveFilter(filter);
                             rows.Add(new { id = id.Value }); break;
                         default: throw new ToolInputException("Unknown native operation: " + op);
                     }

@@ -35,8 +35,8 @@ public class CreateSheet : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var number = input["sheet_number"].GetString()!;
-        var name = input["sheet_name"].GetString()!;
+        var number = ToolInput.RequiredText(input, "sheet_number")!;
+        var name = ToolInput.RequiredText(input, "sheet_name")!;
 
         var titleBlockId = ElementId.InvalidElementId;
         if (input.TryGetValue("title_block_name", out var tbn) && tbn.ValueKind == JsonValueKind.String)

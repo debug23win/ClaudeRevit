@@ -44,8 +44,8 @@ public class CreateCameraView : IRevitTool
 
         var view = View3D.CreatePerspective(doc, vftId);
 
-        var eye = new XYZ(input["eye_x"].GetDouble(), input["eye_y"].GetDouble(), input["eye_z"].GetDouble());
-        var target = new XYZ(input["target_x"].GetDouble(), input["target_y"].GetDouble(), input["target_z"].GetDouble());
+        var eye = new XYZ(ToolInput.RequiredDouble(input, "eye_x"), ToolInput.RequiredDouble(input, "eye_y"), ToolInput.RequiredDouble(input, "eye_z"));
+        var target = new XYZ(ToolInput.RequiredDouble(input, "target_x"), ToolInput.RequiredDouble(input, "target_y"), ToolInput.RequiredDouble(input, "target_z"));
         if (eye.IsAlmostEqualTo(target))
             throw new InvalidOperationException("Eye and target are the same point.");
 

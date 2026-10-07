@@ -53,7 +53,7 @@ public sealed class GetDimensionReferences : IRevitTool
         }
         using var options = new Options { ComputeReferences = true, IncludeNonVisibleObjects = true };
         if (input.TryGetValue("view_id", out var v)) options.View = NativeToolUtil.Element(doc, v.GetInt64()) as View ?? throw new ToolInputException("view_id must be a View.");
-        foreach (var id in NativeToolUtil.Ids(input["element_ids"], 100))
+        foreach (var id in NativeToolUtil.Ids(ToolInput.Required(input, "element_ids"), 100))
         {
             var e = NativeToolUtil.Element(doc, id.Value);
             try

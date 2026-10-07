@@ -53,17 +53,17 @@ public class AssociateFamilyParameter : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
         var fm = FamilyEditorUtil.Manager(doc);
 
-        var id = new ElementId(input["element_id"].GetInt64());
+        var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var element = doc.GetElement(id)
             ?? throw new InvalidOperationException($"Element {id.Value} not found.");
 
-        var elemParamName = input["element_parameter"].GetString() ?? "";
+        var elemParamName = ToolInput.RequiredText(input, "element_parameter") ?? "";
         var elemParam = ResolveElementParameter(element, elemParamName)
             ?? throw new InvalidOperationException(
                 $"Parameter '{elemParamName}' not found on element {id.Value} ({element.GetType().Name}). " +
                 "Use get_element_parameters, or pass a BuiltInParameter enum name.");
 
-        var famParamName = input["family_parameter"].GetString() ?? "";
+        var famParamName = ToolInput.RequiredText(input, "family_parameter") ?? "";
         var famParam = FamilyEditorUtil.Require(fm, famParamName);
 
         if (!fm.CanElementParameterBeAssociated(elemParam))

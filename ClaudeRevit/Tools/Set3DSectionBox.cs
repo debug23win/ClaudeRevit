@@ -45,8 +45,8 @@ public class Set3DSectionBox : IRevitTool
             view = doc.ActiveView as View3D
                 ?? throw new InvalidOperationException("Active view is not a 3D view.");
 
-        var min = new XYZ(input["min_x_ft"].GetDouble(), input["min_y_ft"].GetDouble(), input["min_z_ft"].GetDouble());
-        var max = new XYZ(input["max_x_ft"].GetDouble(), input["max_y_ft"].GetDouble(), input["max_z_ft"].GetDouble());
+        var min = new XYZ(ToolInput.RequiredDouble(input, "min_x_ft"), ToolInput.RequiredDouble(input, "min_y_ft"), ToolInput.RequiredDouble(input, "min_z_ft"));
+        var max = new XYZ(ToolInput.RequiredDouble(input, "max_x_ft"), ToolInput.RequiredDouble(input, "max_y_ft"), ToolInput.RequiredDouble(input, "max_z_ft"));
         if (max.X <= min.X || max.Y <= min.Y || max.Z <= min.Z)
             throw new InvalidOperationException("Each max must be greater than its corresponding min.");
 

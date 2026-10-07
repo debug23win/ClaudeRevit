@@ -28,9 +28,9 @@ public sealed class GenerateFloorStack : IRevitTool
     private static List<Storey> Plan(IReadOnlyDictionary<string,JsonElement> input,Document doc)
     {
         if (doc.IsFamilyDocument) throw new ToolInputException("Floor stack requires a project.");
-        if (NativeToolUtil.Element(doc,input["floor_type_id"].GetInt64()) is not FloorType) throw new ToolInputException("floor_type_id is not FloorType.");
+        if (NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "floor_type_id")) is not FloorType) throw new ToolInputException("floor_type_id is not FloorType.");
         var snap=ToolInput.OptionalDouble(input,"snap_tolerance_mm")??0;
-        var entries=input["storeys"].EnumerateArray().ToArray();if (entries.Length is <1 or >1000) throw new ToolInputException("Supply 1..1000 storeys.");
+        var entries=ToolInput.RequiredArray(input, "storeys").EnumerateArray().ToArray();if (entries.Length is <1 or >1000) throw new ToolInputException("Supply 1..1000 storeys.");
         var levels=new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().ToDictionary(l=>l.Name,StringComparer.OrdinalIgnoreCase);
         var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var plan=new List<Storey>();
         foreach (var entry in entries)
@@ -66,7 +66,7 @@ public sealed class GenerateFloorStack : IRevitTool
                 ToolContext.ReportProgress(done++,plan.Count,"Floors");
                 if(!levels.TryGetValue(storey.Name,out var level)){level=Level.Create(doc,storey.Elevation/Units.MmPerFoot);level.Name=storey.Name;levels[storey.Name]=level;}
                 var loops=storey.Contours.Select(c=>{var loop=new CurveLoop();for(var i=0;i<c.Points.Count;i++){var a=c.Points[i];var b=c.Points[(i+1)%c.Points.Count];loop.Append(Line.CreateBound(new XYZ(a.X,a.Y,storey.Elevation)/Units.MmPerFoot,new XYZ(b.X,b.Y,storey.Elevation)/Units.MmPerFoot));}return loop;}).ToList();
-                var floor=Floor.Create(doc,loops,new ElementId(input["floor_type_id"].GetInt64()),level.Id,ToolInput.Flag(input,"structural"),null,0);
+                var floor=Floor.Create(doc,loops,new ElementId(ToolInput.RequiredLong(input, "floor_type_id")),level.Id,ToolInput.Flag(input,"structural"),null,0);
                 ModelProvenance.Write(floor,new { generator=Name,level_name=storey.Name,elevation_mm=storey.Elevation,
                     max_vertex_shift_mm=storey.Contours.Max(c=>c.MaxShiftMm),provenance=input.TryGetValue("provenance",out var p)?(object)p:new { status="unknown" } });
                 rows.Add(new { level_name=level.Name,level_id=preview?(long?)null:level.Id.Value,floor_id=preview?(long?)null:floor.Id.Value,elevation_mm=storey.Elevation,max_vertex_shift_mm=storey.Contours.Max(c=>c.MaxShiftMm) });

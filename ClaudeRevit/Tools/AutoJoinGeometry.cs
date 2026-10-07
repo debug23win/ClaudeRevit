@@ -61,7 +61,7 @@ public class AutoJoinGeometry : IRevitTool
         var unjoin = input.TryGetValue("unjoin", out var uj) && uj.ValueKind == JsonValueKind.True;
         var maxPairs = input.TryGetValue("max_pairs", out var mp) ? Math.Max(1, mp.GetInt32()) : 2000;
 
-        var listA = Collect(doc, input["category_a"].GetString(), input);
+        var listA = Collect(doc, ToolInput.RequiredText(input, "category_a"), input);
         var listB = input.TryGetValue("category_b", out var cb) && cb.ValueKind == JsonValueKind.String
             ? Collect(doc, cb.GetString(), input)
             : listA;

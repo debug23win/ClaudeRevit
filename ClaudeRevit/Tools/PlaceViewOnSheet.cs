@@ -35,10 +35,10 @@ public class PlaceViewOnSheet : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sheetId = new ElementId(input["sheet_id"].GetInt64());
-        var viewId = new ElementId(input["view_id"].GetInt64());
-        var x = input["x_ft"].GetDouble();
-        var y = input["y_ft"].GetDouble();
+        var sheetId = new ElementId(ToolInput.RequiredLong(input, "sheet_id"));
+        var viewId = new ElementId(ToolInput.RequiredLong(input, "view_id"));
+        var x = ToolInput.RequiredDouble(input, "x_ft");
+        var y = ToolInput.RequiredDouble(input, "y_ft");
 
         var sheet = doc.GetElement(sheetId) as ViewSheet
             ?? throw new InvalidOperationException($"Element {sheetId.Value} is not a ViewSheet.");

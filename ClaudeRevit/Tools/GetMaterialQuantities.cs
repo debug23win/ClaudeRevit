@@ -29,11 +29,11 @@ public sealed class GetMaterialQuantities : IRevitTool
         var scope = NativeToolUtil.Text(input, "scope", input.ContainsKey("element_ids") ? "ids" : "selection");
         IEnumerable<ElementId> selected = scope switch
         {
-            "ids" => NativeToolUtil.Ids(input["element_ids"]),
+            "ids" => NativeToolUtil.Ids(ToolInput.Required(input, "element_ids")),
             "selection" => ToolContext.UiDocument(app).Selection.GetElementIds(),
             "all" => new FilteredElementCollector(doc).WhereElementIsNotElementType().ToElementIds(),
             "categories" => new FilteredElementCollector(doc).WhereElementIsNotElementType().WherePasses(new ElementMulticategoryFilter(
-                input["categories"].EnumerateArray().Select(c => Enum.TryParse<BuiltInCategory>(c.GetString(), out var bic) && bic != BuiltInCategory.INVALID ? bic : throw new ToolInputException("Unknown category: " + c)).ToList())).ToElementIds(),
+                ToolInput.RequiredArray(input, "categories").EnumerateArray().Select(c => Enum.TryParse<BuiltInCategory>(c.GetString(), out var bic) && bic != BuiltInCategory.INVALID ? bic : throw new ToolInputException("Unknown category: " + c)).ToList())).ToElementIds(),
             _ => throw new ToolInputException("Unknown scope.")
         };
         var ids = selected.Distinct().OrderBy(id => id.Value).ToList();

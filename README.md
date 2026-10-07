@@ -6,6 +6,8 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
+**v3.8.7:** every tool reads its required inputs through checked readers: a missing parameter, a list sent as a single value or a word where a number belongs comes back naming the parameter and what arrived, instead of "Object reference not set…" — so the model fixes the call instead of guessing. Numbers sent as strings are accepted; fractional counts are not rounded. [Release notes](docs/releases/v3.8.7.md).
+
 **v3.8.6:** review fixes — `change_element_type` no longer silently keeps the old type, `execute_csharp` results can't roll back finished work, exported images no longer break the conversation, and code execution (on by default) can now be switched off in Settings. [Release notes](docs/releases/v3.8.6.md).
 
 **v3.8.5:** mandatory objective benchmark checks, repeated-run calibration, channel/angle/tube/paired-timber sections, dependent nodes and actual bore checks, multicategory live SPDS sources, optional verified experience and saved resumable jobs. Seven generated sections, shared nesting, checkpoint recovery, dependent nodes, live steel/timber quantities and eight BIMStarter references have now been exercised in Revit. Includes the release-runner Defender activation fix after v3.8.4 publication was blocked. [Executed results and limits](docs/native-acceptance-2026-10.md) · [Release notes](docs/releases/v3.8.5.md) · [BIMStarter findings](docs/bimstarter-reference-cases.md).
@@ -64,6 +66,8 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Bar bending data** — `get_rebar_shape_sketch` returns ordered leg lengths and bend angles per bar, groups identical bars into schedule positions, and can emit an SVG sketch of each distinct shape.
 - **Works with non-Claude MCP clients** — the MCP server detects the connecting client and emits a portable tool schema for it. OpenAI's function-calling validator rejects the constraint keywords used across these tools (`minimum`/`maximum`, `minItems`, `oneOf`) and refuses such a tool list *wholesale*, so those constraints are folded into each parameter's description instead of dropped. Claude clients keep the richer schemas. *(If you connect an OpenAI model to this server yourself rather than through Codex, note that MCP is reached via the Responses API, not chat completions.)*
 - **Undo for ordinary API operations** — each completed tool call/batch has an undo entry. Groups always close before returning to Revit; no transaction stays open while the model thinks.
+- **Readable input errors** — every tool validates its required inputs by name (`ToolInput.Required*`): the model is told which parameter was missing or of the wrong type and what it sent, and a call never fails on a bare null reference. Numbers sent as strings ("3000") are accepted, fractional counts are rejected rather than rounded.
+- **Code execution switch** — C#/Python/custom tools are on by default; Settings → General → *Allow Claude to run code* turns them off for the chat and every MCP client.
 - **Selection awareness** — green pill shows what's selected; Claude knows what "this" means
 - **Markdown rendering** + **selectable text** in messages
 - **Clickable element IDs** — click any id in a tool result, Revit selects and zooms to that element
@@ -247,6 +251,7 @@ See [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) for tool implementations and share
 
 - **`App.cs`** — `IExternalApplication` entry point; registers tools, dockable pane, ribbon button, and the DocumentChanged learning hook
 - **`Tools/`** — every `IRevitTool` class. Add a new file + register in `App.cs` → it's available to Claude.
+- **`Tools/ToolInput.cs` / `ToolPolicy.cs`** — required-input readers that report bad arguments by parameter name, and the single rule for which tools are offered and may run (tool-group switches, code-execution setting).
 - **`Tools/ToolDispatcher.cs`** — `IExternalEventHandler` that runs tool calls on Revit's API thread. Wraps each tool in a `Transaction` (scripts additionally in a `TransactionGroup`), so every completed call or batch is one undo step; no group stays open across a turn.
 - **`Services/ChatService.cs`** — the provider-agnostic agentic loop. Streams each turn through either the Anthropic API or an OpenAI-compatible backend into a common turn model; sets cache control on the system prompt, tools and history for 1-hour prompt caching; handles compaction and tool-result aging.
 - **`Services/OpenAIBackend.cs`** — SSE streaming, function calling and usage accounting for any OpenAI-compatible endpoint (the "Alt" model).

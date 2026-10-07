@@ -36,7 +36,7 @@ public class FlipWall : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["wall_ids"].EnumerateArray()
+        var ids = ToolInput.RequiredArray(input, "wall_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var flipped = new List<long>();

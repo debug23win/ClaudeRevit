@@ -37,11 +37,11 @@ public class DuplicateGroupType : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var srcId = new ElementId(input["source_group_type_id"].GetInt64());
+        var srcId = new ElementId(ToolInput.RequiredLong(input, "source_group_type_id"));
         var src = doc.GetElement(srcId) as GroupType
             ?? throw new InvalidOperationException($"Element {srcId.Value} is not a GroupType.");
 
-        var newName = input["new_name"].GetString()!;
+        var newName = ToolInput.RequiredText(input, "new_name")!;
         var dup = src.Duplicate(newName) as GroupType
             ?? throw new InvalidOperationException("Duplicate failed.");
 

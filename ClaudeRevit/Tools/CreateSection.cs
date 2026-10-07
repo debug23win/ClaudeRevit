@@ -41,10 +41,10 @@ public class CreateSection : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var sx = input["start_x"].GetDouble();
-        var sy = input["start_y"].GetDouble();
-        var ex = input["end_x"].GetDouble();
-        var ey = input["end_y"].GetDouble();
+        var sx = ToolInput.RequiredDouble(input, "start_x");
+        var sy = ToolInput.RequiredDouble(input, "start_y");
+        var ex = ToolInput.RequiredDouble(input, "end_x");
+        var ey = ToolInput.RequiredDouble(input, "end_y");
         var bottom = input.TryGetValue("bottom_ft", out var b) ? b.GetDouble() : 0.0;
         var top = input.TryGetValue("top_ft", out var t) ? t.GetDouble() : 10.0;
         var depth = input.TryGetValue("depth_ft", out var d) ? d.GetDouble() : 30.0;

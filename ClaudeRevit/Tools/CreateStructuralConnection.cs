@@ -18,7 +18,7 @@ public sealed class CreateStructuralConnection : IRevitTool
     },"member_ids");
     public void Preflight(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        var doc=NativeToolUtil.Doc(app);var ids=NativeToolUtil.Ids(input["member_ids"],10);
+        var doc=NativeToolUtil.Doc(app);var ids=NativeToolUtil.Ids(ToolInput.Required(input, "member_ids"),10);
         if(ids.Count<2)throw new ToolInputException("A connection needs at least two members.");
         foreach(var id in ids)
         {
@@ -29,7 +29,7 @@ public sealed class CreateStructuralConnection : IRevitTool
     }
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        Preflight(input,app);var doc=NativeToolUtil.Doc(app);var ids=NativeToolUtil.Ids(input["member_ids"],10);
+        Preflight(input,app);var doc=NativeToolUtil.Doc(app);var ids=NativeToolUtil.Ids(ToolInput.Required(input, "member_ids"),10);
         var detailed=input.TryGetValue("connection_type_id",out var type);
         var connection=detailed?StructuralConnectionHandler.Create(doc,ids,new ElementId(type.GetInt64())):StructuralConnectionHandler.CreateGenericConnection(doc,ids);
         doc.Regenerate();

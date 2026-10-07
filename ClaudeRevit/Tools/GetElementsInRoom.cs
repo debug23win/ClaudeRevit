@@ -36,7 +36,7 @@ public class GetElementsInRoom : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var roomId = new ElementId(input["room_id"].GetInt64());
+        var roomId = new ElementId(ToolInput.RequiredLong(input, "room_id"));
         var room = doc.GetElement(roomId) as Room
             ?? throw new InvalidOperationException($"Element {roomId.Value} is not a Room.");
 

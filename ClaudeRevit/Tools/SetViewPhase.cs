@@ -36,7 +36,7 @@ public class SetViewPhase : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var viewId = new ElementId(input["view_id"].GetInt64());
+        var viewId = new ElementId(ToolInput.RequiredLong(input, "view_id"));
         var view = doc.GetElement(viewId) as View
             ?? throw new InvalidOperationException("view_id is not a view.");
 

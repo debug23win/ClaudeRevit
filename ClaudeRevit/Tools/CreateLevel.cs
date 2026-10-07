@@ -33,8 +33,8 @@ public class CreateLevel : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString()!;
-        var elevation = input["elevation_ft"].GetDouble();
+        var name = ToolInput.RequiredText(input, "name")!;
+        var elevation = ToolInput.RequiredDouble(input, "elevation_ft");
 
         if (new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .Any(l => l.Name == name))

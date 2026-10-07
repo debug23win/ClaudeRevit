@@ -42,7 +42,7 @@ public class ExportPdf : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var viewIds = input["view_ids"].EnumerateArray()
+        var viewIds = ToolInput.RequiredArray(input, "view_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var outDir = input.TryGetValue("output_dir", out var od) && od.ValueKind == JsonValueKind.String

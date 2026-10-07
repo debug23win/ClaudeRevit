@@ -22,18 +22,18 @@ public sealed class GenerateFacadeGrid : IRevitTool
     },"symbol_id","level_id","origin_mm","column_step_mm","row_step_mm","columns","rows");
     public void Preflight(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        var doc=NativeToolUtil.Doc(app);var symbol=NativeToolUtil.Element(doc,input["symbol_id"].GetInt64()) as FamilySymbol??throw new ToolInputException("symbol_id is not FamilySymbol.");
+        var doc=NativeToolUtil.Doc(app);var symbol=NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "symbol_id")) as FamilySymbol??throw new ToolInputException("symbol_id is not FamilySymbol.");
         if(symbol.Family.FamilyPlacementType!=FamilyPlacementType.OneLevelBased)throw new ToolInputException("Only non-hosted OneLevelBased families are supported.");
-        if(NativeToolUtil.Element(doc,input["level_id"].GetInt64()) is not Level)throw new ToolInputException("level_id is not Level.");
-        var c=input["columns"].GetInt32();var r=input["rows"].GetInt32();if(c<1||r<1||(long)c*r>5000)throw new ToolInputException("Grid must have 1..5000 instances.");
-        var column=NativeToolUtil.Point(input["column_step_mm"]);var row=NativeToolUtil.Point(input["row_step_mm"]);NativeToolUtil.Point(input["origin_mm"]);
+        if(NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "level_id")) is not Level)throw new ToolInputException("level_id is not Level.");
+        var c=ToolInput.RequiredInt(input, "columns");var r=ToolInput.RequiredInt(input, "rows");if(c<1||r<1||(long)c*r>5000)throw new ToolInputException("Grid must have 1..5000 instances.");
+        var column=NativeToolUtil.Point(ToolInput.Required(input, "column_step_mm"));var row=NativeToolUtil.Point(ToolInput.Required(input, "row_step_mm"));NativeToolUtil.Point(ToolInput.Required(input, "origin_mm"));
         if(c>1&&column.GetLength()<doc.Application.ShortCurveTolerance||r>1&&row.GetLength()<doc.Application.ShortCurveTolerance||c>1&&r>1&&column.CrossProduct(row).GetLength()<1e-9)throw new ToolInputException("Grid steps must be distinct, non-zero and not collinear.");
         if(!double.IsFinite(ToolInput.OptionalDouble(input,"rotation_deg")??0))throw new ToolInputException("Rotation must be finite.");
     }
     public string Execute(IReadOnlyDictionary<string,JsonElement> input,UIApplication app)
     {
-        Preflight(input,app);var doc=NativeToolUtil.Doc(app);var symbol=(FamilySymbol)NativeToolUtil.Element(doc,input["symbol_id"].GetInt64());var level=(Level)NativeToolUtil.Element(doc,input["level_id"].GetInt64());
-        var origin=NativeToolUtil.Point(input["origin_mm"]);var col=NativeToolUtil.Point(input["column_step_mm"]);var row=NativeToolUtil.Point(input["row_step_mm"]);var columns=input["columns"].GetInt32();var rows=input["rows"].GetInt32();var angle=(ToolInput.OptionalDouble(input,"rotation_deg")??0)*Math.PI/180;var preview=NativeToolUtil.Preview(input);
+        Preflight(input,app);var doc=NativeToolUtil.Doc(app);var symbol=(FamilySymbol)NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "symbol_id"));var level=(Level)NativeToolUtil.Element(doc,ToolInput.RequiredLong(input, "level_id"));
+        var origin=NativeToolUtil.Point(ToolInput.Required(input, "origin_mm"));var col=NativeToolUtil.Point(ToolInput.Required(input, "column_step_mm"));var row=NativeToolUtil.Point(ToolInput.Required(input, "row_step_mm"));var columns=ToolInput.RequiredInt(input, "columns");var rows=ToolInput.RequiredInt(input, "rows");var angle=(ToolInput.OptionalDouble(input,"rotation_deg")??0)*Math.PI/180;var preview=NativeToolUtil.Preview(input);
         var (ids,warnings)=NativeToolUtil.Commit(doc,"Claude: facade grid",preview,()=>
         {
             if(!symbol.IsActive){symbol.Activate();doc.Regenerate();}var ids=new List<long>();

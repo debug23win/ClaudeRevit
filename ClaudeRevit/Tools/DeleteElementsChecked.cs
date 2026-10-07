@@ -26,7 +26,7 @@ public sealed class DeleteElementsChecked : IRevitTool
         var doc = NativeToolUtil.Doc(app);
         var preview = NativeToolUtil.Preview(input);
         var key = Services.DocumentSessions.Key(doc);
-        var ids = NativeToolUtil.Ids(input["element_ids"]);
+        var ids = NativeToolUtil.Ids(ToolInput.Required(input, "element_ids"));
         foreach (var id in ids) NativeToolUtil.Element(doc, id.Value);
         HashSet<long>? expected = null;
         if (!preview)

@@ -40,15 +40,15 @@ public class AddCurtainGrid : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var wallId = new ElementId(input["curtain_wall_id"].GetInt64());
+        var wallId = new ElementId(ToolInput.RequiredLong(input, "curtain_wall_id"));
         var wall = doc.GetElement(wallId) as Wall
             ?? throw new InvalidOperationException($"Element {wallId.Value} is not a Wall.");
 
         var grid = wall.CurtainGrid
             ?? throw new InvalidOperationException($"Wall '{wall.Name}' has no curtain grid (not a curtain wall).");
 
-        var isUGrid = input["orientation"].GetString()!.Equals("vertical", StringComparison.OrdinalIgnoreCase);
-        var pt = new XYZ(input["x_ft"].GetDouble(), input["y_ft"].GetDouble(), input["z_ft"].GetDouble());
+        var isUGrid = ToolInput.RequiredText(input, "orientation")!.Equals("vertical", StringComparison.OrdinalIgnoreCase);
+        var pt = new XYZ(ToolInput.RequiredDouble(input, "x_ft"), ToolInput.RequiredDouble(input, "y_ft"), ToolInput.RequiredDouble(input, "z_ft"));
 
         var line = grid.AddGridLine(isUGrid, pt, false);
 
@@ -57,7 +57,7 @@ public class AddCurtainGrid : IRevitTool
             id = line.Id.Value,
             type = "CurtainGridLine",
             wall = wall.Name,
-            orientation = input["orientation"].GetString(),
+            orientation = ToolInput.RequiredText(input, "orientation"),
             point_ft = new { x = pt.X, y = pt.Y, z = pt.Z }
         });
     }

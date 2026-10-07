@@ -73,11 +73,11 @@ public class CreateDirectShape : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var verts = input["vertices"].EnumerateArray().Select(ParseVertex).ToList();
+        var verts = ToolInput.RequiredArray(input, "vertices").EnumerateArray().Select(ParseVertex).ToList();
         if (verts.Count < 3)
             throw new InvalidOperationException($"Need at least 3 vertices (got {verts.Count}).");
 
-        var faces = input["faces"].EnumerateArray()
+        var faces = ToolInput.RequiredArray(input, "faces").EnumerateArray()
             .Select(f => f.EnumerateArray().Select(i => i.GetInt32()).ToList())
             .ToList();
         if (faces.Count == 0)

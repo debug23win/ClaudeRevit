@@ -43,7 +43,7 @@ public class ListFamilyTypes : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var category = input["category"].GetString()!;
+        var category = ToolInput.RequiredText(input, "category")!;
         var limit = input.TryGetValue("limit", out var l) ? l.GetInt32() : 100;
         if (limit < 1 || limit > 500) limit = 100;
 

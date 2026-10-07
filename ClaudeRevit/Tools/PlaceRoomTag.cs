@@ -57,7 +57,7 @@ public class PlaceRoomTag : IRevitTool
                 .FirstOrDefault(s => s.Name == name);
         }
 
-        var roomIds = input["room_ids"].EnumerateArray()
+        var roomIds = ToolInput.RequiredArray(input, "room_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var tagged = new List<long>();

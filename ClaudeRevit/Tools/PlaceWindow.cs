@@ -37,14 +37,14 @@ public class PlaceWindow : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var hostId = new ElementId(input["host_wall_id"].GetInt64());
+        var hostId = new ElementId(ToolInput.RequiredLong(input, "host_wall_id"));
         var host = doc.GetElement(hostId) as Wall
             ?? throw new InvalidOperationException(
                 $"Element {hostId.Value} is not a wall (or doesn't exist).");
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
-        var levelName = input["level_name"].GetString()!;
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)

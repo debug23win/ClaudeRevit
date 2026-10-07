@@ -29,7 +29,7 @@ public sealed class CreateDimensionFromReferences : IRevitTool
     {
         var doc = NativeToolUtil.Doc(app);
         if (ToolInput.RequiredString(input, "document_key") != Services.DocumentSessions.Key(doc)) throw new ToolInputException("References belong to another document; inspect again.");
-        var references = input["references"].EnumerateArray().Select(r => Reference.ParseFromStableRepresentation(doc, r.GetString() ?? "")).ToList();
+        var references = ToolInput.RequiredArray(input, "references").EnumerateArray().Select(r => Reference.ParseFromStableRepresentation(doc, r.GetString() ?? "")).ToList();
         if (references.Count is < 1 or > 100) throw new ToolInputException("Supply 1..100 references.");
         var kind = NativeToolUtil.Text(input, "kind", "linear");
         var view = input.TryGetValue("view_id", out var vi) ? NativeToolUtil.Element(doc, vi.GetInt64()) as View : doc.ActiveView;
@@ -43,7 +43,7 @@ public sealed class CreateDimensionFromReferences : IRevitTool
             if (kind == "linear")
             {
                 if (references.Count < 2) throw new ToolInputException("Linear dimension requires at least two references.");
-                var pts = input["line_mm"].EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
+                var pts = ToolInput.RequiredArray(input, "line_mm").EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
                 if (pts.Length != 2) throw new ToolInputException("line_mm requires two points.");
                 var line = Line.CreateBound(pts[0], pts[1]);
                 var array = new ReferenceArray(); references.ForEach(array.Append);
@@ -56,14 +56,14 @@ public sealed class CreateDimensionFromReferences : IRevitTool
                 var factory = doc.FamilyCreate;
                 Arc ArcInput()
                 {
-                    var pts = input["arc_mm"].EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
+                    var pts = ToolInput.RequiredArray(input, "arc_mm").EnumerateArray().Select(p => NativeToolUtil.Point(p)).ToArray();
                     if (pts.Length != 3) throw new ToolInputException("arc_mm requires [start,end,pointOnArc].");
                     return Arc.Create(pts[0], pts[1], pts[2]);
                 }
                 dimension = kind switch
                 {
                     "angular" when references.Count == 2 => type == null ? factory.NewAngularDimension(view, ArcInput(), references[0], references[1]) : factory.NewAngularDimension(view, ArcInput(), references[0], references[1], type),
-                    "radial" when references.Count == 1 => type == null ? factory.NewRadialDimension(view, references[0], NativeToolUtil.Point(input["origin_mm"])) : factory.NewRadialDimension(view, references[0], NativeToolUtil.Point(input["origin_mm"]), type),
+                    "radial" when references.Count == 1 => type == null ? factory.NewRadialDimension(view, references[0], NativeToolUtil.Point(ToolInput.Required(input, "origin_mm"))) : factory.NewRadialDimension(view, references[0], NativeToolUtil.Point(ToolInput.Required(input, "origin_mm")), type),
                     "arc_length" when references.Count == 3 => type == null ? factory.NewArcLengthDimension(view, ArcInput(), references[0], references[1], references[2]) : factory.NewArcLengthDimension(view, ArcInput(), references[0], references[1], references[2], type),
                     _ => throw new ToolInputException("Unknown kind or incorrect reference count.")
                 };

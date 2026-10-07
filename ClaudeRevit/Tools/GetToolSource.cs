@@ -38,7 +38,7 @@ public class GetToolSource : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
-        var name = input["name"].GetString();
+        var name = ToolInput.RequiredText(input, "name");
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("name is empty.");
 

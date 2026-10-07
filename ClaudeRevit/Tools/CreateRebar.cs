@@ -66,8 +66,8 @@ public class CreateRebar : IRevitTool
 
         var host = ReinforcementHelpers.GetValidRebarHost(doc, input);
 
-        var start = new XYZ(input["start_x"].GetDouble(), input["start_y"].GetDouble(), input["start_z"].GetDouble());
-        var end = new XYZ(input["end_x"].GetDouble(), input["end_y"].GetDouble(), input["end_z"].GetDouble());
+        var start = new XYZ(ToolInput.RequiredDouble(input, "start_x"), ToolInput.RequiredDouble(input, "start_y"), ToolInput.RequiredDouble(input, "start_z"));
+        var end = new XYZ(ToolInput.RequiredDouble(input, "end_x"), ToolInput.RequiredDouble(input, "end_y"), ToolInput.RequiredDouble(input, "end_z"));
         if (start.DistanceTo(end) < 0.01)
             throw new InvalidOperationException("Start and end points are (nearly) identical.");
 

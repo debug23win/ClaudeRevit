@@ -31,7 +31,7 @@ public sealed class CreateParametricSection:IRevitTool
     {
         var doc=NativeToolUtil.Doc(app);var fm=FamilyEditorUtil.Manager(doc);
         var view=input.TryGetValue("view_id",out var viewId)?doc.GetElement(new ElementId(viewId.GetInt64())) as View:doc.ActiveView;
-        var shape=ToolInput.RequiredString(input,"shape");var w=input["width_mm"].GetDouble();var h=input["height_mm"].GetDouble();var t=ToolInput.OptionalDouble(input,"web_mm")??10;var f=ToolInput.OptionalDouble(input,"flange_mm")??10;var length=ToolInput.OptionalDouble(input,"length_mm")??1000;
+        var shape=ToolInput.RequiredString(input,"shape");var w=ToolInput.RequiredDouble(input, "width_mm");var h=ToolInput.RequiredDouble(input, "height_mm");var t=ToolInput.OptionalDouble(input,"web_mm")??10;var f=ToolInput.OptionalDouble(input,"flange_mm")??10;var length=ToolInput.OptionalDouble(input,"length_mm")??1000;
         if(shape=="timber_pair")t=ToolInput.OptionalDouble(input,"gap_mm")??t;
         var placementName=NativeToolUtil.Text(input,"placement_length_parameter");var placement=placementName.Length==0?null:FamilyEditorUtil.Require(fm,placementName);
         if(placement!=null){if(!FamilyEditorUtil.IsLength(placement)||!placement.IsInstance)throw new ToolInputException("Placement length must be an existing instance Length parameter.");if(fm.CurrentType==null)throw new ToolInputException("Set a nominal family type before binding template length.");length=fm.CurrentType.AsDouble(placement)!.Value*Units.MmPerFoot;}

@@ -40,7 +40,7 @@ public class PlaceFamilyInstance : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var typeId = new ElementId(input["family_type_id"].GetInt64());
+        var typeId = new ElementId(ToolInput.RequiredLong(input, "family_type_id"));
         var symbol = doc.GetElement(typeId) as FamilySymbol
             ?? throw new InvalidOperationException(
                 $"Element {typeId.Value} is not a FamilySymbol (family type). Call list_family_types to get a " +
@@ -52,8 +52,8 @@ public class PlaceFamilyInstance : IRevitTool
         // regenerations of a model that had nothing new to activate after the first.
         if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
         var z = input.TryGetValue("z", out var zEl) ? zEl.GetDouble() : 0.0;
         var point = new XYZ(x, y, z);
 

@@ -44,7 +44,7 @@ public class SetViewDetailLevel : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var levelStr = input["level"].GetString()!.ToLowerInvariant();
+        var levelStr = ToolInput.RequiredText(input, "level")!.ToLowerInvariant();
         var level = levelStr switch
         {
             "coarse" => ViewDetailLevel.Coarse,

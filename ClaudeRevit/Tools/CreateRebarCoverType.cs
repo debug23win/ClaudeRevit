@@ -40,10 +40,10 @@ public class CreateRebarCoverType : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString();
+        var name = ToolInput.RequiredText(input, "name");
         if (string.IsNullOrWhiteSpace(name))
             throw new InvalidOperationException("name is empty.");
-        var coverMm = input["cover_mm"].GetDouble();
+        var coverMm = ToolInput.RequiredDouble(input, "cover_mm");
         if (coverMm < 0)
             throw new InvalidOperationException("cover_mm must be non-negative.");
 

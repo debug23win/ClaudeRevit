@@ -39,8 +39,8 @@ public class GetIntersectingElements : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var min = new XYZ(input["min_x_ft"].GetDouble(), input["min_y_ft"].GetDouble(), input["min_z_ft"].GetDouble());
-        var max = new XYZ(input["max_x_ft"].GetDouble(), input["max_y_ft"].GetDouble(), input["max_z_ft"].GetDouble());
+        var min = new XYZ(ToolInput.RequiredDouble(input, "min_x_ft"), ToolInput.RequiredDouble(input, "min_y_ft"), ToolInput.RequiredDouble(input, "min_z_ft"));
+        var max = new XYZ(ToolInput.RequiredDouble(input, "max_x_ft"), ToolInput.RequiredDouble(input, "max_y_ft"), ToolInput.RequiredDouble(input, "max_z_ft"));
 
         var outline = new Outline(min, max);
         var filter = new BoundingBoxIntersectsFilter(outline);

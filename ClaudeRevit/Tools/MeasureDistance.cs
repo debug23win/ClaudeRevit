@@ -55,12 +55,12 @@ public class MeasureDistance : IRevitTool
                  && input.ContainsKey("to_x") && input.ContainsKey("to_y"))
         {
             from = new XYZ(
-                input["from_x"].GetDouble(),
-                input["from_y"].GetDouble(),
+                ToolInput.RequiredDouble(input, "from_x"),
+                ToolInput.RequiredDouble(input, "from_y"),
                 input.TryGetValue("from_z", out var fz) ? fz.GetDouble() : 0);
             to = new XYZ(
-                input["to_x"].GetDouble(),
-                input["to_y"].GetDouble(),
+                ToolInput.RequiredDouble(input, "to_x"),
+                ToolInput.RequiredDouble(input, "to_y"),
                 input.TryGetValue("to_z", out var tz) ? tz.GetDouble() : 0);
         }
         else

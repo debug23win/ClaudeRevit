@@ -57,7 +57,7 @@ public class CloneElementGeometry : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var srcId = new ElementId(input["source_id"].GetInt64());
+        var srcId = new ElementId(ToolInput.RequiredLong(input, "source_id"));
         var src = doc.GetElement(srcId)
             ?? throw new InvalidOperationException($"Element {srcId.Value} not found.");
 

@@ -38,8 +38,8 @@ public class CreateSelectionFilter : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var name = input["name"].GetString()!;
-        var ids = input["element_ids"].EnumerateArray()
+        var name = ToolInput.RequiredText(input, "name")!;
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray()
             .Select(e => new ElementId(e.GetInt64())).ToList();
 
         var filter = SelectionFilterElement.Create(doc, name);

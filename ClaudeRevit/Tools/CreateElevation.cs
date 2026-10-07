@@ -43,9 +43,9 @@ public class CreateElevation : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var x = input["x"].GetDouble();
-        var y = input["y"].GetDouble();
-        var direction = input["direction"].GetString()!.ToLowerInvariant();
+        var x = ToolInput.RequiredDouble(input, "x");
+        var y = ToolInput.RequiredDouble(input, "y");
+        var direction = ToolInput.RequiredText(input, "direction")!.ToLowerInvariant();
         var scale = input.TryGetValue("scale", out var s) ? s.GetInt32() : 100;
 
         // Standard elevation marker indices: 0=south, 1=east, 2=north, 3=west

@@ -46,7 +46,7 @@ public class TagAllInView : IRevitTool
         else
             view = doc.ActiveView ?? throw new InvalidOperationException("No active view.");
 
-        var category = input["category"].GetString()!;
+        var category = ToolInput.RequiredText(input, "category")!;
         var bic = CategoryResolve.Parse(category);
 
         var leader = input.TryGetValue("leader", out var l) && l.ValueKind == JsonValueKind.True;

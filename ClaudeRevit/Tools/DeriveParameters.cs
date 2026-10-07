@@ -67,9 +67,9 @@ public class DeriveParameters : IRevitTool
             ?? throw new InvalidOperationException("No document is open.");
 
         var elements = Collect(doc, input);
-        var paramName = input["parameter_name"].GetString()
+        var paramName = ToolInput.RequiredText(input, "parameter_name")
             ?? throw new InvalidOperationException("parameter_name is required.");
-        var source = input["source"].GetString() ?? "";
+        var source = ToolInput.RequiredText(input, "source") ?? "";
         var template = input.TryGetValue("template", out var t) ? t.GetString() ?? "" : "";
         if (source == "template" && string.IsNullOrWhiteSpace(template))
             throw new InvalidOperationException("source='template' requires a `template` string.");

@@ -49,7 +49,7 @@ public class GetElementHosts : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var ids = input["element_ids"].EnumerateArray().Select(e => new ElementId(e.GetInt64())).ToList();
+        var ids = ToolInput.RequiredArray(input, "element_ids").EnumerateArray().Select(e => new ElementId(e.GetInt64())).ToList();
         var reverse = input.TryGetValue("direction", out var d) &&
                       string.Equals(d.GetString(), "hosted", StringComparison.OrdinalIgnoreCase);
 

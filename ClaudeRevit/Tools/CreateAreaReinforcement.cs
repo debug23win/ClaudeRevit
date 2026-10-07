@@ -42,7 +42,7 @@ public class CreateAreaReinforcement : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var host = doc.GetElement(new ElementId(input["host_id"].GetInt64()))
+        var host = doc.GetElement(new ElementId(ToolInput.RequiredLong(input, "host_id")))
             ?? throw new InvalidOperationException("Host element not found.");
         if (host is not Wall && host is not Floor)
             throw new InvalidOperationException(

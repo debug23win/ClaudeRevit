@@ -39,11 +39,11 @@ public class CreateWall : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var startX = input["start_x"].GetDouble();
-        var startY = input["start_y"].GetDouble();
-        var endX = input["end_x"].GetDouble();
-        var endY = input["end_y"].GetDouble();
-        var levelName = input["level_name"].GetString()!;
+        var startX = ToolInput.RequiredDouble(input, "start_x");
+        var startY = ToolInput.RequiredDouble(input, "start_y");
+        var endX = ToolInput.RequiredDouble(input, "end_x");
+        var endY = ToolInput.RequiredDouble(input, "end_y");
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
         var height = input.TryGetValue("height_ft", out var h) ? h.GetDouble() : 10.0;
 
         var level = new FilteredElementCollector(doc)

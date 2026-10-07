@@ -50,9 +50,9 @@ public class CreateRoof : IRevitTool
         var doc = ToolContext.UiDocument(app)?.Document
             ?? throw new InvalidOperationException("No document is open.");
 
-        var levelName = input["level_name"].GetString()!;
+        var levelName = ToolInput.RequiredText(input, "level_name")!;
 
-        var pts = input["points"].EnumerateArray()
+        var pts = ToolInput.RequiredArray(input, "points").EnumerateArray()
             .Select(p => new XYZ(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble(), 0))
             .ToList();
         if (pts.Count < 3)
