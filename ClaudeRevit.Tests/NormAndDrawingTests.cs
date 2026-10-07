@@ -59,7 +59,7 @@ public class NormRuleTests
     public void CatalogIsConsistent()
     {
         Assert.Equal(NormRules.Ru.Count, NormRules.Ru.Select(r => r.Id).Distinct().Count());
-        Assert.All(NormRules.Ru, r => Assert.True(r.Value > 0 && r.Clause.StartsWith("п. ") && r.Document.StartsWith("СП ")));
+        Assert.All(NormRules.Ru, r => Assert.True(r.Value > 0 && (r.Clause.StartsWith("п. ") || r.Clause.StartsWith("разд. ")) && r.Document.StartsWith("СП ") && NormRules.Checks.Contains(r.Check)));
     }
 
     [Theory]

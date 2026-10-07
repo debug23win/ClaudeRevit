@@ -64,6 +64,15 @@ public static class DocumentSessions
         Identities.Add(new(document, id));
         return id;
     }
+    // The key of a document already in a session, without registering new ones (event handlers
+    // see family and other documents that never become sessions).
+    public static string? ExistingKey(Document? document)
+    {
+        if (document == null || !document.IsValidObject) return null;
+        foreach (var identity in Identities)
+            if (identity.Document.IsValidObject && Same(identity.Document, document)) return identity.Id;
+        return null;
+    }
     // API thread only. Bound jobs never fall back to whichever tab happens to be active.
     public static Document? Find(string key) => Identities.FirstOrDefault(i => i.Id == key && i.Document.IsValidObject)?.Document;
 

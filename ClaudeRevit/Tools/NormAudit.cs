@@ -14,24 +14,28 @@ public sealed class AuditNorms : IRevitTool
 {
     public string Name => "audit_norms";
     public string Description =>
-        "Check the model against Russian code requirements (СП 1.13130.2020 evacuation, СП 54.13330.2022 residential): " +
-        "evacuation door clear width/height, corridor width, stair run width / riser / tread / slope, ceiling heights of " +
-        "living rooms and apartment circulation, minimum areas of living rooms, bedrooms and kitchens, railing heights. " +
-        "Rooms are classified by name (Кухня, Спальня, Коридор, Лестничная клетка…). Thresholds follow the clause variants " +
-        "for functional_class (e.g. Ф1.3), climate_subregion and corridor_occupants; overrides set project values. " +
-        "Read-only. Returns failures with the clause, measured vs required value and how it was measured, plus " +
-        "annotate_input to pass to annotate_norm_findings. list_rules=true returns the rule catalog. The result is a " +
-        "screening aid; a responsible engineer confirms applicability and the edition in force.";
+        "Check the model against Russian code requirements. Base rules (always): СП 1.13130.2020 evacuation doors, " +
+        "corridors and stairs; СП 54.13330.2022 ceiling heights, minimum room areas, railing heights. Optional sections: " +
+        "sp59 (СП 59.13330.2020 accessibility: doors 0.9 m, paths 1.8 m, universal toilet cabin 2.2×2.25 m) and " +
+        "fire_distance (СП 4.13130.2013 table 1 between this building and linked buildings; give fire_classes). An office " +
+        "rule file (JSON; default %AppData%/ClaudeRevit/norm-rules.json, or rules_file) changes thresholds, disables rules " +
+        "and adds rules of its own over the same measurements — no rebuild needed. Rooms are classified by name. " +
+        "Thresholds follow clause variants for functional_class, climate_subregion, corridor_occupants. Read-only; returns " +
+        "failures with clause, measured vs required and method, plus annotate_input for annotate_norm_findings. " +
+        "list_rules=true returns the catalog in force. A screening aid; an engineer confirms applicability and edition.";
     public bool RequiresTransaction => false;
     public InputSchema InputSchema => NativeToolUtil.Schema(new()
     {
-        ["rules"] = NativeToolUtil.Array("string", "Rule ids to run (default all). See list_rules."),
-        ["list_rules"] = NativeToolUtil.Field("boolean", "Return the rule catalog only."),
+        ["rules"] = NativeToolUtil.Array("string", "Rule ids to run (default: base rules plus requested sections). See list_rules."),
+        ["sections"] = NativeToolUtil.Array("string", "Extra rule sets: sp59, fire_distance, office (rules from the office file)."),
+        ["list_rules"] = NativeToolUtil.Field("boolean", "Return the rule catalog in force only."),
+        ["rules_file"] = NativeToolUtil.Field("string", "Office rule file (JSON) instead of the default %AppData%/ClaudeRevit/norm-rules.json."),
         ["level"] = NativeToolUtil.Field("string", "Only elements on this level."),
         ["functional_class"] = NativeToolUtil.Field("string", "Building functional fire-hazard class, e.g. Ф1.3 (selects stair width variant)."),
         ["climate_subregion"] = NativeToolUtil.Field("string", "Climate subregion, e.g. IIВ; IA/IБ/IГ/IД/IVА raise living-room height to 2.7 m."),
         ["corridor_occupants"] = NativeToolUtil.Field("integer", "People evacuating along corridors; more than 50 raises corridor width to 1.2 m."),
         ["apartment_parameter"] = NativeToolUtil.Field("string", "Room parameter holding the apartment number; enables the one-room-apartment variants and excludes in-apartment corridors from evacuation corridor checks."),
+        ["fire_classes"] = NativeToolUtil.Any("fire_distance: {\"this\": \"II C0\", \"<link name>\": \"III C1\"} — fire resistance degree and structural fire hazard class per building; \"default\" for the rest."),
         ["overrides"] = NativeToolUtil.Any("Object {rule_id: value} in the rule's unit (mm, m², ratio), for project-specific requirements."),
         ["include_passed"] = NativeToolUtil.Field("boolean", "Also list passing checks (default false)."),
         ["limit"] = NativeToolUtil.Field("integer", "Max findings listed (default 300).")
@@ -39,20 +43,52 @@ public sealed class AuditNorms : IRevitTool
 
     private sealed record Finding(string Rule, long ElementId, string Element, string? Level, double Measured, NormThreshold Threshold, bool Passed, string Method, double[]? PointMm);
 
+    public static string DefaultRulesFile => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit", "norm-rules.json");
+
+    internal static NormCatalog LoadCatalog(IReadOnlyDictionary<string, JsonElement> input)
+    {
+        var path = NativeToolUtil.Text(input, "rules_file");
+        var explicitFile = path.Length > 0;
+        if (!explicitFile) path = DefaultRulesFile;
+        if (!System.IO.File.Exists(path))
+        {
+            if (explicitFile) throw new ToolInputException($"Rule file not found: {path}");
+            return NormRules.Load(null);
+        }
+        try { return NormRules.Load(System.IO.File.ReadAllText(path), path); }
+        catch (Exception ex) when (ex is ArgumentException or JsonException or FormatException or InvalidOperationException)
+        { throw new ToolInputException($"Rule file {path}: {ex.Message}"); }
+    }
+
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
+        var catalog = LoadCatalog(input);
+        var rulesById = catalog.Rules.ToDictionary(r => r.Id);
         if (ToolInput.Flag(input, "list_rules"))
-            return Json.Serialize(new { rules = NormRules.Ru.Select(r => new { id = r.Id, document = r.Document, clause = r.Clause, subject = r.Subject, measure = r.Measure, comparison = r.AtLeast ? ">=" : "<=", value = r.Value, unit = r.Unit, requirement = r.Requirement }) });
+            return Json.Serialize(new
+            {
+                rules_file = catalog.Source, default_rules_file = DefaultRulesFile, checks = NormRules.Checks,
+                rules = catalog.Rules.Select(r => new
+                {
+                    id = r.Id, section = r.Section, enabled = !catalog.Disabled.Contains(r.Id), document = r.Document, clause = r.Clause, subject = r.Subject, check = r.Check,
+                    comparison = r.AtLeast ? ">=" : "<=", value = catalog.Overrides.TryGetValue(r.Id, out var o) ? o : r.Value, unit = r.Unit, requirement = r.Requirement,
+                    kinds = r.Kinds?.Select(k => k.ToString()), name_pattern = r.NamePattern
+                })
+            });
 
         var doc = NativeToolUtil.Doc(app);
+        Func<string, NormRule> rule = id => rulesById.TryGetValue(id, out var r) ? r : throw new ToolInputException($"Unknown norm rule '{id}'. Known: {string.Join(", ", rulesById.Keys)}.");
+        var sections = input.TryGetValue("sections", out var sc) && sc.ValueKind == JsonValueKind.Array ? sc.EnumerateArray().Select(e => e.GetString() ?? "").ToHashSet() : new HashSet<string>();
         var selected = input.TryGetValue("rules", out var rs) && rs.ValueKind == JsonValueKind.Array
-            ? rs.EnumerateArray().Select(e => NormRules.Get(e.GetString() ?? "").Id).ToHashSet()
-            : NormRules.Ru.Select(r => r.Id).ToHashSet();
-        var overrides = new Dictionary<string, double>();
+            ? rs.EnumerateArray().Select(e => rule(e.GetString() ?? "").Id).ToHashSet()
+            : catalog.Rules.Where(r => !catalog.Disabled.Contains(r.Id) && (r.Section == "base" || sections.Contains(r.Section))).Select(r => r.Id).ToHashSet();
+        var overrides = new Dictionary<string, double>(catalog.Overrides);
         if (input.TryGetValue("overrides", out var ov) && ov.ValueKind == JsonValueKind.Object)
-            foreach (var p in ov.EnumerateObject()) overrides[NormRules.Get(p.Name).Id] = p.Value.GetDouble();
+            foreach (var p in ov.EnumerateObject()) overrides[rule(p.Name).Id] = p.Value.GetDouble();
         var baseContext = new NormContext(NativeToolUtil.Text(input, "functional_class"), NativeToolUtil.Text(input, "climate_subregion"),
             input.TryGetValue("corridor_occupants", out var co) && co.ValueKind == JsonValueKind.Number ? co.GetInt32() : null, false, overrides);
+        var active = selected.Select(id => rulesById[id]).ToList();
+        IEnumerable<NormRule> With(params string[] checks) => active.Where(r => checks.Contains(r.Check));
         var levelName = NativeToolUtil.Text(input, "level");
         Level? level = null;
         if (levelName.Length > 0)
@@ -69,18 +105,21 @@ public sealed class AuditNorms : IRevitTool
             .Where(g => g.Count(r => NormRules.IsLiving(NormRules.Classify(DraftingTable.RoomName(r)))) == 1).SelectMany(g => g).Select(r => r.Id).ToHashSet();
         var view3d = AuditView(doc);
         var findings = new List<Finding>();
-        void Check(string ruleId, Element e, string label, double measured, string method, NormContext? ctx = null)
+        var notChecked = new List<object>();
+        void Record(NormRule r, NormThreshold t, Element e, string label, double measured, string method)
         {
-            if (!selected.Contains(ruleId) || !double.IsFinite(measured)) return;
-            var t = NormRules.Threshold(NormRules.Get(ruleId), ctx ?? baseContext);
+            if (!double.IsFinite(measured)) return;
             var lvl = e.LevelId != ElementId.InvalidElementId ? doc.GetElement(e.LevelId)?.Name : null;
-            findings.Add(new(ruleId, e.Id.Value, label, lvl, Math.Round(measured, 1), t, NormRules.Passes(t, measured), method,
+            findings.Add(new(r.Id, e.Id.Value, label, lvl, Math.Round(measured, 1), t, NormRules.Passes(t, measured), method,
                 DrawingAnchor.Of(e) is { } p ? NativeToolUtil.Mm(p) : null));
         }
+        void Check(NormRule r, Element e, string label, double measured, string method, NormContext? ctx = null) =>
+            Record(r, NormRules.Threshold(r, ctx ?? baseContext), e, label, measured, method);
         string RoomLabel(Room r) => $"{r.Number} {DraftingTable.RoomName(r)}".Trim();
 
-        // Doors on evacuation paths: into a corridor, hall or stair, or to the outside.
-        if (selected.Overlaps(["evac_exit_width", "evac_exit_height"]))
+        // Doors. "evacuation": into a corridor, hall or stair, or to the outside.
+        var doorRules = With("door_clear_width", "door_clear_height").ToList();
+        if (doorRules.Count > 0)
         {
             foreach (var door in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Doors).WhereElementIsNotElementType().OfType<FamilyInstance>())
             {
@@ -91,36 +130,60 @@ public sealed class AuditNorms : IRevitTool
                 // sides (a closet in an unroomed area, a door in a curtain panel) says nothing.
                 var evac = rooms.Count == 0 || ((from != null || to != null) && (from == null || to == null ||
                     NormRules.IsEvacuationSpace(NormRules.Classify(DraftingTable.RoomName(from))) || NormRules.IsEvacuationSpace(NormRules.Classify(DraftingTable.RoomName(to)))));
-                if (!evac) continue;
                 var label = $"Дверь {door.Symbol?.Family?.Name} : {door.Name}" + (door.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() is { Length: > 0 } m ? $" ({m})" : "");
-                var (w, wm) = Dimension(door, ["Ширина в свету", "Clear Width", "ADSK_Размер_Ширина в свету"], BuiltInParameter.DOOR_WIDTH, BuiltInParameter.FAMILY_WIDTH_PARAM);
-                var (h, hm) = Dimension(door, ["Высота в свету", "Clear Height", "ADSK_Размер_Высота в свету"], BuiltInParameter.DOOR_HEIGHT, BuiltInParameter.FAMILY_HEIGHT_PARAM);
-                if (w is { } wv) Check("evac_exit_width", door, label, wv, wm);
-                if (h is { } hv) Check("evac_exit_height", door, label, hv, hm);
+                (double? Value, string Method)? w = null, h = null;
+                foreach (var r in doorRules)
+                {
+                    if (r.DoorScope != "all" && !evac) continue;
+                    if (r.Check == "door_clear_width")
+                    {
+                        w ??= Dimension(door, ["Ширина в свету", "Clear Width", "ADSK_Размер_Ширина в свету"], BuiltInParameter.DOOR_WIDTH, BuiltInParameter.FAMILY_WIDTH_PARAM);
+                        if (w.Value.Value is { } wv) Check(r, door, label, wv, w.Value.Method);
+                    }
+                    else
+                    {
+                        h ??= Dimension(door, ["Высота в свету", "Clear Height", "ADSK_Размер_Высота в свету"], BuiltInParameter.DOOR_HEIGHT, BuiltInParameter.FAMILY_HEIGHT_PARAM);
+                        if (h.Value.Value is { } hv) Check(r, door, label, hv, h.Value.Method);
+                    }
+                }
             }
         }
 
-        foreach (var room in rooms.Where(r => OnLevel(r.LevelId)))
+        // Rooms.
+        var roomRules = With("corridor_width", "room_width", "room_length", "room_area", "room_height").ToList();
+        var patterns = roomRules.Where(r => r.NamePattern != null).ToDictionary(r => r.Id, r => new System.Text.RegularExpressions.Regex(r.NamePattern!, System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+        foreach (var room in roomRules.Count == 0 ? [] : rooms.Where(r => OnLevel(r.LevelId)))
         {
-            var kind = NormRules.Classify(DraftingTable.RoomName(room));
+            var name = DraftingTable.RoomName(room);
+            var kind = NormRules.Classify(name);
             var ctx = baseContext with { OneRoomApartment = oneRoom.Contains(room.Id) };
             var areaM2 = room.Area * 0.09290304;
-            if (kind == RoomKind.Corridor && Apartment(room) is not { Length: > 0 })
-                Check("corridor_width", room, RoomLabel(room), NormRules.EquivalentWidth(areaM2, room.Perimeter * 0.3048) * 1000,
-                    "ширина равновеликого прямоугольника по площади и периметру помещения");
-            if (kind == RoomKind.CommonLiving) Check("area_common_living", room, RoomLabel(room), areaM2, "площадь помещения Revit", ctx);
-            if (kind is RoomKind.Bedroom or RoomKind.LivingGeneric) Check("area_bedroom", room, RoomLabel(room), areaM2, "площадь помещения Revit", ctx);
-            if (kind == RoomKind.Kitchen) Check("area_kitchen", room, RoomLabel(room), areaM2, "площадь помещения Revit", ctx);
-            var heightRule = NormRules.IsLiving(kind) || kind is RoomKind.Kitchen or RoomKind.KitchenDining ? "ceiling_height_living"
-                : kind is RoomKind.ApartmentHall or RoomKind.ApartmentCorridor ? "ceiling_height_circulation" : null;
-            if (heightRule != null && selected.Contains(heightRule))
+            var widthMm = NormRules.EquivalentWidth(areaM2, room.Perimeter * 0.3048) * 1000;
+            (double Height, string Method)? height = null;
+            foreach (var r in roomRules)
             {
-                var (height, method) = ClearHeight(doc, room, view3d);
-                Check(heightRule, room, RoomLabel(room), height, method, ctx);
+                var matches = (r.Kinds?.Contains(kind) ?? false) || (patterns.TryGetValue(r.Id, out var rx) && rx.IsMatch(name));
+                if (!matches) continue;
+                switch (r.Check)
+                {
+                    case "corridor_width":
+                        // In-apartment corridors are not common evacuation corridors.
+                        if (Apartment(room) is { Length: > 0 }) break;
+                        Check(r, room, RoomLabel(room), widthMm, "ширина равновеликого прямоугольника по площади и периметру помещения");
+                        break;
+                    case "room_width": Check(r, room, RoomLabel(room), widthMm, "ширина равновеликого прямоугольника", ctx); break;
+                    case "room_length": Check(r, room, RoomLabel(room), widthMm > 0 ? areaM2 * 1e6 / widthMm : 0, "длина равновеликого прямоугольника", ctx); break;
+                    case "room_area": Check(r, room, RoomLabel(room), areaM2, "площадь помещения Revit", ctx); break;
+                    case "room_height":
+                        height ??= ClearHeight(doc, room, view3d);
+                        Check(r, room, RoomLabel(room), height.Value.Height, height.Value.Method, ctx);
+                        break;
+                }
             }
         }
 
-        if (selected.Overlaps(["stair_run_width", "stair_riser_max", "stair_riser_min", "stair_tread_min", "stair_slope_max"]))
+        var stairRules = With("stair_run_width", "stair_riser", "stair_tread", "stair_slope").ToList();
+        if (stairRules.Count > 0)
         {
             foreach (var stairs in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Stairs).WhereElementIsNotElementType().OfType<Stairs>())
             {
@@ -128,27 +191,34 @@ public sealed class AuditNorms : IRevitTool
                 if (!OnLevel(baseLevel)) continue;
                 var label = $"Лестница {stairs.Name} (id {stairs.Id.Value})";
                 var riser = stairs.ActualRiserHeight * Units.MmPerFoot; var tread = stairs.ActualTreadDepth * Units.MmPerFoot;
-                Check("stair_riser_max", stairs, label, riser, "фактическая высота подступенка");
-                Check("stair_riser_min", stairs, label, riser, "фактическая высота подступенка");
-                Check("stair_tread_min", stairs, label, tread, "фактическая глубина проступи");
-                if (tread > 0) Check("stair_slope_max", stairs, label, riser / tread, "отношение подступенка к проступи");
                 var widths = stairs.GetStairsRuns().Select(id => doc.GetElement(id)).OfType<StairsRun>().Select(r => r.ActualRunWidth * Units.MmPerFoot).ToList();
-                if (widths.Count > 0) Check("stair_run_width", stairs, label, widths.Min(), "наименьшая фактическая ширина марша");
+                foreach (var r in stairRules)
+                    switch (r.Check)
+                    {
+                        case "stair_riser": Check(r, stairs, label, riser, "фактическая высота подступенка"); break;
+                        case "stair_tread": Check(r, stairs, label, tread, "фактическая глубина проступи"); break;
+                        case "stair_slope" when tread > 0: Check(r, stairs, label, riser / tread, "отношение подступенка к проступи"); break;
+                        case "stair_run_width" when widths.Count > 0: Check(r, stairs, label, widths.Min(), "наименьшая фактическая ширина марша"); break;
+                    }
             }
         }
 
-        if (selected.Overlaps(["railing_height_interior", "railing_height_exterior"]))
+        var railingRules = With("railing_height_stair", "railing_height_other").ToList();
+        if (railingRules.Count > 0)
         {
             foreach (var railing in new FilteredElementCollector(doc).OfClass(typeof(Railing)).Cast<Railing>())
             {
                 if (doc.GetElement(railing.GetTypeId()) is not RailingType type) continue;
                 var onStair = railing.HasHost && doc.GetElement(railing.HostId) is Stairs;
                 if (!onStair && !OnLevel(railing.LevelId)) continue;
-                Check(onStair ? "railing_height_interior" : "railing_height_exterior", railing, $"Ограждение {type.Name} (id {railing.Id.Value})",
-                    type.TopRailHeight * Units.MmPerFoot,
-                    onStair ? "высота верхнего поручня типа; ограждение на лестнице" : "высота верхнего поручня типа; ограждение не на лестнице — проверено как балкон/лоджия/наружное");
+                foreach (var r in railingRules.Where(r => r.Check == (onStair ? "railing_height_stair" : "railing_height_other")))
+                    Check(r, railing, $"Ограждение {type.Name} (id {railing.Id.Value})", type.TopRailHeight * Units.MmPerFoot,
+                        onStair ? "высота верхнего поручня типа; ограждение на лестнице" : "высота верхнего поручня типа; ограждение не на лестнице — проверено как балкон/лоджия/наружное");
             }
         }
+
+        foreach (var r in With("building_distance"))
+            FireDistances(doc, input, r, overrides, findings, notChecked);
 
         var limit = input.TryGetValue("limit", out var lim) && lim.ValueKind == JsonValueKind.Number ? Math.Clamp(lim.GetInt32(), 1, 2000) : 300;
         var failed = findings.Where(f => !f.Passed).ToList();
@@ -161,13 +231,62 @@ public sealed class AuditNorms : IRevitTool
         string Note(Finding f) => $"{f.Threshold.Rule.Document} {f.Threshold.Rule.Clause}: {f.Threshold.Rule.Measure} {f.Measured:0.##} {(f.Threshold.Rule.AtLeast ? "<" : ">")} {f.Threshold.Value:0.##} {f.Threshold.Rule.Unit}";
         return Json.Serialize(new
         {
+            rules_file = catalog.Source,
+            rules_run = selected.OrderBy(x => x),
             summary = findings.GroupBy(f => f.Rule).Select(g => new { rule = g.Key, checked_count = g.Count(), failed = g.Count(f => !f.Passed) }),
             failed_count = failed.Count,
             findings = (ToolInput.Flag(input, "include_passed") ? findings.OrderBy(f => f.Passed) : failed.AsEnumerable()).Take(limit).Select(Row),
             truncated = (ToolInput.Flag(input, "include_passed") ? findings.Count : failed.Count) > limit,
+            not_checked = notChecked,
             annotate_input = failed.Take(limit).GroupBy(f => f.ElementId).Select(g => new { element_id = g.Key, text = string.Join("\n", g.Select(Note)) }),
             disclaimer = "Пороговые значения — общий случай указанных пунктов с учётом переданного контекста. Проверьте применимость норм, редакцию и исключения для объекта; результат — инструмент предварительной проверки, а не заключение экспертизы."
         });
+    }
+
+    // Fire distances (СП 4.13130.2013 table 1) between this building and each loaded Revit link
+    // treated as a building, and between links. Footprints are the convex hulls of walls in plan —
+    // never farther than the real outline, so a distance that passes really passes.
+    private static void FireDistances(Document doc, IReadOnlyDictionary<string, JsonElement> input, NormRule rule,
+        IReadOnlyDictionary<string, double> overrides, List<Finding> findings, List<object> notChecked)
+    {
+        var classes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (input.TryGetValue("fire_classes", out var fc) && fc.ValueKind == JsonValueKind.Object)
+            foreach (var p in fc.EnumerateObject()) classes[p.Name] = p.Value.GetString() ?? "";
+        var buildings = new List<(string Name, Element Anchor, List<(double X, double Y)> Hull)>();
+        List<(double X, double Y)> Footprint(Document d, Transform t) => NormRules.Hull(new FilteredElementCollector(d).OfClass(typeof(Wall)).Cast<Wall>()
+            .Select(w => w.get_BoundingBox(null)).Where(b => b != null)
+            .SelectMany(b => new[] { new XYZ(b!.Min.X, b.Min.Y, 0), new XYZ(b.Max.X, b.Min.Y, 0), new XYZ(b.Max.X, b.Max.Y, 0), new XYZ(b.Min.X, b.Max.Y, 0) })
+            .Select(p => t.OfPoint(p)).Select(p => (p.X * Units.MmPerFoot, p.Y * Units.MmPerFoot)));
+        var own = Footprint(doc, Transform.Identity);
+        var anchor = new FilteredElementCollector(doc).OfClass(typeof(Wall)).FirstElement();
+        if (own.Count >= 3 && anchor != null) buildings.Add(("this", anchor, own));
+        foreach (var link in new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance)).Cast<RevitLinkInstance>())
+        {
+            var ld = link.GetLinkDocument();
+            if (ld == null) { notChecked.Add(new { rule = rule.Id, link = link.Name, reason = "link not loaded" }); continue; }
+            var hull = Footprint(ld, link.GetTotalTransform());
+            if (hull.Count >= 3) buildings.Add((link.Name, link, hull));
+        }
+        if (buildings.Count < 2) { notChecked.Add(new { rule = rule.Id, reason = "needs this model and at least one linked building (Revit link with walls)" }); return; }
+        string? ClassOf(string name) => classes.TryGetValue(name, out var c) ? c : classes.FirstOrDefault(kv => name.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value ?? (classes.TryGetValue("default", out var d) ? d : null);
+        for (int i = 0; i < buildings.Count; i++)
+            for (int j = i + 1; j < buildings.Count; j++)
+            {
+                var a = buildings[i]; var b = buildings[j];
+                var ca = ClassOf(a.Name); var cb = ClassOf(b.Name);
+                double required; string basis;
+                if (overrides.TryGetValue(rule.Id, out var o)) { required = o; basis = "project override"; }
+                else if (ca == null || cb == null) { notChecked.Add(new { rule = rule.Id, pair = $"{a.Name} — {b.Name}", reason = "give fire_classes for both buildings (e.g. \"II C0\")" }); continue; }
+                else
+                {
+                    try { required = NormRules.FireDistanceMm(ca, cb); basis = $"{ca} / {cb}"; }
+                    catch (ArgumentException ex) { notChecked.Add(new { rule = rule.Id, pair = $"{a.Name} — {b.Name}", reason = ex.Message }); continue; }
+                }
+                var distance = NormRules.FootprintDistance(a.Hull, b.Hull);
+                var t = new NormThreshold(rule, required, basis);
+                findings.Add(new(rule.Id, b.Anchor.Id.Value, $"{a.Name} — {b.Name}", null, Math.Round(distance), t, NormRules.Passes(t, distance),
+                    "кратчайшее расстояние между выпуклыми контурами стен в плане", DrawingAnchor.Of(b.Anchor) is { } p ? NativeToolUtil.Mm(p) : null));
+            }
     }
 
     // Clear dimension: a modelled clear-width/height parameter if the family has one, else the

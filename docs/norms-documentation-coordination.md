@@ -1,4 +1,4 @@
-# Norm audit, Russian documentation, PDF import, coordination and analysis
+# Norm audit, Russian documentation, imports, coordination, versions and analysis
 
 These tools arrived after v3.8.7. Several ideas came from forks of
 [mcp-servers-for-revit](https://github.com/mcp-servers-for-revit/mcp-servers-for-revit) (MIT):
@@ -60,6 +60,29 @@ These inputs select the variant of a clause:
 - **The audit is a screening aid.** The responsible engineer still confirms which norms apply, which edition is in force, and any exceptions.
 - **Nominal door widths overstate clear widths.** Results measured from a nominal width say so.
 - **Ceiling rays can miss.** A ray only sees what the 3D view used for the audit shows: the default `{3D}` view, or another non-perspective 3D view if there is none. Hidden categories or a section box make it miss, and the room's upper limit is reported instead.
+
+### Optional sections
+
+Two more rule sets run when you ask for them with `sections`:
+
+- **`sp59`** (СП 59.13330.2020, accessibility):
+  - `mgn_door_width`: clear width of a doorway accessible to wheelchair users ≥ 0.9 m (п. 6.1.5).
+  - `mgn_corridor_width`: width of corridors and halls on paths of movement ≥ 1.8 m (п. 6.2.1).
+  - `mgn_wc_width` and `mgn_wc_length`: universal toilet cabin ≥ 2.2 × 2.25 m (разд. 6.3). The audit finds these rooms by name: «универсальн», «МГН», «инвалид».
+- **`fire_distance`** (СП 4.13130.2013, табл. 1): distances between this building and each linked building, and between the links.
+  - Give `fire_classes`, for example `{"this": "II C0", "Корпус 2": "III C1", "default": "II C0"}`.
+  - The distance depends on the pair of buildings: 6, 8, 10, 12 or 15 m.
+  - Footprints are the convex hulls of the walls in plan. A hull is never farther away than the real outline, so a distance that passes really passes.
+
+### Office rule file
+
+You can change the rules without a new build. Put a JSON file at `%AppData%\ClaudeRevit\norm-rules.json`, or pass its path as `rules_file`. The file can:
+
+- change thresholds (`overrides`);
+- switch rules off (`disable`);
+- add rules of your own (`rules`). An added rule picks one of the existing measurements (`check`), the rooms it applies to (`kinds` and/or `name_pattern`) and a `section`.
+
+There is a commented example in [examples/norm-rules.json](examples/norm-rules.json). `audit_norms list_rules=true` shows the rule set in force and which file it came from. A broken file is reported with the reason, and the audit then does not run.
 
 ### Marking findings on drawings
 
@@ -123,6 +146,49 @@ Use `region_pdf` to leave out the title block and legends. Detection is heuristi
   - Units are kN, kN/m, kPa and kN·m. Gravity is −z.
   - A missing load case is created along with its nature.
 - **`create_boundary_conditions`** adds fixed, pinned or roller supports at member ends, or at every column base.
+
+## Undo, safe bulk writes, change impact
+
+- **`undo_last`** rolls back the agent's whole last action in one call: every change made while answering the last request, or the last `steps` calls.
+  - Revit cannot merge transactions after they are committed, so this replays Revit's own Undo once per step, newest first.
+  - Every undone step must be one of the agent's transactions (named "Claude…"). If a manual edit by you is on top of the undo stack, it is restored with Redo and the undo stops.
+  - The document must be the active tab. `list=true` shows the recent actions. Revit's Redo brings undone steps back.
+- **`plan_token`.** Every preview now returns a `plan_token` and what the preview changed.
+  - If you pass the token with `preview=false`, the call applies only when its inputs and the model are unchanged since that preview. Any edit in between invalidates it: another agent edit, a manual change or an undo.
+  - The result then reports planned against actual counts of added, modified and deleted elements.
+  - Calls without a token behave as before.
+- **`survey_change_impact`** lists what an edit would also touch:
+  - hosted inserts and rebar;
+  - tags and dimensions;
+  - geometry joins;
+  - groups;
+  - pinned elements;
+  - elements borrowed by others;
+  - instances of a type.
+
+## Imports and versions
+
+- **`dwg_to_model`** reads a linked or imported DWG by layer:
+  - grids: named 1, 2, 3… and А, Б, В…, because DWG text is not readable through the API;
+  - columns: rectangles and circles;
+  - beams: pairs of parallel lines.
+
+  It matches or creates sized types. Run `analyze` first, then `create` with `preview=true`.
+- **`ifc_to_native`** rebuilds DirectShapes from an opened IFC or an IFC link (Renga, Tekla, nanoCAD BIM) as native walls, floors, columns and beams.
+  - Elements that are not box-like enough are skipped, and the skip is reported.
+  - Each new element's volume is compared with the original.
+  - Openings are not rebuilt.
+- **`snapshot_model`** and **`compare_model_versions`**: take a snapshot at each issue, then compare. The comparison lists what was added, deleted, moved or retyped, and which parameters changed, by category, with element ids.
+- **`check_model_package`** checks a set of models before issue: all open projects, or a folder of RVT files opened detached and closed without saving. It looks at:
+  - warnings;
+  - room problems;
+  - missing or unloaded links;
+  - imported CAD;
+  - in-place families;
+  - purgeable elements;
+  - empty required Project Information and sheet fields;
+  - unsaved changes;
+  - whether all models share the same site location and survey point.
 
 ## Refusal fallback and other API changes
 

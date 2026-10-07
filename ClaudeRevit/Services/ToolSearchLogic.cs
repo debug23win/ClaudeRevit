@@ -34,9 +34,9 @@ public static class ToolSearchLogic
         "rotate_elements", "mirror_elements", "array_elements", "delete_elements", "rename_element",
         "join_geometry", "duplicate_family_type", "load_family",
         // Code / learning / self-extension
-        "execute_csharp", "run_dynamo_python", "save_tool", "delete_tool", "list_custom_tools",
+        "execute_csharp", "run_dynamo_python", "save_tool",
         "get_tool_source", "get_script_journal", "get_full_result", "save_memory",
-        "save_project_memory", "generate_diagnostic_report", "find_tools", "run_batch",
+        "save_project_memory", "generate_diagnostic_report", "find_tools", "run_batch", "undo_last",
     };
 
     // Keywords (EN + RU) that pre-load a whole deferred group when they appear in the user's
@@ -51,7 +51,7 @@ public static class ToolSearchLogic
         ("Groups", new[] { "group", "групп" }),
         ("Documentation", new[] { "экспликац", "тэп", "технико-эконом", "отделк", "штамп", "нумерац", "нормоконтрол",
             "норматив", "по нормам", "сп 1.13130", "сп 54", "explication", "compliance", "code check" }),
-        ("Coordination", new[] { "clash", "коллизи", "ifc", "nwc", "navisworks", "навис" }),
+        ("Coordination", new[] { "clash", "коллизи", "ifc", "nwc", "navisworks", "навис", "dwg", "подложк", "версии модел", "сравни модел", "комплект", "к выдаче", "перед выдачей" }),
         ("Structural analysis", new[] { "analytical", "аналитическ", "нагрузк", "load case", "point load", "line load",
             "area load", "boundary condition", "опорн услов", "закреплени", "сочетани", "combination" }),
         ("Annotation", new[] { "tag", "dimension", "spot ", "revision", "detail line",

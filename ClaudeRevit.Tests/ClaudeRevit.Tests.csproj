@@ -50,8 +50,12 @@
     <Compile Include="..\ClaudeRevit\Services\NormRules.cs" Link="src\NormRules.cs" />
     <Compile Include="..\ClaudeRevit\Services\TepCalculator.cs" Link="src\TepCalculator.cs" />
     <Compile Include="..\ClaudeRevit\Services\PdfDrawing.cs" Link="src\PdfDrawing.cs" />
+    <Compile Include="..\ClaudeRevit\Services\DwgShapes.cs" Link="src\DwgShapes.cs" />
+    <Compile Include="..\ClaudeRevit\Services\BoxFit.cs" Link="src\BoxFit.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ModelSnapshot.cs" Link="src\ModelSnapshot.cs" />
     <Compile Include="..\ClaudeRevit\Services\RoomNumbering.cs" Link="src\RoomNumbering.cs" />
     <Compile Include="..\ClaudeRevit\Services\StructuralRules.cs" Link="src\StructuralRules.cs" />
+    <Compile Include="..\ClaudeRevit\Services\PlanTokenSchema.cs" Link="src\PlanTokenSchema.cs" />
     <Compile Include="..\ClaudeRevit\Tools\ScriptCompiler.cs" Link="src\ScriptCompiler.cs" />
     <Compile Include="..\ClaudeRevit\Tools\ScriptLoopInstrumentation.cs" Link="src\ScriptLoopInstrumentation.cs" />
     <Compile Include="..\ClaudeRevit\Services\GeometryPreflight.cs" Link="src\GeometryPreflight.cs" />

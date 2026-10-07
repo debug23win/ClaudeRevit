@@ -1,0 +1,30 @@
+{
+  // Office rule file for audit_norms. Copy to %AppData%\ClaudeRevit\norm-rules.json (or pass rules_file).
+  // Built-in rule ids: audit_norms list_rules=true. Checks: door_clear_width, door_clear_height, corridor_width,
+  // room_width, room_length, room_area, room_height, stair_run_width, stair_riser, stair_tread, stair_slope,
+  // railing_height_stair, railing_height_other, building_distance.
+  // Room kinds: CommonLiving, Bedroom, LivingGeneric, Kitchen, KitchenDining, KitchenNiche, ApartmentHall,
+  // ApartmentCorridor, Wet, Corridor, Lobby, Stair, Balcony, Loggia, Technical, Other.
+
+  // Project or office values instead of the code's general case (rule unit: mm, m², ratio).
+  "overrides": { "corridor_width": 1400 },
+
+  // Rules the office does not check.
+  "disable": [ "area_kitchen" ],
+
+  // Rules of the office's own, over the same measurements. Section "office" runs with sections ["office"].
+  "rules": [
+    {
+      "id": "office_lobby_width", "document": "СТО бюро 01-2026", "clause": "п. 3.1",
+      "requirement": "Ширина лифтового холла — не менее 2,4 м",
+      "check": "room_width", "at_least": true, "value": 2400, "unit": "mm",
+      "kinds": [ "Lobby" ], "section": "office"
+    },
+    {
+      "id": "office_office_area", "document": "СТО бюро 01-2026", "clause": "п. 4.2",
+      "requirement": "Кабинет — не менее 12 м²",
+      "check": "room_area", "at_least": true, "value": 12, "unit": "m²",
+      "name_pattern": "кабинет", "section": "office"
+    }
+  ]
+}
