@@ -245,3 +245,87 @@ not verify those runtime behaviours.
 Sources: [GOST R 21.101-2026](https://protect.gost.ru/gost/details/17bc12e8-6579-4145-b141-56855e772e7f),
 [GOST 21.502-2016](https://protect.gost.ru/gost/details/57d18a56-0d60-4071-8f93-053f789060ad),
 [GOST 21.504-2016](https://protect.gost.ru/gost/details/b4a24268-5643-4322-b59f-b60288da0806).
+
+## Reinforcement quality, meshes, steel connections, combinations, bar bending schedule
+
+These tools were added after v3.8.7. They compile for Revit 2025–2027 and their pure logic is unit-tested. **None of them has been run in Revit yet**, so keep `preview=true` (the default) on the first runs.
+
+Some ideas come from other projects; the implementations here are native:
+
+- HorizunGroup/horizun-revit-mcp (Apache-2.0): post-commit containment check, stirrup zones, analytical connectivity.
+- okuno-dsi/revit-mcp-toolkit (Apache-2.0): bar spacing check.
+- LuDattilo/RevitCortex (MIT): fabric, splices, steel connection life cycle.
+
+### Reinforcement
+
+- **`audit_rebar`** checks the following:
+  - Every bar lies in concrete. A part that leaves its host but sits in an adjoining element (anchorage into a column) is counted separately from a part in the air.
+  - Clear cover to the *outer* concrete surface, compared with the host's cover settings or `min_cover_mm`.
+  - Clear spacing in a set, compared with max(d, 25 mm) (СП 63.13330.2018 п. 10.3.5) or `min_clear_spacing_mm`.
+  - Bar–bar overlaps between different sets.
+
+  A check that could not be measured is reported as not checked, never as passed.
+- **`create_stirrup_zones`** lays out stirrups by zone, for example 900 mm @100 at each support and @≤200 between them.
+  - Support zones keep their exact spacing.
+  - The one open zone fills the middle evenly.
+  - No stirrup is duplicated at a zone boundary.
+  - The stirrup is a closed rectangle inset by the cover (rectangular sections only), and every created bar is checked to lie in the host.
+- **`splice_rebar`** splices bars by maximum stock length or at a plane, and `unify_rebars` joins them back (Revit 2025+ splice API).
+- **`convert_reinforcement_system`** breaks area and path reinforcement into individual bars.
+- **`set_rebar_rounding`** sets length rounding on bar types or individual bars.
+
+### Welded meshes (ГОСТ 23279)
+
+- **`create_fabric_sheet_type`** builds a type from a designation such as `4С 5Вр1-100/5Вр1-100 230×500 25/25`. It reuses or creates wire types.
+- **`create_fabric_area`** covers a whole slab or wall, or a polygon in it.
+- **`create_fabric_sheet`** places a flat sheet at a point, or a bent sheet along a profile.
+- **`list_fabric_types`** lists the available types.
+
+### Steel connections (КМ)
+
+- **`get_steel_connections`** reports, for each connection:
+  - type, and whether it is detailed, generic or custom;
+  - members;
+  - origin;
+  - approval;
+  - code-check status.
+- **`set_steel_connection`** changes approval (and can create the approval type), code-check status, type, members and member order.
+- **`steel_solid_cuts`** adds, removes or lists solid–solid cuts. Revit's own reason is reported when a cut is not allowed.
+- **`add_steel_fabrication_info`** gives elements the fabrication identity that connections and the Advance Steel link need.
+
+### Analytical model and combinations
+
+- **`check_analytical_model`** checks the model before export to SCAD, ЛИРА or Robot:
+  - member ends that meet nothing;
+  - very short members;
+  - physical elements without an analytical element, and analytical elements without a physical one;
+  - end releases;
+  - load cases that have no loads.
+- **`create_load_combinations`** has two modes:
+  - `mode=sp20` generates the basic combinations of СП 20.13330.2016 п. 6.4:
+    - ψl1 = 1 and ψl2 = 0.95 for long-term loads;
+    - ψt1 = 1, ψt2 = 0.9 and ψt3 = 0.7 for short-term loads;
+    - every ordering of the leading loads;
+    - ultimate combinations with γf, and serviceability combinations with normative values.
+
+    Load cases are classified dead, long or short from their category or name. You can override the classification and γf. Special (accidental and seismic) combinations are not generated.
+  - `mode=explicit` takes the combinations exactly as given.
+
+### Bar bending schedule (ведомость деталей, ГОСТ 21.501-2018)
+
+**`create_bar_bending_schedule`** places a **live** rebar schedule on the sheet, with the columns «Поз.» and «Эскиз» and one row per position. Revit's **native bending details** sit in the «Эскиз» cells. These are real annotation with Revit dimension types, not generated pictures, and they update when a bar changes.
+
+- **Where positions and marks come from.** The tool picks a parameter profile by looking at the model:
+  - native Revit (Rebar Number / Partition);
+  - ADSK (`ADSK_Позиция`, `ADSK_Марка конструкции`, …);
+  - BIMStarter (`Мрк.МаркаКонструкции`, …).
+
+  You can also choose a profile yourself, or override single fields for an office template. Confirm the profile and the sheet with the user before running.
+- **What it adds to the project.**
+  - An always-empty text parameter `CR_Эскиз` bound to rebar. It forms the «Эскиз» column.
+  - A schematic bending detail type sized to the cell, unless you name an existing one.
+- **What it leaves out.** Straight bars are excluded unless `include_straight=true`. The schedule filters by the construction mark.
+- **Known limits.**
+  - Revit may refuse custom body row heights. The sketches are then scaled to the actual rows, and the result says so.
+  - The sketches are placed on the sheet if Revit allows it, otherwise on a 1:1 drafting view whose viewport maps exactly onto the schedule.
+  - They are placed row by row and do not move when rows are added: after the positions change, re-run with `replace=true`.

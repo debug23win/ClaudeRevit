@@ -43,7 +43,7 @@ public static class ToolSearchLogic
     // message, so the common cases ("добавь арматуру", "make a section") skip the find_tools round.
     private static readonly (string Category, string[] Keys)[] GroupKeywords =
     {
-        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн" }),
+        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "сетк", "fabric", "mesh", "ведомость детал", "bending" }),
         ("MEP", new[] { "duct", "pipe", "hvac", "воздуховод", "труб", "инженерн" }),
         ("Schedules", new[] { "schedule", "quantit", "специфик", "ведомост", "расписан", "таблиц" }),
         ("Sheets", new[] { "sheet", "titleblock", "viewport", "лист", "штамп", "титул" }),
@@ -53,7 +53,7 @@ public static class ToolSearchLogic
             "норматив", "по нормам", "сп 1.13130", "сп 54", "explication", "compliance", "code check" }),
         ("Coordination", new[] { "clash", "коллизи", "ifc", "nwc", "navisworks", "навис" }),
         ("Structural analysis", new[] { "analytical", "аналитическ", "нагрузк", "load case", "point load", "line load",
-            "area load", "boundary condition", "опорн услов", "закреплени" }),
+            "area load", "boundary condition", "опорн услов", "закреплени", "сочетани", "combination" }),
         ("Annotation", new[] { "tag", "dimension", "spot ", "revision", "detail line",
             "filled region", "размер", "марк", "аннотац", "выноск", "надпис", "облако" }),
         ("Views", new[] { "section", "elevation", "callout", "camera", "drafting view", "3d view",

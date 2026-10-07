@@ -33,7 +33,11 @@ public static class ToolCatalog
         if (n is "AuditNorms" or "AnnotateNormFindings" or "ComputeTep" or "CreateRoomExplication" or "CreateFloorExplication"
                 or "CreateFinishSchedule" or "FillTitleBlock" or "FitScheduleToSheet" or "NumberRooms") return "Documentation";
         if (n is "CheckClashes" or "ExportIfc" or "ExportNwc") return "Coordination";
-        if (n is "GetAnalyticalModel" or "CreateAnalyticalModel" or "CreateStructuralLoads" or "CreateBoundaryConditions") return "Structural analysis";
+        if (n is "GetAnalyticalModel" or "CreateAnalyticalModel" or "CreateStructuralLoads" or "CreateBoundaryConditions"
+                or "CheckAnalyticalModel" or "CreateLoadCombinations") return "Structural analysis";
+        if (n is "AuditRebar" or "CreateStirrupZones" or "ListFabricTypes" or "CreateFabricSheetType" or "CreateFabricArea" or "CreateFabricSheet"
+                or "SpliceRebar" or "UnifyRebars" or "ConvertReinforcementSystem" or "SetRebarRounding" or "CreateBarBendingSchedule") return "Rebar";
+        if (n is "GetSteelConnections" or "SetSteelConnection" or "SteelSolidCuts" or "AddSteelFabricationInfo") return "Modeling";
         if (n is "PdfToModel" or "CreateStair" or "CreateRailing" or "CreateToposolid") return "Modeling";
 
         // Specific groups first so a broad keyword (e.g. "Delete", "Family") doesn't steal a
