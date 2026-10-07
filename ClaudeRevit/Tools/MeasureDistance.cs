@@ -43,9 +43,9 @@ public class MeasureDistance : IRevitTool
         if (input.TryGetValue("from_id", out var fid) && input.TryGetValue("to_id", out var tid))
         {
             var fromEl = doc.GetElement(new ElementId(fid.GetInt64()))
-                ?? throw new InvalidOperationException($"Element {fid.GetInt64()} not found.");
+                ?? throw NameResolve.MissingId(fid.GetInt64());
             var toEl = doc.GetElement(new ElementId(tid.GetInt64()))
-                ?? throw new InvalidOperationException($"Element {tid.GetInt64()} not found.");
+                ?? throw NameResolve.MissingId(tid.GetInt64());
             var fromBbox = fromEl.get_BoundingBox(null) ?? throw new InvalidOperationException("'from' element has no bounding box.");
             var toBbox = toEl.get_BoundingBox(null) ?? throw new InvalidOperationException("'to' element has no bounding box.");
             from = (fromBbox.Min + fromBbox.Max) * 0.5;

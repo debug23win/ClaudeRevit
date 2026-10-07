@@ -48,7 +48,7 @@ public class CreateCurtainWall : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         WallType wallType;
         if (input.TryGetValue("wall_type_name", out var wtn) && wtn.ValueKind == JsonValueKind.String)
@@ -56,7 +56,7 @@ public class CreateCurtainWall : IRevitTool
             var name = wtn.GetString();
             wallType = new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>()
                 .FirstOrDefault(t => t.Name == name && t.Kind == WallKind.Curtain)
-                ?? throw new InvalidOperationException($"Curtain-wall type '{name}' not found.");
+                ?? throw NameResolve.Missing(name, "Curtain-wall type", new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>().Where(w => w.Kind == WallKind.Curtain).Select(w => w.Name));
         }
         else
         {

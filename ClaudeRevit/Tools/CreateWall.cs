@@ -50,8 +50,7 @@ public class CreateWall : IRevitTool
             .OfClass(typeof(Level))
             .Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException(
-                $"Level '{levelName}' not found. Call get_levels to see available levels.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         WallType wallType;
         if (input.TryGetValue("wall_type_name", out var wt) && wt.ValueKind == JsonValueKind.String)

@@ -24,6 +24,13 @@ Generated fixtures require unused output paths; existing files are not replaced.
 
 Supported actions:
 
+- `review_fixes`: no arguments. Live checks for the v3.8.6 review fixes, each in its own
+  disposable metric project: `change_element_type` really changes the type, `execute_csharp`
+  result serialization never throws (Curve, Document, nested anonymous objects), and
+  `set_parameter` resolves a material named like an existing type. The LiveSPDS updater
+  change (never throwing from Execute) has no native case yet: `UpdaterData` cannot be
+  constructed outside Revit's own update cycle.
+
 - `tool`: `type` is `InspectFamilyFiles`, `AnalyzeFamilyStructure` or `FlexFamily`;
   `arguments` is that tool's schema. For downloaded references, supply absolute
   `file_path` or `files[].path`; do not redistribute the library files.

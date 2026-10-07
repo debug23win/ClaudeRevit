@@ -22,8 +22,7 @@ internal static class ReinforcementHelpers
         {
             var wanted = bt.GetString();
             return types.FirstOrDefault(t => t.Name == wanted)
-                ?? throw new InvalidOperationException(
-                    $"Rebar bar type '{wanted}' not found. Call list_rebar_types to see available types.");
+                ?? throw NameResolve.MissingType<RebarBarType>(doc, wanted, "Rebar bar type");
         }
 
         return types.FirstOrDefault()

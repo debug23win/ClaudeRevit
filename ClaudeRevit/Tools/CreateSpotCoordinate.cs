@@ -38,7 +38,7 @@ public class CreateSpotCoordinate : IRevitTool
 
         var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var element = doc.GetElement(id)
-            ?? throw new InvalidOperationException($"Element {id.Value} not found.");
+            ?? throw NameResolve.MissingId(id.Value);
 
         var bbox = element.get_BoundingBox(view) ?? element.get_BoundingBox(null)
             ?? throw new InvalidOperationException("Element has no bounding box.");

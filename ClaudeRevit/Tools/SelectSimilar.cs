@@ -37,7 +37,7 @@ public class SelectSimilar : IRevitTool
 
         var id = new ElementId(ToolInput.RequiredLong(input, "element_id"));
         var template = doc.GetElement(id)
-            ?? throw new InvalidOperationException($"Element {id.Value} not found.");
+            ?? throw NameResolve.MissingId(id.Value);
 
         var typeId = template.GetTypeId();
         var catId = template.Category?.Id

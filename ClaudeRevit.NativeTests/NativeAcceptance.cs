@@ -69,6 +69,7 @@ public static class NativeAcceptance
                 else if (action == "bore") result = GeometryFixtures.Bore(app,root);
                 else if (action == "reference_placement") result = GeometryFixtures.ReferencePlacement(app,root);
                 else if (action == "schedule_forms") result = SyntheticFixtures.ScheduleForms(app,root);
+                else if (action == "review_fixes") result = ReviewFixtures.Run(app);
                 else if (action == "template_probe")
                 {
                     var rows = new List<object>();

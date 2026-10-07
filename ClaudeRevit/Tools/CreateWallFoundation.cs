@@ -43,7 +43,7 @@ public class CreateWallFoundation : IRevitTool
             var name = tn.GetString();
             footingType = new FilteredElementCollector(doc).OfClass(typeof(WallFoundationType)).Cast<WallFoundationType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Wall foundation type '{name}' not found.");
+                ?? throw NameResolve.MissingType<WallFoundationType>(doc, name, "Wall foundation type");
         }
         else
         {

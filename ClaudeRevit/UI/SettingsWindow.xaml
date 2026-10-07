@@ -55,6 +55,10 @@
                                   Content="Allow Claude to run code (C#, Python, custom tools)" />
                         <TextBlock x:Name="AllowCodeNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
                                    Text="On by default. Code runs with full access to the model, files and network; turn it off to keep both the chat and any MCP client with the token to native tools only." />
+                        <CheckBox x:Name="ServerFallbackBox" Margin="0,12,0,0"
+                                  Content="Retry refused requests on a fallback model (Fable 5 / 5.1, Opus 5)" />
+                        <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"
+                                   Text="On by default. When the model's safety classifier declines a request, the API answers it with Anthropic's recommended fallback model instead of a refusal; the chat says which model answered." />
                         <CheckBox x:Name="ConfirmOpsBox" Margin="0,12,0,0"
                                   Content="Ask for confirmation before destructive operations" />
                         <TextBlock x:Name="ConfirmOpsNote" Margin="0,6,0,0" FontSize="11" Foreground="#888" TextWrapping="Wrap"

@@ -76,8 +76,7 @@ public class CreateFloor : IRevitTool
             .OfClass(typeof(Level))
             .Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException(
-                $"Level '{levelName}' not found. Call get_levels to see available levels.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         FloorType floorType;
         if (input.TryGetValue("floor_type_name", out var ft) && ft.ValueKind == JsonValueKind.String)

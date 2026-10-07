@@ -28,6 +28,13 @@ public sealed record ChatRedactedThinkingBlock(string Data) : ChatBlock;
 
 public sealed record ChatToolUseBlock(string Id, string Name, string InputJson) : ChatBlock;
 
+// A server-side compaction summary (Anthropic compact-2026-01-12). Must be sent back exactly as
+// received: the API uses it to stand in for the history it summarised.
+public sealed record ChatCompactionBlock(string Content, string? EncryptedContent) : ChatBlock;
+// Server-side refusal fallback: marks where one model's output gave way to the next. Replayed
+// verbatim and in place — the API validates the thinking blocks around it by its position.
+public sealed record ChatFallbackBlock(string Json) : ChatBlock;
+
 public sealed record ChatToolResultBlock(string ToolUseId, string Content, bool IsError) : ChatBlock;
 
 // A user-attached image (base64-encoded), sent to a vision-capable model. MediaType is a MIME
@@ -49,7 +56,14 @@ public sealed class BackendTurn
     // and the advisor sub-inference token usage (one entry per consult) so it can be billed at the
     // advisor model's own rate. Empty on every non-advisor turn.
     public int AdvisorConsults;
+    // Usage billed at another model's rate: advisor consults, and attempts a server-side fallback
+    // declined before the fallback model answered.
     public List<AdvisorUsage> AdvisorUsages { get; } = new();
+
+    // Set when a server-side fallback served this turn: the serving model's rate tag, and a note
+    // for the transcript (which model answered, and why the requested one did not).
+    public string? ServedModelTag;
+    public string? FallbackNote;
 }
 
 public readonly record struct AdvisorUsage(

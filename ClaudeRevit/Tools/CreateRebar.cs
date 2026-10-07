@@ -105,8 +105,7 @@ public class CreateRebar : IRevitTool
                 .OfClass(typeof(RebarShape))
                 .Cast<RebarShape>()
                 .FirstOrDefault(s => s.Name == shapeName)
-                ?? throw new InvalidOperationException(
-                    $"Rebar shape '{shapeName}' not found. Call list_rebar_types to see available shapes.");
+                ?? throw NameResolve.MissingType<RebarShape>(doc, shapeName, "Rebar shape");
             // xVec/yVec both lie IN the shape plane, and a shape-driven set distributes
             // along the PLANE NORMAL (xVec×yVec). To make the set march along the requested
             // distribution vector, that vector must be the plane normal: with xVec = dir and

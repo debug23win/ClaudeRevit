@@ -52,7 +52,7 @@ public class CreateStructuralColumn : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         var symbols = new FilteredElementCollector(doc)
             .OfCategory(BuiltInCategory.OST_StructuralColumns)

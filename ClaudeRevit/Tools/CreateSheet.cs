@@ -47,7 +47,7 @@ public class CreateSheet : IRevitTool
                 .OfClass(typeof(FamilySymbol))
                 .Cast<FamilySymbol>()
                 .FirstOrDefault(s => s.Name == tbName)
-                ?? throw new InvalidOperationException($"Title block '{tbName}' not found.");
+                ?? throw NameResolve.MissingType(doc, tbName, "Title block", BuiltInCategory.OST_TitleBlocks);
             titleBlockId = symbol.Id;
         }
         else

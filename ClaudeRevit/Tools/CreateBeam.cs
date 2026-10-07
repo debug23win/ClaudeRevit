@@ -44,7 +44,7 @@ public class CreateBeam : IRevitTool
 
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         Curve path;
         if (input.TryGetValue("curve_mm", out var curve))
@@ -72,7 +72,7 @@ public class CreateBeam : IRevitTool
                 .OfClass(typeof(FamilySymbol))
                 .Cast<FamilySymbol>()
                 .FirstOrDefault(s => s.Name == name)
-                ?? throw new InvalidOperationException($"Beam type '{name}' not found.");
+                ?? throw NameResolve.MissingType(doc, name, "Beam type", BuiltInCategory.OST_StructuralFraming);
         }
         else
         {

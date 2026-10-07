@@ -40,7 +40,7 @@ public class SetTypeParameter : IRevitTool
 
         var paramName = ToolInput.RequiredText(input, "parameter_name")!;
         var param = type.LookupParameter(paramName)
-            ?? throw new InvalidOperationException($"Parameter '{paramName}' not found on type '{type.Name}'.");
+            ?? throw NameResolve.Missing(paramName, $"Parameter of type '{type.Name}' named", type.Parameters.Cast<Parameter>().Select(p => p.Definition?.Name));
 
         if (param.IsReadOnly)
             throw new InvalidOperationException($"Parameter '{paramName}' is read-only.");

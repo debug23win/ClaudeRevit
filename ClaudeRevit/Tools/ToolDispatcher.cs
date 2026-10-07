@@ -580,7 +580,7 @@ public class ToolDispatcher : IExternalEventHandler
                 GetProjectCatalog.Invalidate();
 
             Services.Log.Info($"tool ✓ {job.Name}");
-            completedResult = Services.ToolResult.Complete(result,warnings);
+            completedResult = Services.ToolResultCap.Apply(Services.ToolResult.Complete(result,warnings), job.Name);
         }
         catch (ToolInputException ex)
         {
@@ -625,6 +625,8 @@ public class ToolDispatcher : IExternalEventHandler
             Services.TaskJournal.RecordTiming(job.TaskId, queueTime.TotalSeconds, executionWatch.Elapsed.TotalSeconds);
             Services.TaskJournal.Append(new { kind="tool",utc=DateTime.UtcNow,task_id=job.TaskId,channel_id=job.Session?.ChannelId,
                 document_key=job.DocumentKey,tool=job.Name,queue_seconds=queueTime.TotalSeconds,revit_seconds=executionWatch.Elapsed.TotalSeconds,
+                // What the result costs the model: the one number that shows which tools overload the conversation.
+                result_chars=completedResult?.Length??0,
                 ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message??Services.ToolResult.ErrorMessage(completedResult),
                 changes=changes?.Complete(rolledBack) });
             }

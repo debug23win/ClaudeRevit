@@ -58,6 +58,7 @@ public partial class SettingsWindow : Window
         SelectByTag(ChatUiModeBox, SettingsStore.ChatUiMode);
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
         AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
+        ServerFallbackBox.IsChecked = SettingsStore.ServerFallback;
         AutoAdvisorBox.IsChecked = SettingsStore.AutoUseAdvisor;
         SelectByTag(AutoExecBox, SettingsStore.AutoExecutorModel);
         SelectByTag(AutoAdvBox, SettingsStore.AutoAdvisorModel);
@@ -434,6 +435,7 @@ public partial class SettingsWindow : Window
 
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
         SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
+        SettingsStore.ServerFallback = ServerFallbackBox.IsChecked == true;
         SettingsStore.ChatUiMode = TagOf(ChatUiModeBox, "window");
         SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;
         SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, "sonnet-5");

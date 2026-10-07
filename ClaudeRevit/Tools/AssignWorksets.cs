@@ -68,7 +68,7 @@ public class AssignWorksets : IRevitTool
         if (target == null)
         {
             if (!createIfMissing)
-                throw new InvalidOperationException($"Workset '{name}' not found (create_if_missing is false).");
+                throw NameResolve.Missing(name, "Workset", new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Select(w => w.Name));
             if (!WorksetTable.IsWorksetNameUnique(doc, name))
                 throw new InvalidOperationException($"'{name}' can't be used as a new workset name.");
             target = Workset.Create(doc, name);
@@ -125,7 +125,7 @@ public class AssignWorksets : IRevitTool
             var lname = lv.GetString();
             var lvl = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .FirstOrDefault(x => string.Equals(x.Name, lname, StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException($"Level '{lname}' not found.");
+                ?? throw NameResolve.MissingLevel(doc, lname, "Level");
             q = q.Where(e => e.LevelId == lvl.Id).ToList();
         }
         return q;

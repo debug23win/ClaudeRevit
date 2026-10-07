@@ -59,7 +59,7 @@ public class CloneElementGeometry : IRevitTool
 
         var srcId = new ElementId(ToolInput.RequiredLong(input, "source_id"));
         var src = doc.GetElement(srcId)
-            ?? throw new InvalidOperationException($"Element {srcId.Value} not found.");
+            ?? throw NameResolve.MissingId(srcId.Value);
 
         // Collect the source triangles in world coordinates.
         var tris = new List<XYZ[]>();

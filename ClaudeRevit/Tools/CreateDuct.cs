@@ -45,7 +45,7 @@ public class CreateDuct : IRevitTool
         var levelName = ToolInput.RequiredText(input, "level_name")!;
         var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
             .FirstOrDefault(l => l.Name == levelName)
-            ?? throw new InvalidOperationException($"Level '{levelName}' not found.");
+            ?? throw NameResolve.MissingLevel(doc, levelName, "Level");
 
         var start = new XYZ(ToolInput.RequiredDouble(input, "start_x"), ToolInput.RequiredDouble(input, "start_y"), ToolInput.RequiredDouble(input, "start_z"));
         var end = new XYZ(ToolInput.RequiredDouble(input, "end_x"), ToolInput.RequiredDouble(input, "end_y"), ToolInput.RequiredDouble(input, "end_z"));
@@ -58,7 +58,7 @@ public class CreateDuct : IRevitTool
             var name = dtn.GetString();
             ductType = new FilteredElementCollector(doc).OfClass(typeof(DuctType)).Cast<DuctType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Duct type '{name}' not found.");
+                ?? throw NameResolve.MissingType<Autodesk.Revit.DB.Mechanical.DuctType>(doc, name, "Duct type");
         }
         else
         {
@@ -74,7 +74,7 @@ public class CreateDuct : IRevitTool
             var name = stn.GetString();
             systemType = new FilteredElementCollector(doc).OfClass(typeof(MechanicalSystemType)).Cast<MechanicalSystemType>()
                 .FirstOrDefault(t => t.Name == name)
-                ?? throw new InvalidOperationException($"Mechanical system type '{name}' not found.");
+                ?? throw NameResolve.MissingType<Autodesk.Revit.DB.Mechanical.MechanicalSystemType>(doc, name, "Mechanical system type");
         }
         else
         {

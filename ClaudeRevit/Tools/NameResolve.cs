@@ -27,6 +27,28 @@ internal static class NameResolve
         throw new InvalidOperationException(NotFound(name, kind, all.Select(e => e.Name)));
     }
 
+    // A ready-made exception for call sites that already did their own lookup.
+    public static ToolInputException Missing(string? name, string kind, IEnumerable<string?> available) =>
+        new(NotFound(name, kind, available));
+
+    public static ToolInputException MissingLevel(Document doc, string? name, string kind = "Level") =>
+        Missing(name, kind, new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
+            .OrderBy(l => l.Elevation).Select(l => l.Name));
+
+    // Types of one category (beam types, foundation types, title blocks...). Listing every
+    // FamilySymbol in the project would bury the useful names.
+    public static ToolInputException MissingType(Document doc, string? name, string kind, BuiltInCategory category) =>
+        Missing(name, kind, new FilteredElementCollector(doc).OfCategory(category).WhereElementIsElementType()
+            .Select(e => e is FamilySymbol fs ? fs.FamilyName + ": " + fs.Name : e.Name));
+
+    public static ToolInputException MissingType<T>(Document doc, string? name, string kind) where T : Element =>
+        Missing(name, kind, new FilteredElementCollector(doc).OfClass(typeof(T)).Select(e => e.Name));
+
+    // An element id that resolves to nothing is usually stale (deleted, undone, or from another
+    // document); saying so stops the model from retrying the same id.
+    public static ToolInputException MissingId(long id, string what = "Element") =>
+        new($"{what} {id} not found in this document — it may have been deleted or undone, or come from another project. Re-query the ids instead of retrying this one.");
+
     // Builds a "not found" message that names what IS available and the closest match.
     public static string NotFound(string? name, string kind, IEnumerable<string?> available)
     {
