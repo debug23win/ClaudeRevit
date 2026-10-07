@@ -383,7 +383,24 @@ public static class ClaudeCodeBackend
         return null;
     }
 
+    // Checked before every CLI run, so a confirmed sign-in is remembered for a while instead of
+    // paying a process start each message; an expired one still fails on the real run with the
+    // CLI's own message. A slow check is reported as such, not as a cancellation (which the pane
+    // shows as "Cancelled", as if the user had pressed Stop).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> SignedIn = new(StringComparer.OrdinalIgnoreCase);
+
     private static async Task VerifySubscriptionAsync(string exe, string workDir, CancellationToken ct)
+    {
+        if (SignedIn.TryGetValue(exe, out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(30)) return;
+        try { await VerifySubscriptionCoreAsync(exe, workDir, ct); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("'claude auth status' did not answer within 15 seconds. Check that Claude Code starts in a terminal, then retry.");
+        }
+        SignedIn[exe] = DateTime.UtcNow;
+    }
+
+    private static async Task VerifySubscriptionCoreAsync(string exe, string workDir, CancellationToken ct)
     {
         var shim = exe.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || exe.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
         var args = shim ? new List<string> { "/c", exe, "auth", "status", "--json" } : new List<string> { "auth", "status", "--json" };

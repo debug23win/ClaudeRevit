@@ -9,7 +9,7 @@ namespace ClaudeRevit.Tools;
 // Self-extension: turns a proven pattern into a persistent, first-class tool. Claude writes
 // a complete C# source file implementing IRevitTool; it is compiled and validated on the
 // spot, saved under %AppData%\ClaudeRevit\tools\, and becomes available as a normal tool on
-// the next message and in every future session. Code execution is always enabled.
+// the next message and in every future session. Like all code tools, gated by the code-execution setting (on by default).
 public class SaveTool : IRevitTool
 {
     public string Name => "save_tool";

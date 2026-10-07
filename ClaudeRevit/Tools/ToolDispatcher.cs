@@ -91,8 +91,10 @@ public class ToolDispatcher : IExternalEventHandler
                 if (value["kind"]?.GetValue<string>() == "image")
                 {
                     var bytes = Services.AttachmentImage.EncodePng(value["local_path"]!.GetValue<string>());
-                    value["image_id"] = Services.ViewImageStore.Register(bytes, boundKey, channel?.Id);
+                    var imageId = Services.ViewImageStore.Register(bytes, boundKey, channel?.Id);
+                    value["image_id"] = imageId;
                     value["mime_type"] = "image/png";
+                    if (imageId == null) value["warning"] = "Image is too large to attach for viewing (over 5 MB as PNG).";
                 }
                 return Services.ToolResult.Complete(value.ToJsonString(Services.ToolResult.Options));
             }, ct);
@@ -120,8 +122,8 @@ public class ToolDispatcher : IExternalEventHandler
     }
     private async Task<string> PrepareScriptAsync(ExecuteCSharp tool, IReadOnlyDictionary<string, JsonElement> input, CancellationToken ct, string documentKey)
     {
-        if (!tool.RequiresCodeExecutionOptIn && Services.SettingsStore.DisabledToolGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Code tools are disabled in Settings.");
+        if (!ToolPolicy.IsEnabled(tool))
+            throw new InvalidOperationException(ToolPolicy.CodeDisabledMessage);
         var channel = Services.McpSession.Executing?.ChannelId is { } id ? Services.McpTurnChannel.Find(id) : null;
         ReportProgress(documentKey, "compiling C# on a worker…", channel);
         var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -195,6 +197,10 @@ public class ToolDispatcher : IExternalEventHandler
     {
         // Copy/open/close are completed on the API thread before returning disposition.
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Without this the caller's timeout did nothing: if Revit never got to the job (a modal
+        // dialog, a stuck tool) the benchmark waited forever. The job itself stays queued — when it
+        // does run, restoring the seed document is still the right thing to do.
+        ct.Register(() => tcs.TrySetCanceled(ct));
         _queue.Enqueue(new BenchmarkScopeJob(begin, documentKey, ct, tcs));
         _event.Raise();
         return tcs.Task;
@@ -408,7 +414,10 @@ public class ToolDispatcher : IExternalEventHandler
         if (job.Ct.IsCancellationRequested || job.Tcs.Task.IsCompleted) return;
         try
         {
-            if (Services.DocumentSessions.Find(job.DocumentKey)==null) throw new InvalidOperationException("The bound document was closed.");
+            // "none" is a chat with no project open — a legitimate state (questions, standards,
+            // attachments). Only a BOUND document that has since been closed is an error; tools
+            // that need a document still refuse individually with a clear message.
+            if (job.DocumentKey != "none" && Services.DocumentSessions.Find(job.DocumentKey)==null) throw new InvalidOperationException("The bound document was closed.");
             job.Tcs.TrySetResult(true);
         }
         catch (Exception ex) { job.Tcs.TrySetException(ex); }
@@ -425,6 +434,16 @@ public class ToolDispatcher : IExternalEventHandler
             throw new InvalidOperationException("Unexpected benchmark cleanup path.");
         if (info.Exists) info.Delete(true);
     }
+
+    // Tools that act on whatever tab is ACTIVE rather than on the document they are bound to, so
+    // they must refuse when the user has switched tabs. Class names — the earlier list named the
+    // FILE "BimStarterPluginTools", which is no class, so run_bimstarter_command (PostCommand,
+    // always the active tab) ran on whichever project happened to be in front.
+    internal static readonly HashSet<string> ActiveDocumentOnly = new(StringComparer.Ordinal)
+    {
+        "OpenFamilyEditor", "ReloadFamilyIntoDocument", "RunBimStarterCommand", "ColorElementsByParameter",
+        "GetMaterialQuantities", "GetSelection", "PickPointInView", "SelectSimilar", "SetActiveView"
+    };
 
     private void HandleTool(UIApplication app, ToolJob job)
     {
@@ -456,10 +475,15 @@ public class ToolDispatcher : IExternalEventHandler
         bool cancelled = false;
         try
         {
-            if (boundDocument == null) throw new InvalidOperationException("The bound document was closed. No changes were made.");
+            if (boundDocument == null) throw new InvalidOperationException(job.DocumentKey == "none"
+                ? "No Revit project is open. Open or activate a project and retry. No changes were made."
+                : "The bound document was closed. No changes were made.");
             var tool = _registry.Get(job.Name) ?? throw new InvalidOperationException($"Unknown tool: {job.Name}");
-            var activeOnly = new HashSet<string> { "OpenFamilyEditor","ReloadFamilyIntoDocument","BimStarterPluginTools","ColorElementsByParameter","GetMaterialQuantities","GetSelection","PickPointInView","SelectSimilar","SetActiveView" };
-            if ((activeOnly.Contains(tool.GetType().Name) || tool.IsScriptTool && job.Input.TryGetValue("code",out var script) && script.GetString()?.Contains("uiapp.ActiveUIDocument") == true) &&
+            // Defence in depth: whichever path queued it (chat, MCP, run_batch, a stale tool list),
+            // code does not run while the user has code execution switched off.
+            if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
+                throw new InvalidOperationException(ToolPolicy.CodeDisabledMessage);
+            if ((ActiveDocumentOnly.Contains(tool.GetType().Name) || tool.IsScriptTool && job.Input.TryGetValue("code",out var script) && script.GetString()?.Contains("uiapp.ActiveUIDocument") == true) &&
                 !Services.DocumentSessions.Same(boundDocument,app.ActiveUIDocument?.Document))
                 throw new InvalidOperationException("This UI operation requires its document tab to be active. Activate the intended tab and retry.");
             if(tool.Name.StartsWith("create_",StringComparison.Ordinal)||tool.Name=="rename_element")

@@ -15,7 +15,7 @@ namespace ClaudeRevit.Tools;
 // IRevitTool — the exact same contract as the built-in tools.
 //
 // Saved source tools have full Revit API access and load at startup. Code execution
-// is always enabled. DynamicToolProxy keeps legacy tools classified as code operations.
+// is on by default (and can be switched off). DynamicToolProxy keeps legacy tools classified as code operations.
 public static class DynamicToolLoader
 {
     public static string ToolsDir => Path.Combine(

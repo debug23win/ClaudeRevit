@@ -305,6 +305,11 @@ public class App : IExternalApplication
             // experience digest.
             System.Threading.Tasks.Task.Run(() =>
             {
+                try { var n = Services.AttachmentStore.PruneOlderThan(TimeSpan.FromDays(30)); if (n > 0) Services.Log.Info($"Removed {n} attachment copies unused for 30 days."); }
+                catch (Exception ex) { Services.Log.Error("Attachment cleanup failed", ex); }
+            });
+            System.Threading.Tasks.Task.Run(() =>
+            {
                 try { PatternArchive.FoldEntries(ScriptJournal.ReadRawLines()); }
                 catch (Exception ex) { Services.Log.Error("Startup pattern fold failed", ex); }
             });

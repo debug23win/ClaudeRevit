@@ -200,6 +200,24 @@ public partial class ChatPaneView : UserControl, IDisposable
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
         if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(() => OnDocumentClosed(key))); return; }
         if (!_disposed && _sessions.TryGetValue(key, out var session)) session.Cancellation?.Cancel();
+        PruneClosedSessions();
+    }
+
+    // A session per document used to live for the whole Revit session: reopening the same file a
+    // few times left that many chat services in memory, each with its full history and any base64
+    // images. A session whose document is closed is saved and dropped once it is neither the one
+    // on screen nor still finishing a turn; reopening the file reloads its history from disk.
+    private void PruneClosedSessions()
+    {
+        if (_disposed) return;
+        foreach (var (key, session) in _sessions.ToArray())
+        {
+            if (ReferenceEquals(session, _session) || session.Cancellation != null) continue;
+            if (key == "none" || DocumentSessions.Find(key) != null) continue;
+            try { session.Service.SaveHistory(session.Messages); } catch (Exception ex) { Log.Error("Saving a closed document's chat failed", ex); }
+            session.Messages.CollectionChanged -= OnMessagesChanged;
+            _sessions.Remove(key);
+        }
     }
     private bool _disposed;
     private void OnToolProgress(string documentKey, string stage)
@@ -244,6 +262,7 @@ public partial class ChatPaneView : UserControl, IDisposable
             session.Service.ConfirmToolAsync = ConfirmToolAsync;
         }
         _session = session; _service.Activate();
+        PruneClosedSessions();
         _selectedAgent = session.Agent; _selectedModel = session.Model;
         foreach(var selected in session.Choices.Values) SettingsStore.SaveAgentSelection(selected);
         _settingChoices = true;
@@ -626,6 +645,7 @@ public partial class ChatPaneView : UserControl, IDisposable
             cancellation.Dispose(); session.Cancellation = null;
             if (ReferenceEquals(_session,session))
             { SwitchDocumentHistory(); RefreshSendControls(); SetAgentControlsEnabled(true); InputBox.Focus(); }
+            else PruneClosedSessions(); // a background turn for a now-closed document just ended
         }
     }
 }

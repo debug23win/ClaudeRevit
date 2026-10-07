@@ -16,9 +16,18 @@ public sealed record CodexUsage(long Input, long Cached, long Output, long Reaso
             // A resumed session's file lives on its creation date, encoded in UUIDv7.
             var hex = sessionId.Replace("-", "");
             var created = DateTimeOffset.FromUnixTimeMilliseconds(Convert.ToInt64(hex[..12],16)).UtcDateTime;
-            var folder = Path.Combine(sessions, created.ToString("yyyy"),created.ToString("MM"),created.ToString("dd"));
-            if (!Directory.Exists(folder)) return null;
-            var path = Directory.EnumerateFiles(folder, "*" + sessionId + ".jsonl").SingleOrDefault();
+            // Which calendar day names the folder is Codex's choice (local time, most likely), and
+            // near midnight the UTC and local dates differ — looking only in the UTC day silently
+            // lost the usage for those turns. Try the plausible days, nearest first.
+            var days = new[] { created.ToLocalTime().Date, created.Date, created.Date.AddDays(-1), created.Date.AddDays(1) }.Distinct();
+            string? path = null;
+            foreach (var day in days)
+            {
+                var folder = Path.Combine(sessions, day.ToString("yyyy"), day.ToString("MM"), day.ToString("dd"));
+                if (!Directory.Exists(folder)) continue;
+                path = Directory.EnumerateFiles(folder, "*" + sessionId + ".jsonl").FirstOrDefault();
+                if (path != null) break;
+            }
             if (path == null) return null;
             CodexUsage? last = null;
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

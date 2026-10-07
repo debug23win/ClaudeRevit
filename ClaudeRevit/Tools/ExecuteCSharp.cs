@@ -17,7 +17,7 @@ namespace ClaudeRevit.Tools;
 // its Revit API execution. Roslyn's Emit stays synchronous on that worker; no wait on
 // CSharpScript's asynchronous evaluator happens inside Revit's API event. It is loaded
 // into a collectible AssemblyLoadContext and invoked on the Revit API thread inside the
-// dispatcher's transaction. Code execution is always enabled.
+// dispatcher's transaction. Gated by the code-execution setting (on by default).
 public class ExecuteCSharp : IRevitTool
 {
     // Single source for the namespaces available to snippets — feeds both the compiled
@@ -42,7 +42,7 @@ public class ExecuteCSharp : IRevitTool
         "The snippet already runs inside a transaction that rolls back if it throws — do NOT " +
         "open your own Transaction (SubTransactions are fine). EditFamily/LoadFamily/document lifecycle calls require dedicated family tools outside this transaction. Imported namespaces: " +
         string.Join(", ", Namespaces) + ". " +
-        "Code execution is always enabled. Loop bodies get automatic cancellation checks; use ScriptRuntime.ReportProgress(done,total,stage) for long loops. Individual native API calls must return before cancellation takes effect. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
+        "Loop bodies get automatic cancellation checks; use ScriptRuntime.ReportProgress(done,total,stage) for long loops. Individual native API calls must return before cancellation takes effect. Prefer System.Text.Json.JsonSerializer to add-in JSON libraries.";
 
     public InputSchema InputSchema => new()
     {
@@ -62,6 +62,40 @@ public class ExecuteCSharp : IRevitTool
     public bool RequiresCodeExecutionOptIn => true;
     public bool IsScriptTool => true;
 
+    // The snippet's changes are already made when this runs, inside the dispatcher's transaction,
+    // so a serialization failure must never escape: it would roll back work that succeeded and
+    // show the model an unrelated error. Three guards:
+    //  - a fresh options instance per call: System.Text.Json caches type metadata on the options
+    //    object, and caching an anonymous type from the collectible script context in the static
+    //    instance kept every script assembly alive forever;
+    //  - IgnoreCycles + a depth cap for object graphs that point back at themselves (Document,
+    //    Category, Parameter...);
+    //  - ToString() as the fallback when a Revit getter throws (Curve.Period on a non-periodic
+    //    curve, and similar), saying so instead of failing.
+    internal static string SerializeResult(object? result)
+    {
+        var options = new JsonSerializerOptions(RevitJsonConverters.Options)
+        {
+            ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+            MaxDepth = 16
+        };
+        try
+        {
+            return JsonSerializer.Serialize(new { ok = true, result }, options);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            string text;
+            try { text = result?.ToString() ?? "null"; } catch { text = result?.GetType().FullName ?? "null"; }
+            return Services.Json.Serialize(new
+            {
+                ok = true,
+                result = text,
+                note = $"The return value could not be serialized ({ex.GetType().Name}: {ex.Message}); showing ToString(). Return plain values or an anonymous object of numbers/strings/ids. The snippet's model changes were kept."
+            });
+        }
+    }
+
     private static bool LooksJson(string value) { try { using var json = JsonDocument.Parse(value); return true; } catch (JsonException) { return false; } }
 
     // Emitted assembly bytes keyed by full source — see Execute.
@@ -71,6 +105,10 @@ public class ExecuteCSharp : IRevitTool
     // back to the user's snippet line numbers.
     private static readonly string Prelude =
         string.Concat(Namespaces.Select(n => $"using {n};\n")) +
+        // ClaudeRevit.Tools is imported for ScriptRuntime, but it also has a public Units class,
+        // which made every snippet naming Revit's Units (doc.GetUnits(), new Units(...)) fail
+        // with CS0104. The alias settles it in Revit's favour; ours stays reachable qualified.
+        "using Units = Autodesk.Revit.DB.Units;\n" +
         "#pragma warning disable CS0162\n" +
         "public static class __ClaudeScript\n" +
         "{\n" +
@@ -161,14 +199,9 @@ public class ExecuteCSharp : IRevitTool
                     $"The snippet threw {inner.GetType().Name}: {inner.Message}");
             }
 
-            // ToString() before the load context is unloaded so no live references remain.
-            // Relaxed encoder: script output is often Cyrillic-heavy — keep it readable and
-            // cheap in tokens instead of \uXXXX-escaping every character.
-            return JsonSerializer.Serialize(new
-            {
-                ok = true,
-                result = result is string text && LooksJson(text) ? JsonSerializer.Deserialize<JsonElement>(text) : result
-            },RevitJsonConverters.Options);
+            // Serialized to a string here, before the load context is unloaded, so no live
+            // references remain. Relaxed encoder: script output is often Cyrillic-heavy.
+            return SerializeResult(result is string text && LooksJson(text) ? JsonSerializer.Deserialize<JsonElement>(text) : result);
         }
         finally
         {

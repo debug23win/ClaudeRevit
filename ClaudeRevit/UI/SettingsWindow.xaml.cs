@@ -57,6 +57,7 @@ public partial class SettingsWindow : Window
         if (!string.IsNullOrEmpty(existing)) ApiKeyBox.Password = existing;
         SelectByTag(ChatUiModeBox, SettingsStore.ChatUiMode);
         ConfirmOpsBox.IsChecked = SettingsStore.ConfirmOperations;
+        AllowCodeBox.IsChecked = SettingsStore.AllowCodeExecution;
         AutoAdvisorBox.IsChecked = SettingsStore.AutoUseAdvisor;
         SelectByTag(AutoExecBox, SettingsStore.AutoExecutorModel);
         SelectByTag(AutoAdvBox, SettingsStore.AutoAdvisorModel);
@@ -165,6 +166,10 @@ public partial class SettingsWindow : Window
             "Stored encrypted (Windows DPAPI, current user) in %AppData%\\ClaudeRevit. Get a key at console.anthropic.com → Settings → API Keys.",
             "Хранится зашифрованным (Windows DPAPI, текущий пользователь) в %AppData%\\ClaudeRevit. Ключ — на console.anthropic.com → Settings → API Keys.");
 
+        AllowCodeBox.Content = L("Allow Claude to run code (C#, Python, custom tools)", "Разрешить Claude запускать код (C#, Python, пользовательские инструменты)");
+        AllowCodeNote.Text = L(
+            "On by default. Code runs with full access to the model, files and network; turn it off to keep both the chat and any MCP client with the token to native tools only.",
+            "Включено по умолчанию. Код выполняется с полным доступом к модели, файлам и сети; выключите, чтобы и чат, и любой MCP-клиент с токеном могли пользоваться только встроенными инструментами.");
         ConfirmOpsBox.Content = L("Ask for confirmation before destructive operations", "Спрашивать подтверждение перед опасными операциями");
         ConfirmOpsNote.Text = L(
             "Off by default: an Allow/Deny dialog before deletions. Everything is still undoable with Ctrl+Z.",
@@ -428,6 +433,7 @@ public partial class SettingsWindow : Window
         SettingsStore.DisabledToolGroups = disabledGroups;
 
         SettingsStore.ConfirmOperations = ConfirmOpsBox.IsChecked == true;
+        SettingsStore.AllowCodeExecution = AllowCodeBox.IsChecked == true;
         SettingsStore.ChatUiMode = TagOf(ChatUiModeBox, "window");
         SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;
         SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, "sonnet-5");

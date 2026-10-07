@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ClaudeRevit.Services;
 
@@ -53,3 +54,26 @@ public sealed class BackendTurn
 
 public readonly record struct AdvisorUsage(
     string ModelTag, long InputTokens, long OutputTokens, long CacheCreationTokens, long CacheReadTokens);
+
+// Block-order rules the API enforces on a user turn that answers tool calls.
+public static class ChatBlockOrder
+{
+    // Every tool_result must come before any other block in the same user message. Images from
+    // export_image/read_attachment used to be inserted right after their own result, so a round
+    // with two calls produced [result, image, result] and a 400 — and because that turn was saved,
+    // every later request failed the same way until the chat was cleared. Applied when the request
+    // is built, so histories saved in the old order are repaired too. Stable within each group.
+    public static List<ChatBlock> ToolResultsFirst(IReadOnlyList<ChatBlock> blocks)
+    {
+        if (!blocks.Any(b => b is ChatToolResultBlock)) return blocks.ToList();
+        return blocks.Where(b => b is ChatToolResultBlock)
+            .Concat(blocks.Where(b => b is not ChatToolResultBlock))
+            .ToList();
+    }
+
+    // Images larger than this are not attached to the model's context (the file is still written).
+    // A tool-result image rides in every later request of the conversation, so one oversized
+    // export could push requests past the API size limit.
+    public const int MaxInlineImageBase64 = 1_500_000;
+}
+

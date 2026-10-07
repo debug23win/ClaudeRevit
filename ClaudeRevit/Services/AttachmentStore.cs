@@ -61,6 +61,31 @@ public static class AttachmentStore
             catch { if (File.Exists(path)) File.Delete(path); Directory.Delete(directory); throw; }
         }, ct);
     }
+    // Staged copies were never deleted, so %AppData%\ClaudeRevit\attachments grew by every file
+    // ever attached. Copies untouched for a month are removed at startup; a conversation that
+    // still names one just loses that attachment (Restore already skips missing copies) rather
+    // than failing. Only our own GUID-named folders are touched.
+    public static int PruneOlderThan(TimeSpan age, string? root = null)
+    {
+        var dir = root ?? Root; var removed = 0;
+        if (!Directory.Exists(dir)) return 0;
+        var cutoff = DateTime.UtcNow - age;
+        foreach (var folder in Directory.EnumerateDirectories(dir))
+        {
+            try
+            {
+                if (!Guid.TryParseExact(Path.GetFileName(folder), "N", out _)) continue;
+                var info = new DirectoryInfo(folder);
+                if (info.LinkTarget != null) continue;
+                var newest = info.EnumerateFiles().Select(f => f.LastWriteTimeUtc).DefaultIfEmpty(info.LastWriteTimeUtc).Max();
+                if (newest >= cutoff) continue;
+                info.Delete(recursive: true); removed++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* in use; next start */ }
+        }
+        return removed;
+    }
+
     // Persisted history can refer only to our immutable staged copy, never an
     // arbitrary absolute path supplied as a model argument or edited metadata.
     public static void Restore(string scope, IEnumerable<ChatAttachment> attachments)

@@ -7,7 +7,8 @@ using System.Text.Json;
 namespace ClaudeRevit.Services;
 
 // Persisted user settings at %AppData%\ClaudeRevit\settings.json.
-// Script execution is always enabled; legacy persisted opt-outs are ignored.
+// Script execution is on by default and can be switched off (AllowCodeExecution); the legacy
+// opt-in field is ignored, see AllowCodeExecution.
 public static class SettingsStore
 {
     private static string FilePath => Path.Combine(
@@ -20,8 +21,15 @@ public static class SettingsStore
     private static Settings? _cached;
     private static DateTime _lastSpendSaveUtc = DateTime.MinValue;
 
-    // Compatibility accessor for existing custom tools; execution is always enabled.
-    public static bool AllowCodeExecution => true;
+    // Arbitrary code (C#, Python, custom tools) — ON by default, and the user can switch it off.
+    // Stored as a NEW "disabled" flag rather than the old AllowCodeExecution field: when execution
+    // was opt-in, most settings files saved AllowCodeExecution=false without the user choosing it,
+    // and honouring that would silently switch code off for them now that it is on by default.
+    public static bool AllowCodeExecution
+    {
+        get => !Current.CodeExecutionDisabled;
+        set { Current.CodeExecutionDisabled = !value; Save(); }
+    }
 
     // Optional confirmations apply to destructive native operations, not script permission.
     public static bool ConfirmOperations
@@ -312,6 +320,7 @@ public static class SettingsStore
     private sealed class Settings
     {
         public bool ConfirmOperations { get; set; } = false;
+        public bool CodeExecutionDisabled { get; set; } = false;
         public string AltProvider { get; set; } = "";
         public string AltBaseUrl { get; set; } = "";
         public string AltModel { get; set; } = "";

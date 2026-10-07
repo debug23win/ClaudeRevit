@@ -61,12 +61,27 @@ internal sealed class LiveSpdsUpdater:IUpdater
     public string GetUpdaterName()=>"ClaudeRevit live SPDS quantities";
     public void Execute(UpdaterData data)
     {
-        var doc=data.GetDocument();if(doc.IsFamilyDocument)return;
-        var changed=data.GetModifiedElementIds().Concat(data.GetAddedElementIds()).Select(doc.GetElement).Where(e=>e?.Category!=null).Select(e=>e!.Category.Id.Value).ToHashSet();
-        bool deleted=data.GetDeletedElementIds().Count>0;
-        bool materialsChanged=data.GetModifiedElementIds().Select(doc.GetElement).Any(e=>e is Material or PropertySetElement);
-        foreach(var (_,record) in LiveSpds.All(doc))
-            if(deleted||materialsChanged||record.Categories.Any(changed.Contains))LiveSpds.Refresh(doc,record,false);
+        // This runs inside the USER's transaction on every wall/floor/framing/column/material edit
+        // in every project, so two rules. It must never throw: an exception from an updater makes
+        // Revit cancel the user's own edit or disable the updater for the session, after which the
+        // live quantities go stale without a word. And it must cost nothing in the common case of
+        // a project with no live tables — so the records are looked up before any changed id is.
+        try
+        {
+            var doc=data.GetDocument();if(doc.IsFamilyDocument)return;
+            var records=LiveSpds.All(doc).Select(x=>x.Record).ToList();
+            if(records.Count==0)return;
+            var changed=data.GetModifiedElementIds().Concat(data.GetAddedElementIds()).Select(doc.GetElement).Where(e=>e?.Category!=null).Select(e=>e!.Category.Id.Value).ToHashSet();
+            bool deleted=data.GetDeletedElementIds().Count>0;
+            bool materialsChanged=data.GetModifiedElementIds().Select(doc.GetElement).Any(e=>e is Material or PropertySetElement);
+            foreach(var record in records)
+            {
+                if(!(deleted||materialsChanged||record.Categories.Any(changed.Contains)))continue;
+                try{LiveSpds.Refresh(doc,record,false);}
+                catch(Exception ex){Services.Log.Error($"Live SPDS table '{record.Key}' could not refresh; its quantities are stale until the table is refreshed (create_spds_table)",ex);}
+            }
+        }
+        catch(Exception ex){Services.Log.Error("Live SPDS updater failed; the user's edit was kept",ex);}
     }
 }
 

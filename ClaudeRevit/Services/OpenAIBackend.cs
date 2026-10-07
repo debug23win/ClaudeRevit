@@ -376,15 +376,7 @@ public sealed class OpenAIBackend
         {
             if (fn.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String)
             {
-                // Providers differ: some stream the name in fragments, others repeat it WHOLE in
-                // every delta of the same call. Blind concatenation turned the second kind into
-                // "create_wallcreate_wall", which then failed as an unknown tool. Append only what
-                // is genuinely new.
-                var piece = name.GetString() ?? "";
-                if (piece.Length > 0 && !call.Name.EndsWith(piece, StringComparison.Ordinal))
-                    call.Name += piece;
-                else if (call.Name.Length == 0)
-                    call.Name = piece;
+                call.Name = ToolCallName.Merge(call.Name, name.GetString());
             }
             if (fn.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.String)
                 call.Arguments.Append(args.GetString());

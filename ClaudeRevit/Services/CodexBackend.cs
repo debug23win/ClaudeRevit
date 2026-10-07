@@ -13,10 +13,19 @@ namespace ClaudeRevit.Services;
 // Separate from ClaudeCodeBackend: the working Claude subscription path is unchanged.
 public static class CodexBackend
 {
+    // Must outlast the server's own per-call limit (McpServer.ToolCallTimeout, 10 minutes). At
+    // 120 s Codex abandoned long Revit calls that then committed anyway, the model was told they
+    // failed, and its retry duplicated the elements.
+    internal const int CodexToolTimeoutSec = 10 * 60 + 30;
+
     public sealed class Result
     {
         public string? SessionId;
         public string? Error;
+        // Codex also emits {"type":"error"} for problems it recovers from (a dropped stream it
+        // reconnects, a retried request). Those used to land in Error and fail a turn that then
+        // completed normally; they are kept aside and used only if the turn never completes.
+        public string? LastErrorEvent;
         public string Text = "";
         public long InputTokens, OutputTokens, CachedInputTokens, ReasoningTokens;
         public string UsageScope = "session_cumulative";
@@ -98,7 +107,7 @@ public static class CodexBackend
             "-c", "web_search=\"disabled\"", "-c", "model_auto_compact_token_limit=48000",
             "-c", "tool_output_token_limit=4000", "-c",
             "mcp_servers.clauderevit={url=" + JsonSerializer.Serialize(url) +
-            ",bearer_token_env_var=\"CLAUDEREVIT_MCP_TOKEN\",required=true,tool_timeout_sec=120,default_tools_approval_mode=\"approve\"}" };
+            ",bearer_token_env_var=\"CLAUDEREVIT_MCP_TOKEN\",required=true,tool_timeout_sec=" + CodexToolTimeoutSec + ",default_tools_approval_mode=\"approve\"}" };
         if (!string.IsNullOrWhiteSpace(model)) args.AddRange(new[] { "--model", model.Trim() });
         if (!string.IsNullOrWhiteSpace(effort)) CodexConfiguration.Add(args, "model_reasoning_effort", effort.Trim());
         if (!string.IsNullOrWhiteSpace(sessionId)) { args.Add("resume"); args.Add(sessionId); }
@@ -122,6 +131,41 @@ public static class CodexBackend
         return Process.Start(psi) ?? throw new InvalidOperationException("Could not start Codex.");
     }
 
+    // `codex login status` used to run before EVERY message and every judge call: a process start
+    // and a few seconds each time. A confirmed sign-in is remembered for a while — a session that
+    // has really expired still fails, just with Codex's own message on the actual run. And a slow
+    // check is reported as a slow check: it used to surface as a cancellation, which the pane
+    // shows as "Cancelled" — as if the user had pressed Stop.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> SignedIn = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan SignInValidFor = TimeSpan.FromMinutes(30);
+
+    private static async Task EnsureSignedInAsync(string exe, string workDir, CancellationToken ct, string notSignedIn)
+    {
+        if (SignedIn.TryGetValue(exe, out var at) && DateTime.UtcNow - at < SignInValidFor) return;
+        using var login = Start(exe, new[] { "login", "status" }, workDir);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        using var killLogin = timeout.Token.Register(() => { try { login.Kill(true); } catch { } });
+        string status;
+        try
+        {
+            var stdout = login.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = login.StandardError.ReadToEndAsync(timeout.Token);
+            await login.WaitForExitAsync(timeout.Token);
+            status = await stdout + await stderr;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("'codex login status' did not answer within 15 seconds. Check that Codex starts in a terminal, then retry.");
+        }
+        if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
+        {
+            SignedIn.TryRemove(exe, out _);
+            throw new InvalidOperationException(notSignedIn);
+        }
+        SignedIn[exe] = DateTime.UtcNow;
+    }
+
     public static async Task<Result> RunAsync(string prompt, string workDir, string url, string token,
         string? sessionId, Action<string> onText, Action<string> onTool, CancellationToken ct,
         string? imagePath = null, string? model = null, string? effort = null, string? executable = null)
@@ -130,18 +174,7 @@ public static class CodexBackend
             "Install the Codex desktop app and sign in with ChatGPT to use the OpenAI subscription.");
         Directory.CreateDirectory(workDir);
         // Verify subscription auth without reading/copying credentials or logging the user out.
-        using (var login = Start(exe, new[] { "login", "status" }, workDir))
-        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
-        {
-            timeout.CancelAfter(TimeSpan.FromSeconds(15));
-            using var killLogin = timeout.Token.Register(() => { try { login.Kill(true); } catch { } });
-            var stdout = login.StandardOutput.ReadToEndAsync(timeout.Token);
-            var stderr = login.StandardError.ReadToEndAsync(timeout.Token);
-            await login.WaitForExitAsync(timeout.Token);
-            var status = await stdout + await stderr;
-            if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Sign in to Codex with ChatGPT first. This subscription mode does not use an OpenAI API key.");
-        }
+        await EnsureSignedInAsync(exe, workDir, ct, "Sign in to Codex with ChatGPT first. This subscription mode does not use an OpenAI API key.");
         var startedUtc = DateTime.UtcNow;
         using var process = Start(exe, Arguments(url, sessionId, imagePath, model, effort), workDir, token);
         using var cancel = ct.Register(() => { try { process.Kill(true); } catch { } });
@@ -156,7 +189,7 @@ public static class CodexBackend
             await process.WaitForExitAsync(ct);
             var error = await errors;
             if (process.ExitCode != 0 || !result.Completed)
-                result.Error ??= string.IsNullOrWhiteSpace(error) ? "Codex did not complete the turn." : TextUtil.Truncate(error.Trim(), 1800);
+                result.Error ??= result.LastErrorEvent ?? (string.IsNullOrWhiteSpace(error) ? "Codex did not complete the turn." : TextUtil.Truncate(error.Trim(), 1800));
             result.SessionId ??= sessionId;
             if (result.SessionId is { } id && CodexUsage.ReadTurn(id, startedUtc) is { } usage)
             {
@@ -189,8 +222,11 @@ public static class CodexBackend
                 }
             }
             else if (type is "turn.failed" or "error")
-                result.Error = root.TryGetProperty("message", out var m) ? m.GetString()
+            {
+                var message = root.TryGetProperty("message", out var m) ? m.GetString()
                     : root.TryGetProperty("error", out var e) && e.TryGetProperty("message", out m) ? m.GetString() : "Codex turn failed.";
+                if (type == "turn.failed") result.Error = message; else result.LastErrorEvent = message;
+            }
             else if (type is "item.started" or "item.completed" && root.TryGetProperty("item", out var item))
             {
                 var itemType = item.GetProperty("type").GetString();
@@ -219,16 +255,7 @@ public static class CodexBackend
     {
         var exe = ResolveExecutable(executable) ?? throw new InvalidOperationException("Codex CLI not found.");
         Directory.CreateDirectory(workDir);
-        using (var login = Start(exe, new[] { "login", "status" }, workDir))
-        {
-            using var killLogin = ct.Register(() => { try { login.Kill(true); } catch { } });
-            var stdout = login.StandardOutput.ReadToEndAsync(ct);
-            var stderr = login.StandardError.ReadToEndAsync(ct);
-            await login.WaitForExitAsync(ct);
-            var status = await stdout + await stderr;
-            if (login.ExitCode != 0 || !status.Contains("Logged in using ChatGPT", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("The benchmark judge requires Codex signed in with ChatGPT.");
-        }
+        await EnsureSignedInAsync(exe, workDir, ct, "The benchmark judge requires Codex signed in with ChatGPT.");
         var models = await CodexModelCatalog.ReadAsync(exe, workDir, ct);
         var choice = CodexModels.Select(models, model, effort);
         var args = new List<string> { "exec", "--json", "--ignore-user-config", "--skip-git-repo-check", "--sandbox", "read-only",
@@ -245,7 +272,7 @@ public static class CodexBackend
         await process.WaitForExitAsync(ct);
         var error = await errors;
         if (process.ExitCode != 0 || !result.Completed || result.Error != null)
-            throw new InvalidOperationException(result.Error ?? (error.Length > 0 ? TextUtil.Truncate(error, 1000) : "Codex judge did not finish."));
+            throw new InvalidOperationException(result.Error ?? result.LastErrorEvent ?? (error.Length > 0 ? TextUtil.Truncate(error, 1000) : "Codex judge did not finish."));
         return result.Text;
     }
 }
