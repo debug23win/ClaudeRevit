@@ -3,6 +3,7 @@ using Anthropic.Models.Beta.Messages;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using ClaudeRevit.Services;
 
 namespace ClaudeRevit.Tools;
 
@@ -359,4 +360,202 @@ public sealed class CreateBoundaryConditions : IRevitTool
 
     private static (long, long, long) Key(XYZ? p) => p == null ? (long.MinValue, 0, 0) :
         ((long)Math.Round(p.X * Units.MmPerFoot), (long)Math.Round(p.Y * Units.MmPerFoot), (long)Math.Round(p.Z * Units.MmPerFoot));
+}
+
+// Readiness of the analytical model for export to analysis software. Idea from the HorizunGroup
+// horizun-revit-mcp structure query (disconnected ends, missing analytical; Apache-2.0).
+public sealed class CheckAnalyticalModel : IRevitTool
+{
+    public string Name => "check_analytical_model";
+    public string Description =>
+        "Check the analytical model before export to analysis software (SCAD, ЛИРА, Robot…): member ends that meet " +
+        "nothing (no other member, panel or support within tolerance_mm), very short members, physical elements without " +
+        "analytical and analytical elements without physical, end releases, load cases without loads and load " +
+        "combinations. Read-only. Pinned ends are listed, not judged: whether a release is right is a design decision.";
+    public bool RequiresTransaction => false;
+    public InputSchema InputSchema => NativeToolUtil.Schema(new()
+    {
+        ["tolerance_mm"] = NativeToolUtil.Field("number", "Distance at which an end counts as connected (default 10)."),
+        ["min_length_mm"] = NativeToolUtil.Field("number", "Members shorter than this are flagged (default 100)."),
+        ["limit"] = NativeToolUtil.Field("integer", "Max issues listed (default 200).")
+    });
+    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
+    {
+        var doc = NativeToolUtil.Doc(app);
+        double Mm(string k, double d) => (input.TryGetValue(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : d) / Units.MmPerFoot;
+        var tol = Mm("tolerance_mm", 10); var minLen = Mm("min_length_mm", 100);
+        var manager = AnalyticalUtil.Manager(doc);
+        var members = new FilteredElementCollector(doc).OfClass(typeof(AnalyticalMember)).Cast<AnalyticalMember>().ToList();
+        var panels = new FilteredElementCollector(doc).OfClass(typeof(AnalyticalPanel)).Cast<AnalyticalPanel>().ToList();
+        var supports = new FilteredElementCollector(doc).OfClass(typeof(BoundaryConditions)).Cast<BoundaryConditions>().ToList();
+        var supportPoints = supports.Where(b => b.GetBoundaryConditionsType() == BoundaryConditionsType.Point).Select(b => b.Point).Where(p => p != null).ToList();
+        var supportCurves = supports.Select(b => { try { return b.GetCurve(); } catch { return null; } }).Where(c => c != null).ToList();
+        var curves = members.Select(m => (m, c: m.GetCurve())).Where(x => x.c != null).ToList();
+        var panelGeometry = panels.Select(p => (p, faces: Geometry(p).OfType<Face>().ToList(), edges: Geometry(p).OfType<Curve>().ToList())).ToList();
+        var issues = new List<object>();
+        int free = 0, shortCount = 0;
+        var releases = new Dictionary<string, int>();
+        foreach (var (m, c) in curves)
+        {
+            ToolContext.ThrowIfCancelled();
+            if (c.Length < minLen) { shortCount++; issues.Add(new { issue = "short_member", id = m.Id.Value, length_mm = Math.Round(c.Length * Units.MmPerFoot, 1) }); }
+            foreach (var (end, start) in new[] { (c.GetEndPoint(0), true), (c.GetEndPoint(1), false) })
+            {
+                try { var rt = m.GetReleaseType(start).ToString(); releases[rt] = releases.GetValueOrDefault(rt) + 1; } catch { }
+                bool Near(Curve other) { try { return other.Distance(end) <= tol; } catch { return false; } }
+                var connected = supportPoints.Any(p => p.DistanceTo(end) <= tol) || supportCurves.Any(sc => Near(sc!))
+                    || curves.Any(o => o.m.Id != m.Id && Near(o.c))
+                    || panelGeometry.Any(pg => pg.edges.Any(Near) || pg.faces.Any(f => f.Project(end) is { } h && h.Distance <= tol));
+                if (connected) continue;
+                free++;
+                issues.Add(new { issue = "free_end", id = m.Id.Value, role = m.StructuralRole.ToString(), end = start ? "start" : "end", point_mm = NativeToolUtil.Mm(end), physical_id = Physical(manager, m.Id) });
+            }
+        }
+        var physical = new FilteredElementCollector(doc).WherePasses(new ElementMulticategoryFilter(AnalyticalUtil.MemberCategories)).WhereElementIsNotElementType().ToElements()
+            .Concat(new FilteredElementCollector(doc).OfClass(typeof(Floor)).Where(f => f.get_Parameter(BuiltInParameter.FLOOR_PARAM_IS_STRUCTURAL)?.AsInteger() == 1))
+            .Concat(new FilteredElementCollector(doc).OfClass(typeof(Wall)).Where(w => w.get_Parameter(BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT)?.AsInteger() == 1)).ToList();
+        var noAnalytical = physical.Where(e => !manager.HasAssociation(e.Id)).ToList();
+        var orphans = members.Cast<Element>().Concat(panels).Where(a => Physical(manager, a.Id) == null).ToList();
+        var loads = new FilteredElementCollector(doc).OfClass(typeof(LoadBase)).Cast<LoadBase>().ToList();
+        var cases = new FilteredElementCollector(doc).OfClass(typeof(LoadCase)).Cast<LoadCase>().ToList();
+        var combos = new FilteredElementCollector(doc).OfClass(typeof(LoadCombination)).Cast<LoadCombination>().ToList();
+        var limit = input.TryGetValue("limit", out var lim) && lim.ValueKind == JsonValueKind.Number ? Math.Clamp(lim.GetInt32(), 1, 2000) : 200;
+        return Services.Json.Serialize(new
+        {
+            members = members.Count, panels = panels.Count, supports = supports.Count,
+            free_ends = free, short_members = shortCount,
+            physical_without_analytical = noAnalytical.GroupBy(e => e.Category?.Name).Select(g => new { category = g.Key, count = g.Count(), sample_ids = g.Take(15).Select(e => e.Id.Value) }),
+            analytical_without_physical = orphans.Count, orphan_sample_ids = orphans.Take(20).Select(e => e.Id.Value),
+            end_releases = releases,
+            load_cases = cases.Select(lc => new { name = lc.Name, loads = loads.Count(l => l.LoadCaseId == lc.Id) }),
+            loads_without_case = loads.Count(l => l.LoadCaseId == ElementId.InvalidElementId),
+            load_combinations = combos.Count,
+            issues = issues.Take(limit), truncated = issues.Count > limit,
+            ready_for_export = free == 0 && noAnalytical.Count == 0 && cases.Count > 0 && cases.All(lc => loads.Any(l => l.LoadCaseId == lc.Id))
+        });
+    }
+
+    private static long? Physical(AnalyticalToPhysicalAssociationManager manager, ElementId id)
+    {
+        try { var p = manager.GetAssociatedElementId(id); return p != null && p != ElementId.InvalidElementId ? p.Value : null; } catch { return null; }
+    }
+
+    private static IEnumerable<GeometryObject> Geometry(Element e)
+    {
+        var g = e.get_Geometry(new Options());
+        if (g == null) yield break;
+        foreach (var o in g)
+        {
+            if (o is Solid s) foreach (Face f in s.Faces) yield return f;
+            else if (o is Face or Curve) yield return o;
+        }
+    }
+}
+
+public sealed class CreateLoadCombinations : IRevitTool
+{
+    public string Name => "create_load_combinations";
+    public string Description =>
+        "Create load combinations. mode=sp20 generates the basic combinations of СП 20.13330.2016 п. 6.4 from the " +
+        "project's load cases: ultimate (with γf) and/or serviceability (normative), ψl1 = 1 / ψl2 = 0.95 for long-term, " +
+        "ψt1 = 1 / ψt2 = 0.9 / ψt3 = 0.7 for short-term loads, every ordering of the leading loads. Cases are classed " +
+        "dead / long / short from their category or name, overridable with case_kinds; γf defaults by nature (dead 1.1, " +
+        "live 1.2, snow and wind 1.4, temperature 1.1), overridable with gamma_f. Accidental and seismic cases are left " +
+        "out (special combinations are not generated). mode=explicit takes combinations as given. preview defaults true; " +
+        "check the factors against the project's design basis.";
+    public bool RequiresTransaction => false;
+    public bool MutatesWithoutTransaction => true;
+    public bool RequiresNoTurnGroup => true;
+    public InputSchema InputSchema => NativeToolUtil.Schema(new()
+    {
+        ["mode"] = NativeToolUtil.Field("string", "sp20 (default) or explicit."),
+        ["states"] = NativeToolUtil.Array("string", "sp20: ultimate and/or serviceability (default both)."),
+        ["case_kinds"] = NativeToolUtil.Any("sp20: {case name: dead|long|short} overrides."),
+        ["gamma_f"] = NativeToolUtil.Any("sp20: {case name: γf} overrides."),
+        ["exclude_cases"] = NativeToolUtil.Array("string", "sp20: case names to leave out."),
+        ["combinations"] = NativeToolUtil.Any("explicit: [{name, state: ultimate|serviceability, type: combination|envelope, components: [{case, factor}]}]."),
+        ["replace"] = NativeToolUtil.Field("boolean", "Replace existing combinations with the same names (default false: skip them)."),
+        ["preview"] = NativeToolUtil.Field("boolean", "Default true.")
+    });
+    public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
+    {
+        var doc = NativeToolUtil.Doc(app);
+        var cases = new FilteredElementCollector(doc).OfClass(typeof(LoadCase)).Cast<LoadCase>().ToList();
+        var byName = cases.ToDictionary(c => c.Name, c => c, StringComparer.OrdinalIgnoreCase);
+        string CategoryText(LoadCase c) => ((doc.GetElement(c.NatureId)?.Name ?? "") + " " + (Autodesk.Revit.DB.Category.GetCategory(doc, c.SubcategoryId)?.Name ?? "") + " " + c.Name).ToLowerInvariant();
+        var mode = NativeToolUtil.Text(input, "mode", "sp20");
+        var plan = new List<(string Name, bool Ultimate, bool Envelope, List<(string Case, double Factor)> Components)>();
+        var classes = new List<object>();
+        if (mode == "sp20")
+        {
+            var kinds = Map(input, "case_kinds", v => v.GetString() switch { "dead" => LoadKind.Dead, "long" => LoadKind.Long, "short" => LoadKind.Short, _ => throw new ToolInputException("case_kinds values: dead, long, short.") });
+            var gammas = Map(input, "gamma_f", v => v.GetDouble());
+            var exclude = input.TryGetValue("exclude_cases", out var ex) && ex.ValueKind == JsonValueKind.Array ? ex.EnumerateArray().Select(e => e.GetString() ?? "").ToHashSet(StringComparer.OrdinalIgnoreCase) : [];
+            var specs = new List<LoadCaseSpec>();
+            foreach (var c in cases)
+            {
+                var text = CategoryText(c);
+                if (exclude.Contains(c.Name)) continue;
+                if (!kinds.ContainsKey(c.Name) && (text.Contains("accident") || text.Contains("seism") || text.Contains("особ") || text.Contains("сейсм") || text.Contains("аварий")))
+                { classes.Add(new { @case = c.Name, kind = "excluded (special)", gamma_f = (double?)null }); continue; }
+                var kind = kinds.TryGetValue(c.Name, out var k) ? k : LoadCombinations.KindOf(text);
+                var key = text.Contains("dead") || text.Contains("постоян") || text.Contains("собствен") ? "dead" : text.Contains("snow") || text.Contains("снег") ? "snow"
+                    : text.Contains("wind") || text.Contains("ветер") || text.Contains("ветр") ? "wind" : text.Contains("temperat") || text.Contains("температ") ? "temperature"
+                    : text.Contains("roof") || text.Contains("кровл") ? "rooflive" : "live";
+                var g = gammas.TryGetValue(c.Name, out var gv) ? gv : LoadCombinations.DefaultGamma(key);
+                specs.Add(new(c.Name, kind, g));
+                classes.Add(new { @case = c.Name, kind = kind.ToString().ToLowerInvariant(), gamma_f = (double?)g });
+            }
+            var states = input.TryGetValue("states", out var st) && st.ValueKind == JsonValueKind.Array ? st.EnumerateArray().Select(s => s.GetString()).ToHashSet() : ["ultimate", "serviceability"];
+            try
+            {
+                if (states.Contains("ultimate")) plan.AddRange(LoadCombinations.Basic(specs, true, "РСН").Select(c => (c.Name, true, false, c.Components)));
+                if (states.Contains("serviceability")) plan.AddRange(LoadCombinations.Basic(specs, false, "НС").Select(c => (c.Name, false, false, c.Components)));
+            }
+            catch (ArgumentException e) { throw new ToolInputException(e.Message); }
+        }
+        else if (mode == "explicit")
+        {
+            foreach (var c in ToolInput.RequiredArray(input, "combinations").EnumerateArray())
+            {
+                var comps = c.GetProperty("components").EnumerateArray().Select(x => (x.GetProperty("case").GetString() ?? "", x.GetProperty("factor").GetDouble())).ToList();
+                plan.Add((c.GetProperty("name").GetString() ?? throw new ToolInputException("Each combination needs a name."),
+                    !(c.TryGetProperty("state", out var s) && s.GetString() == "serviceability"),
+                    c.TryGetProperty("type", out var t) && t.GetString() == "envelope", comps));
+            }
+        }
+        else throw new ToolInputException("mode must be sp20 or explicit.");
+        foreach (var p in plan) foreach (var (c, _) in p.Components)
+                if (!byName.ContainsKey(c) && !plan.Any(o => o.Name == c)) throw NameResolve.Missing(c, "Load case", cases.Select(x => x.Name));
+        var replace = ToolInput.Flag(input, "replace");
+        var preview = NativeToolUtil.Preview(input);
+        var ((made, skipped), warnings) = NativeToolUtil.Commit(doc, "Claude: сочетания нагрузок", preview, () =>
+        {
+            var existing = new FilteredElementCollector(doc).OfClass(typeof(LoadCombination)).Cast<LoadCombination>().ToDictionary(c => c.Name, c => c, StringComparer.OrdinalIgnoreCase);
+            var created = new Dictionary<string, ElementId>(StringComparer.OrdinalIgnoreCase); var skip = new List<string>();
+            foreach (var p in plan)
+            {
+                if (existing.TryGetValue(p.Name, out var old)) { if (!replace) { skip.Add(p.Name); continue; } doc.Delete(old.Id); }
+                var combo = LoadCombination.Create(doc, p.Name, p.Envelope ? LoadCombinationType.Envelope : LoadCombinationType.Combination,
+                    p.Ultimate ? LoadCombinationState.Ultimate : LoadCombinationState.Serviceability);
+                combo.SetComponents(p.Components.Select(c => new LoadComponent(byName.TryGetValue(c.Case, out var lc) ? lc.Id : created[c.Case], c.Factor)).ToList());
+                created[p.Name] = combo.Id;
+            }
+            return (created.Count, skip);
+        });
+        return Services.Json.Serialize(new
+        {
+            preview, mode, case_classes = classes, combinations = plan.Count, created = made, skipped_existing = skipped,
+            sample = plan.Take(12).Select(p => new { name = p.Name, state = p.Ultimate ? "ultimate" : "serviceability", components = p.Components.Select(c => $"{c.Factor:0.###}·{c.Case}") }),
+            note = mode == "sp20" ? "Основные сочетания по СП 20.13330.2016 п. 6.4. Проверьте классификацию нагрузок и γf; особые сочетания не формируются." : null,
+            revit_warnings = warnings
+        });
+    }
+
+    private static Dictionary<string, T> Map<T>(IReadOnlyDictionary<string, JsonElement> input, string key, Func<JsonElement, T> read)
+    {
+        var d = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+        if (input.TryGetValue(key, out var o) && o.ValueKind == JsonValueKind.Object) foreach (var p in o.EnumerateObject()) d[p.Name] = read(p.Value);
+        return d;
+    }
 }

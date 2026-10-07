@@ -6,7 +6,7 @@ MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a mod
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
 
-**Next release (v3.9.0, in main, not yet published):** Russian norm audit (СП 1.13130 / СП 54) with drawing callouts, ТЭП, explications, finish schedule, title-block fill, schedule fitting and room numbering; vector PDF plan → grids and walls; clash detection, IFC/NWC export; structural analytical model and loads; off-axis QA, tag-overlap fixing, stairs, railings, toposolids; server-side refusal fallback for Fable/Opus 5. 264 tools. Not yet exercised in Revit. [Guide and limits](docs/norms-documentation-coordination.md) · [Draft notes](docs/releases/v3.9.0.md).
+**Next release (v3.9.0, in main, not yet published):** Russian norm audit (СП 1.13130 / СП 54) with drawing callouts, ТЭП, explications, finish schedule, title-block fill, schedule fitting and room numbering; vector PDF plan → grids and walls; clash detection, IFC/NWC export; structural analytical model and loads; off-axis QA, tag-overlap fixing, stairs, railings, toposolids; server-side refusal fallback for Fable/Opus 5. 281 tools. Not yet exercised in Revit. [Guide and limits](docs/norms-documentation-coordination.md) · [Draft notes](docs/releases/v3.9.0.md).
 
 **v3.8.7:** every tool reads its required inputs through checked readers: a missing parameter, a list sent as a single value or a word where a number belongs comes back naming the parameter and what arrived, instead of "Object reference not set…" — so the model fixes the call instead of guessing. Numbers sent as strings are accepted; fractional counts are not rounded. [Release notes](docs/releases/v3.8.7.md).
 
@@ -32,7 +32,7 @@ Codex/ChatGPT subscription; modeller and judge models are selected independently
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit — a dockable chat pane with **264 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+Claude AI in Autodesk Revit — a dockable chat pane with **281 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
 
 Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscription** (via a built-in MCP server + the Claude Code CLI — zero API cost), or on any **OpenAI-compatible** provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama…).
 
@@ -42,6 +42,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 
 - **Norm audit and Russian documentation** — `audit_norms` checks evacuation doors, corridors, stairs, ceiling heights, minimum room areas and railings against СП 1.13130.2020 / СП 54.13330.2022 (clause, measured vs required), `annotate_norm_findings` marks them on drawings; `compute_tep`, room/floor explications, finish schedule, `fill_title_block`, `fit_schedule_to_sheet`, `number_rooms`. [Rules and limits](docs/norms-documentation-coordination.md).
 - **PDF plan import, coordination, analysis** — `pdf_to_model` (vector PDF → grids and walls, calibrated by points, scale or model grids), `check_clashes` (incl. links), `export_ifc`, `export_nwc`, analytical members/panels, loads and supports.
+- **Structural QA and documentation** — `audit_rebar` (bars in concrete, cover, clear spacing, overlaps), `create_stirrup_zones`, welded meshes from ГОСТ 23279 designations, rebar splices, steel connection approval/status/cuts, `check_analytical_model`, СП 20 load combinations and `create_bar_bending_schedule` (live ведомость деталей with native bending details). [Details and limits](docs/structural-workflows.md).
 - **Refusal fallback** — for Fable 5 / 5.1 and Opus 5 a classifier-declined request is answered by Anthropic's recommended fallback model; the chat says which model answered (Settings → General to switch off).
 - **Live SPDS specifications** — native steel consumption matrices and timber material/element statements; quantities come from model parameters and derived values update after instance/type edits. [Forms and limits](docs/structural-workflows.md).
 - **Reusable structural components** — native connection capability inspection, consistent truss topology, keyed assembly updates, physical interface checks and constrained section families.
@@ -56,7 +57,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Open document tabs keep independent drafts, attachments, choices and running tasks; native calls stay bound to their document.
 - **Independent MCP clients** — model reports, settings directives and cancellation belong to each connection. Settings let you select a connected client. Stop cancels this pane's queued work and waits for a running Revit operation to settle.
 - **BIMStarter, ADSK and EIR context** — live GUIDs, bindings, units, templates and schedules via `get_project_standards`; 313 BIMStarter GUIDs and 323 ADSK GUIDs (566 unique combined; 1120 edition/translation rows) via `get_shared_parameter_catalog`. `get_standard_workflows` explains counting schemes and profile differences; `validate_project_standard` performs a partial Samolet EIR audit. Workbook group recommendations do not prove live bindings.
-- **264 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **281 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **OpenAI models can drive Revit too (via MCP)** — the local **Codex CLI** connects to the same MCP server, so GPT-6 Astra / GPT-5.6 Sol-Terra-Luna edit the model through the Revit tools. Cloud ChatGPT can't reach a `127.0.0.1` server, and exposing one publicly would put model editing behind nothing but a token — Codex runs on your machine, so no tunnel is needed. Follow-up messages continue the same Codex conversation, and the session survives a Revit restart.
 - **See who is driving** — replies keep their agent names. Settings show an external MCP client from its handshake and its self-reported model, which may be missing or inaccurate.
@@ -225,7 +226,7 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **264 tools** to Claude across these categories:
+The plugin exposes **281 tools** to Claude across these categories:
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls

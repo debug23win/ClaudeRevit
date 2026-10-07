@@ -290,6 +290,24 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new CreateAnalyticalModel());
             ToolRegistry.Instance.Register(new CreateStructuralLoads());
             ToolRegistry.Instance.Register(new CreateBoundaryConditions());
+            // Structural: rebar quality, fabric, steel connections, combinations, bar bending schedule.
+            ToolRegistry.Instance.Register(new AuditRebar());
+            ToolRegistry.Instance.Register(new CreateStirrupZones());
+            ToolRegistry.Instance.Register(new CheckAnalyticalModel());
+            ToolRegistry.Instance.Register(new CreateLoadCombinations());
+            ToolRegistry.Instance.Register(new ListFabricTypes());
+            ToolRegistry.Instance.Register(new CreateFabricSheetType());
+            ToolRegistry.Instance.Register(new CreateFabricArea());
+            ToolRegistry.Instance.Register(new CreateFabricSheet());
+            ToolRegistry.Instance.Register(new GetSteelConnections());
+            ToolRegistry.Instance.Register(new SetSteelConnection());
+            ToolRegistry.Instance.Register(new SteelSolidCuts());
+            ToolRegistry.Instance.Register(new AddSteelFabricationInfo());
+            ToolRegistry.Instance.Register(new SpliceRebar());
+            ToolRegistry.Instance.Register(new UnifyRebars());
+            ToolRegistry.Instance.Register(new ConvertReinforcementSystem());
+            ToolRegistry.Instance.Register(new SetRebarRounding());
+            ToolRegistry.Instance.Register(new CreateBarBendingSchedule());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\
