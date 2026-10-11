@@ -43,6 +43,7 @@ public static class ToolSearchLogic
     // message, so the common cases ("добавь арматуру", "make a section") skip the find_tools round.
     private static readonly (string Category, string[] Keys)[] GroupKeywords =
     {
+        ("ModPlus", new[] { "modplus", "mod plus", "модплюс", "мод плюс", "mprsumparameters", "сумма параметров" }),
         ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "сетк", "fabric", "mesh", "ведомость детал", "bending" }),
         ("MEP", new[] { "duct", "pipe", "hvac", "воздуховод", "труб", "инженерн" }),
         ("Schedules", new[] { "schedule", "quantit", "специфик", "ведомост", "расписан", "таблиц" }),

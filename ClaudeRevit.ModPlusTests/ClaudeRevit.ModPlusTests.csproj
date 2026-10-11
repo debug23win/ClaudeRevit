@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.53.0" />
+    <Compile Include="../ClaudeRevit/Tools/ModPlusTools.cs" Link="src/ModPlusTools.cs" />
+    <Compile Include="../ClaudeRevit/Tools/IRevitTool.cs" Link="src/IRevitTool.cs" />
+    <Compile Include="../ClaudeRevit/Tools/ToolInput.cs" Link="src/ToolInput.cs" />
+    <Compile Include="../ClaudeRevit/Tools/ToolInputException.cs" Link="src/ToolInputException.cs" />
+    <Compile Include="../ClaudeRevit/Services/ModPlusCatalog.cs" Link="src/ModPlusCatalog.cs" />
+    <Compile Include="../ClaudeRevit/Services/ModPlusTotals.cs" Link="src/ModPlusTotals.cs" />
+    <Compile Include="../ClaudeRevit/Services/Json.cs" Link="src/Json.cs" />
+    <EmbeddedResource Include="../ClaudeRevit/Standards/ModPlus2027.json" LogicalName="ClaudeRevit.Standards.ModPlus2027.json" />
+  </ItemGroup>
+</Project>

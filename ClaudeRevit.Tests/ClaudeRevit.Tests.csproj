@@ -48,6 +48,9 @@
     <Compile Include="..\ClaudeRevit\Services\ToolResult.cs" Link="src\ToolResult.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultCap.cs" Link="src\ToolResultCap.cs" />
     <Compile Include="..\ClaudeRevit\Services\NormRules.cs" Link="src\NormRules.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ModPlusCatalog.cs" Link="src\ModPlusCatalog.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ModPlusTotals.cs" Link="src\ModPlusTotals.cs" />
+    <EmbeddedResource Include="..\ClaudeRevit\Standards\ModPlus2027.json" LogicalName="ClaudeRevit.Standards.ModPlus2027.json" />
     <Compile Include="..\ClaudeRevit\Services\TepCalculator.cs" Link="src\TepCalculator.cs" />
     <Compile Include="..\ClaudeRevit\Services\PdfDrawing.cs" Link="src\PdfDrawing.cs" />
     <Compile Include="..\ClaudeRevit\Services\DwgShapes.cs" Link="src\DwgShapes.cs" />

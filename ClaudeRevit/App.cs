@@ -315,6 +315,10 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new SnapshotModel());
             ToolRegistry.Instance.Register(new CompareModelVersions());
             ToolRegistry.Instance.Register(new CheckModelPackage());
+            ToolRegistry.Instance.Register(new GetModPlusTools());
+            ToolRegistry.Instance.Register(new GetModPlusAlgorithm());
+            ToolRegistry.Instance.Register(new ModPlusSumParameters());
+            ToolRegistry.Instance.Register(new RunModPlusCommand());
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

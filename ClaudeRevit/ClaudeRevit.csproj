@@ -59,6 +59,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Standards\Workflows.json" LogicalName="ClaudeRevit.Standards.Workflows.json" />
     <EmbeddedResource Include="Standards\BimStarterTools.json" LogicalName="ClaudeRevit.Standards.BimStarterTools.json" />
+    <EmbeddedResource Include="Standards\ModPlus2027.json" LogicalName="ClaudeRevit.Standards.ModPlus2027.json" />
     <EmbeddedResource Include="Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <EmbeddedResource Include="Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />
     <EmbeddedResource Include="Tools\**\*.cs">
