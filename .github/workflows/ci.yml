@@ -32,6 +32,8 @@ jobs:
         run: dotnet run --project ClaudeRevit.McpTests -c Release
       - name: Subscription CLI checks (isolated fake processes, no account)
         run: dotnet run --project ClaudeRevit.CliTests -c Release
+      - name: ModPlus adapter checks (isolated Revit contracts, no installed ModPlus)
+        run: dotnet run --project ClaudeRevit.ModPlusTests -c Release
       - name: Compile installer detection check
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:

@@ -62,7 +62,18 @@ public static class DynamicToolLoader
             if (!Directory.Exists(ToolsDir)) return report;
             foreach (var file in Directory.GetFiles(ToolsDir, "*.cs").OrderBy(f => f, StringComparer.Ordinal))
             {
-                try { report.Loaded.AddRange(LoadFile(file)); }
+                try
+                {
+                    // Prepared ModPlus tools are now built-in; preserve the local file and all edits.
+                    if (Path.GetFileName(file).Equals("ModPlusTools.cs", StringComparison.OrdinalIgnoreCase) &&
+                        new[] { "get_modplus_tools", "get_modplus_algorithm", "modplus_sum_parameters" }.All(n => ToolRegistry.Instance.Get(n) != null))
+                    {
+                        using var stream = File.OpenRead(file);
+                        if (ModPlusCatalog.IsPreparedExtension(Path.GetFileName(file), Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream))))
+                        { Log.Info("Prepared ModPlus extension superseded by built-in tools; local file preserved."); continue; }
+                    }
+                    report.Loaded.AddRange(LoadFile(file));
+                }
                 catch (Exception ex)
                 {
                     report.Errors.Add(Path.GetFileName(file) + ": " + ex.Message);

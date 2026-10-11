@@ -442,6 +442,7 @@ public class ToolDispatcher : IExternalEventHandler
     internal static readonly HashSet<string> ActiveDocumentOnly = new(StringComparer.Ordinal)
     {
         "OpenFamilyEditor", "ReloadFamilyIntoDocument", "RunBimStarterCommand", "ColorElementsByParameter",
+        "ModPlusSumParameters", "RunModPlusCommand",
         "GetMaterialQuantities", "GetSelection", "PickPointInView", "SelectSimilar", "SetActiveView"
     };
 
