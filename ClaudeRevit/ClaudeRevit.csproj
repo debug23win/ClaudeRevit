@@ -34,6 +34,15 @@
     <SkipDeploy Condition="'$(SkipDeploy)' == ''">false</SkipDeploy>
   </PropertyGroup>
 
+  <!-- Headless ModPlus bindings are for the inspected Revit 2027 API only. -->
+  <ItemGroup Condition="'$(RevitVersion)' != '2027'">
+    <Compile Remove="ModPlusHeadless\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RevitVersion)' == '2027'">
+    <EmbeddedResource Include="Standards\ModPlusHeadless\bindings.json" LogicalName="ClaudeRevit.ModPlusHeadless.Bindings.json" />
+    <EmbeddedResource Include="ModPlusHeadless\*.cs"><LogicalName>toolsrc/modplus/%(Filename)%(Extension)</LogicalName></EmbeddedResource>
+  </ItemGroup>
+
   <!-- Revit API references via Nice3point's NuGet packages. These ship reference
        assemblies only — they don't bring Revit's runtime DLLs into our output.
        Works on dev machines AND on CI runners with no Revit install. -->

@@ -2,6 +2,7 @@
 // unchanged. These contracts never ship in the add-in and cannot execute ModPlus assemblies.
 using System.Text.Json;
 using Anthropic.Models.Beta.Messages;
+using Autodesk.Revit.UI;
 namespace Autodesk.Revit.DB
 {
     public sealed record ElementId(long Value);
@@ -56,10 +57,29 @@ namespace Autodesk.Revit.UI
 }
 namespace ClaudeRevit.Services
 {
+    public static class SettingsStore
+    {
+        public static bool AllowCodeExecution = true;
+        public static IReadOnlyCollection<string> DisabledToolGroups = Array.Empty<string>();
+    }
     public static class DocumentSessions { public static bool Same(Autodesk.Revit.DB.Document? a, Autodesk.Revit.DB.Document? b) => a != null && ReferenceEquals(a, b); }
 }
 namespace ClaudeRevit.Tools
 {
+    public sealed class ForwardingFixture : IRevitTool
+    {
+        public string Name { get; init; } = "modplus_mprnumbering";
+        public string Description => "fixture";
+        public InputSchema InputSchema => new() { Properties = new Dictionary<string, JsonElement>() };
+        public bool RequiresTransaction => false;
+        public bool MutatesWithoutTransaction => true;
+        public bool RequiresNoTurnGroup => true;
+        public bool InvalidatesCatalog => true;
+        public bool IsScriptTool => true;
+        public int PreflightCalls;
+        public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => PreflightCalls++;
+        public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => "{}";
+    }
     public static class ToolDispatcher { public static bool ForceSuppress; }
     public static class ToolContext
     {

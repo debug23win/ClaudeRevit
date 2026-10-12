@@ -101,6 +101,10 @@ public sealed class GetModPlusTools : IRevitTool
                 id = m.GetProperty("module"), title = m.GetProperty("title"), description = m.GetProperty("description"),
                 available2027 = m.GetProperty("available2027"), adapterStatus = m.GetProperty("adapterStatus"),
                 serviceAdapter = m.GetProperty("module").GetString() == "mprSumParameters" ? "modplus_sum_parameters" : null,
+#if REVIT2027
+                headlessTool = m.GetProperty("module").GetString() == "mprSumParameters" ? null : "modplus_" + m.GetProperty("module").GetString()!.ToLowerInvariant(),
+                headlessRouter = m.GetProperty("module").GetString() == "mprSumParameters" ? null : "run_modplus_headless",
+#endif
                 externalCommandCount = m.GetProperty("externalCommands").GetArrayLength(),
                 externalCommands = m.GetProperty("externalCommands").EnumerateArray().Skip(commandOffset).Take(commandLimit).Select(c => c.GetProperty("class").GetString()),
                 nextCommandOffset = commandOffset + commandLimit < m.GetProperty("externalCommands").GetArrayLength() ? (int?)(commandOffset + commandLimit) : null,

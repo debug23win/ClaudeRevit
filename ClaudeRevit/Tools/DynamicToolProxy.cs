@@ -20,6 +20,9 @@ internal sealed class DynamicToolProxy : IRevitTool
     // it needs the dispatcher's managed transaction (and undo grouping).
     public bool RequiresTransaction => _inner.RequiresTransaction;
     public bool MutatesWithoutTransaction => _inner.MutatesWithoutTransaction;
+    public bool RequiresNoTurnGroup => _inner.RequiresNoTurnGroup;
+    public bool IsScriptTool => _inner.IsScriptTool;
+    public bool InvalidatesCatalog => _inner.InvalidatesCatalog;
 
     // Always mark saved source tools as code, regardless of their author declaration.
     public bool RequiresCodeExecutionOptIn => true;
@@ -27,4 +30,5 @@ internal sealed class DynamicToolProxy : IRevitTool
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) =>
         _inner.Execute(input, app);
+    public void Preflight(IReadOnlyDictionary<string, JsonElement> input, UIApplication app) => _inner.Preflight(input, app);
 }

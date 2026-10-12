@@ -17,12 +17,14 @@ public static class ToolCatalog
     {
         "Query", "Modeling", "Family editor", "Rebar", "Annotation", "Views",
         "Visibility", "Sheets", "Schedules", "Documentation", "Coordination", "Structural analysis",
-        "Groups", "MEP", "Export", "ModPlus", "Code & learning"
+        "Groups", "MEP", "Export", "ModPlus", "ModPlus headless", "Code & learning"
     };
 
     public static string CategoryOf(IRevitTool tool)
     {
         var n = tool.GetType().Name;
+        if (tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal)) return "ModPlus headless";
+        if (tool.Name == "run_modplus_headless" || n == "RunModPlusHeadless") return "ModPlus";
         if (n is "GetModPlusTools" or "GetModPlusAlgorithm" or "ModPlusSumParameters" or "RunModPlusCommand") return "ModPlus";
         if(n is "UpsertConnectionNode" or "PlanTrussLayout" or "RunCheckpointJob") return "Modeling";
         if(n is "CreateParametricSection" or "InspectFamilyFiles") return "Family editor";

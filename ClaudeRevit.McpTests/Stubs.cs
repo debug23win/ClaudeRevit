@@ -54,7 +54,11 @@ namespace ClaudeRevit.Tools
     {
         public static bool IsEnabled(TestTool tool, IReadOnlyCollection<string>? disabledGroups = null)
         {
-            if (tool.RequiresCodeExecutionOptIn) return ClaudeRevit.Services.SettingsStore.AllowCodeExecution;
+            if (tool.RequiresCodeExecutionOptIn)
+            {
+                if (!ClaudeRevit.Services.SettingsStore.AllowCodeExecution) return false;
+                if (!tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal) && tool.Name != "run_modplus_headless") return true;
+            }
             disabledGroups ??= ClaudeRevit.Services.SettingsStore.DisabledToolGroups;
             return disabledGroups.Count == 0 || !disabledGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase);
         }

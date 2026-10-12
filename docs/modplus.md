@@ -1,5 +1,10 @@
 # ModPlus integration
 
+Starting with v3.9.3, Revit 2027 also includes the supplied headless adapter package:
+85 module aliases, one compact router and 32 native API operations. See
+[headless coverage and examples](modplus-headless.md). The four tools below remain
+available in Revit 2025–2027 with their existing version restrictions.
+
 ClaudeRevit has four built-in tools from the supplied ModPlus Revit 2027 analysis
 bundle. They are available to API chat and both subscription agents through the
 ordinary tool discovery path. Requests mentioning ModPlus / «Модплюс» pre-load the
@@ -85,11 +90,13 @@ command IDs, wrong project tabs and unavailable commands are refused.
 
 ## Validation
 
-350 unit tests and 41 isolated adapter checks passed locally. Adapter checks run
+354 unit tests and 51 isolated adapter checks passed locally. Adapter checks run
 the production tool code and real Anthropic schemas with Revit-only test contracts:
 catalog paging, nested ribbon matching, source bounds, unsupported versions,
 cross-document rejection, selection handling, preview, unattended-command rejection
-and queued-versus-completed status. They run in CI and before release packaging.
+and queued-versus-completed status, code/group policy and dynamic proxy forwarding.
+They run in CI and before release packaging. The headless package adds 42 managed
+metadata and call-graph checks, including the embedded binding snapshot.
 
 API compilation is checked for all supported versions. **Execution against a
 licensed running Revit with ModPlus has not been verified in this release.** The

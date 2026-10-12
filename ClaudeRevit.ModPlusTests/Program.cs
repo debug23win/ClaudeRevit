@@ -14,6 +14,22 @@ Environment.SetEnvironmentVariable("CLAUDEREVIT_MODPLUS_DATA",data);
 try
 {
     var app=new UIApplication();
+    var inner = new ForwardingFixture();
+    IRevitTool proxy = new DynamicToolProxy(inner);
+    Check(proxy.RequiresNoTurnGroup && !proxy.RequiresTransaction && proxy.MutatesWithoutTransaction, "proxy forwards transaction ownership");
+    Check(proxy.IsScriptTool && proxy.InvalidatesCatalog, "proxy forwards cache and journal flags");
+    Check(proxy.RequiresCodeExecutionOptIn && proxy.RequiresConfirmation, "proxy retains mandatory code gate");
+    proxy.Preflight(Args("{}"), app);
+    Check(inner.PreflightCalls == 1, "proxy runs inner preflight");
+    Check(ToolPolicy.IsEnabled(proxy), "enabled headless alias");
+    Check(!ToolPolicy.IsEnabled(proxy, ["ModPlus headless"]), "alias group can be disabled");
+    IRevitTool router = new DynamicToolProxy(new ForwardingFixture { Name = "run_modplus_headless" });
+    Check(!ToolPolicy.IsEnabled(router, ["ModPlus"]), "router group can be disabled");
+    SettingsStore.AllowCodeExecution = false;
+    Check(!ToolPolicy.IsEnabled(proxy) && !ToolPolicy.IsEnabled(router), "code switch denies alias and router");
+    Check(ToolPolicy.IsEnabled(new ModPlusSumParameters()), "fixed read-only sum independent of code switch");
+    SettingsStore.AllowCodeExecution = true;
+    Check(ToolPolicy.IsEnabled(new DynamicToolProxy(new ForwardingFixture { Name = "custom_code" }), ["ModPlus"]), "ordinary custom-code group behavior retained");
     var panel=new RibbonPanel();
     var pull=new PulldownButton();
     pull.Items.Add(new PushButton { Name="Sum", ItemText="Сумма параметров", ClassName="mprSumParameters.Command" });
@@ -69,4 +85,4 @@ try
     Check(app.ActiveUIDocument.Selection.GetElementIds().Single().Value==2,"selection passed to posted command");
     Console.WriteLine(JsonSerializer.Serialize(new { checks, status="passed", nativeRevitExecution="not tested", scope="production tools with isolated Revit contracts and real Anthropic schemas" }));
 }
-finally { Environment.SetEnvironmentVariable("CLAUDEREVIT_MODPLUS_DATA",previous); ToolContext.Bound=null; ToolDispatcher.ForceSuppress=false; if(Directory.Exists(data))Directory.Delete(data,true); }
+finally { Environment.SetEnvironmentVariable("CLAUDEREVIT_MODPLUS_DATA",previous); ToolContext.Bound=null; ToolDispatcher.ForceSuppress=false; SettingsStore.AllowCodeExecution=true; if(Directory.Exists(data))Directory.Delete(data,true); }

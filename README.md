@@ -1,5 +1,11 @@
 # Claude Revit
 
+**v3.9.3:** ModPlus headless adapters for Revit 2027: 85 module aliases and one
+compact router, with 32 native API operations across 27 modules. Preview rolls
+model changes back; typed original-method pipelines require matching installed
+ModPlus binaries. The code-execution switch remains enforced.
+[Coverage and examples](docs/modplus-headless.md) · [Release notes](docs/releases/v3.9.3.md).
+
 **v3.9.2:** built-in ModPlus catalog (84 available 2027 modules / 215 declared commands),
 paged algorithm inspection, a fixed read-only sum-parameters adapter and interactive
 ribbon command posting. Execution requires Revit 2027 with ModPlus installed; source
@@ -40,7 +46,7 @@ Codex/ChatGPT subscription; modeller and judge models are selected independently
 
 **English** | [Русский](README.ru.md)
 
-Claude AI in Autodesk Revit — a dockable chat pane with **292 tools** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
+Claude AI in Autodesk Revit — a dockable chat pane with **378 tools in Revit 2027 / 292 in Revit 2025–2026** that let Claude inspect and modify your model directly. Ask it to create walls, generate schedules, place families, dimension grids, reinforce structural elements, author parametric families, draft sketches, and more. Runs on **Revit 2025, 2026 and 2027**.
 
 Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscription** (via a built-in MCP server + the Claude Code CLI — zero API cost), or on any **OpenAI-compatible** provider (DeepSeek, Gemini, OpenRouter, Groq, local Ollama…).
 
@@ -65,7 +71,7 @@ Run it on the pay-per-token **Anthropic API**, on your **Claude Pro/Max subscrip
 - **Separate project conversations** — chat history and Claude Code/Codex sessions follow the active document. Concurrent Revit instances reserve separate history slots. Open document tabs keep independent drafts, attachments, choices and running tasks; native calls stay bound to their document.
 - **Independent MCP clients** — model reports, settings directives and cancellation belong to each connection. Settings let you select a connected client. Stop cancels this pane's queued work and waits for a running Revit operation to settle.
 - **BIMStarter, ADSK and EIR context** — live GUIDs, bindings, units, templates and schedules via `get_project_standards`; 313 BIMStarter GUIDs and 323 ADSK GUIDs (566 unique combined; 1120 edition/translation rows) via `get_shared_parameter_catalog`. `get_standard_workflows` explains counting schemes and profile differences; `validate_project_standard` performs a partial Samolet EIR audit. Workbook group recommendations do not prove live bindings.
-- **292 tools** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
+- **378 tools in Revit 2027 / 292 in Revit 2025–2026** spanning modeling, views, sheets, annotation, schedules, filters, families, the Family Editor, and reinforcement
 - **Multiple AI providers** — Claude (Opus 5 / Fable 5.1 / Sonnet 5 / Opus 4.8 / Fable 5 / Haiku 4.5, + legacy Sonnet 4.6 / Opus 4.7) **or** any OpenAI-compatible endpoint: OpenAI (presets for GPT-6 Astra and GPT-5.6 Sol/Terra/Luna), DeepSeek, Google Gemini, Qwen, OpenRouter, Groq, and local **Ollama** / **LM Studio**. Pick "Alt" in the model dropdown; free and local models need no Anthropic key.
 - **OpenAI models can drive Revit too (via MCP)** — the local **Codex CLI** connects to the same MCP server, so GPT-6 Astra / GPT-5.6 Sol-Terra-Luna edit the model through the Revit tools. Cloud ChatGPT can't reach a `127.0.0.1` server, and exposing one publicly would put model editing behind nothing but a token — Codex runs on your machine, so no tunnel is needed. Follow-up messages continue the same Codex conversation, and the session survives a Revit restart.
 - **See who is driving** — replies keep their agent names. Settings show an external MCP client from its handshake and its self-reported model, which may be missing or inaccurate.
@@ -234,7 +240,9 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **292 tools** to Claude across these categories:
+The plugin exposes **378 tools in Revit 2027 / 292 in Revit 2025–2026** to Claude across these categories:
+
+- **ModPlus headless (2027)** — 32 native operations, 85 module aliases and `run_modplus_headless` for typed original-method pipelines; [coverage and limits](docs/modplus-headless.md)
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls
