@@ -319,6 +319,10 @@ public class App : IExternalApplication
             ToolRegistry.Instance.Register(new GetModPlusAlgorithm());
             ToolRegistry.Instance.Register(new ModPlusSumParameters());
             ToolRegistry.Instance.Register(new RunModPlusCommand());
+#if REVIT2027
+            ModPlus.Headless.ModPlusHeadlessRegistration.RegisterBundled();
+            ToolRegistry.Instance.Register(new RunModPlusHeadless());
+#endif
             ToolDispatcher.Initialize(ToolRegistry.Instance);
 
             // Self-extension: load persistent custom tools written to %AppData%\ClaudeRevit\

@@ -78,6 +78,14 @@ jobs:
           }
           Get-ChildItem "ClaudeRevit-$ver-Revit*.zip" | Format-List Name, Length
 
+      - name: Headless adapter checks against the packaged Revit 2027 DLL
+        shell: pwsh
+        run: |
+          dotnet build ClaudeRevit.HeadlessTests/Fixtures/GuardFixtures.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Guard fixtures failed to build" }
+          dotnet run --project ClaudeRevit.HeadlessTests -c Release -- installer/payload/2027/ClaudeRevit.dll ClaudeRevit.HeadlessTests/Fixtures/bin/Release/net10.0/mprHeadlessFixtures.dll ClaudeRevit/Standards/ModPlusHeadless/bindings.json
+          if ($LASTEXITCODE -ne 0) { throw "Headless checks failed" }
+
       # Refuse to silently move a published release tag: a manual dispatch may only (re)tag
       # a version that doesn't exist yet, or one that already points at this very commit.
       - name: Guard against retagging an existing release (manual dispatch only)

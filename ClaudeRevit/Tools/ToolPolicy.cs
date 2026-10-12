@@ -11,7 +11,12 @@ internal static class ToolPolicy
 {
     public static bool IsEnabled(IRevitTool tool, IReadOnlyCollection<string>? disabledGroups = null)
     {
-        if (tool.RequiresCodeExecutionOptIn) return Services.SettingsStore.AllowCodeExecution;
+        if (tool.RequiresCodeExecutionOptIn)
+        {
+            if (!Services.SettingsStore.AllowCodeExecution) return false;
+            // Bundled vendor pipelines retain the code gate AND their native group switch.
+            if (!tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal) && tool.Name != "run_modplus_headless") return true;
+        }
         disabledGroups ??= Services.SettingsStore.DisabledToolGroups;
         return disabledGroups.Count == 0 ||
                !disabledGroups.Contains(ToolCatalog.CategoryOf(tool), StringComparer.OrdinalIgnoreCase);

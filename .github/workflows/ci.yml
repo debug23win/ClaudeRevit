@@ -34,6 +34,13 @@ jobs:
         run: dotnet run --project ClaudeRevit.CliTests -c Release
       - name: ModPlus adapter checks (isolated Revit contracts, no installed ModPlus)
         run: dotnet run --project ClaudeRevit.ModPlusTests -c Release
+      - name: Headless bindings and call-graph checks (no vendor algorithms executed)
+        shell: pwsh
+        run: |
+          dotnet build ClaudeRevit.HeadlessTests/Fixtures/GuardFixtures.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Guard fixtures failed to build" }
+          dotnet run --project ClaudeRevit.HeadlessTests -c Release -- ClaudeRevit/bin/Release/ClaudeRevit.dll ClaudeRevit.HeadlessTests/Fixtures/bin/Release/net10.0/mprHeadlessFixtures.dll ClaudeRevit/Standards/ModPlusHeadless/bindings.json
+          if ($LASTEXITCODE -ne 0) { throw "Headless checks failed" }
       - name: Compile installer detection check
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:

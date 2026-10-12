@@ -7,6 +7,8 @@
     <PackageReference Include="Anthropic" Version="12.53.0" />
     <Compile Include="../ClaudeRevit/Tools/ModPlusTools.cs" Link="src/ModPlusTools.cs" />
     <Compile Include="../ClaudeRevit/Tools/IRevitTool.cs" Link="src/IRevitTool.cs" />
+    <Compile Include="../ClaudeRevit/Tools/ToolPolicy.cs" Link="src/ToolPolicy.cs" />
+    <Compile Include="../ClaudeRevit/Tools/DynamicToolProxy.cs" Link="src/DynamicToolProxy.cs" />
     <Compile Include="../ClaudeRevit/Tools/ToolInput.cs" Link="src/ToolInput.cs" />
     <Compile Include="../ClaudeRevit/Tools/ToolInputException.cs" Link="src/ToolInputException.cs" />
     <Compile Include="../ClaudeRevit/Services/ModPlusCatalog.cs" Link="src/ModPlusCatalog.cs" />

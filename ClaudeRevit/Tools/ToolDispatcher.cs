@@ -443,6 +443,7 @@ public class ToolDispatcher : IExternalEventHandler
     {
         "OpenFamilyEditor", "ReloadFamilyIntoDocument", "RunBimStarterCommand", "ColorElementsByParameter",
         "ModPlusSumParameters", "RunModPlusCommand",
+        "ModPlusHeadlessModuleTool", "RunModPlusHeadless",
         "GetMaterialQuantities", "GetSelection", "PickPointInView", "SelectSimilar", "SetActiveView"
     };
 
@@ -640,7 +641,15 @@ public class ToolDispatcher : IExternalEventHandler
             var rolledBack=cancelled || completedError != null || completedResult == null;
             if (completedResult != null)
             {
-                try { using var json=JsonDocument.Parse(completedResult); if(json.RootElement.TryGetProperty("preview",out var preview)&&preview.ValueKind==JsonValueKind.True)rolledBack=true; } catch(JsonException) { }
+                try
+                {
+                    using var json=JsonDocument.Parse(completedResult);
+                    if(json.RootElement.TryGetProperty("preview",out var preview)&&preview.ValueKind==JsonValueKind.True)rolledBack=true;
+                    if(job.Name.StartsWith("modplus_mpr",StringComparison.Ordinal)||job.Name=="run_modplus_headless")
+                        if(json.RootElement.TryGetProperty("committed",out var committed)&&committed.ValueKind==JsonValueKind.False||
+                           json.RootElement.TryGetProperty("rolledBack",out var rollback)&&rollback.ValueKind==JsonValueKind.True)rolledBack=true;
+                }
+                catch(JsonException) { }
             }
             try
             {

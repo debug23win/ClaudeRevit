@@ -1,0 +1,999 @@
+{
+  "targetRevit": 2027,
+  "modules": [
+    {
+      "module": "mprAlignViews",
+      "tool": "modplus_mpralignviews",
+      "title": "Выравнивание видов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 29,
+      "signatureSupportedCandidates": 26,
+      "nativeOperations": [
+        "align_viewport_centers"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprApartmentBuildingLayout",
+      "tool": "modplus_mprapartmentbuildinglayout",
+      "title": "Квартирография",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 210,
+      "signatureSupportedCandidates": 199,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprApartmentViews",
+      "tool": "modplus_mprapartmentviews",
+      "title": "Виды квартир",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 130,
+      "signatureSupportedCandidates": 111,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprBaseLevel",
+      "tool": "modplus_mprbaselevel",
+      "title": "Базовый уровень",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 62,
+      "signatureSupportedCandidates": 60,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprBeamsReinforcement",
+      "tool": "modplus_mprbeamsreinforcement",
+      "title": "Армирование балок",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 201,
+      "signatureSupportedCandidates": 184,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprBreakLayers",
+      "tool": "modplus_mprbreaklayers",
+      "title": "Разбивка слоев",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 29,
+      "signatureSupportedCandidates": 23,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCADmanager",
+      "tool": "modplus_mprcadmanager",
+      "title": "CAD менеджер",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 12,
+      "signatureSupportedCandidates": 11,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCleaner",
+      "tool": "modplus_mprcleaner",
+      "title": "Очистка модели",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 148,
+      "signatureSupportedCandidates": 136,
+      "nativeOperations": [
+        "delete_elements"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprColorizer",
+      "tool": "modplus_mprcolorizer",
+      "title": "Раскраска элементов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 43,
+      "signatureSupportedCandidates": 42,
+      "nativeOperations": [
+        "set_element_color"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprColumnsReinforcement",
+      "tool": "modplus_mprcolumnsreinforcement",
+      "title": "Армирование колонн",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 195,
+      "signatureSupportedCandidates": 178,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCommands",
+      "tool": "modplus_mprcommands",
+      "title": "Команды",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 105,
+      "signatureSupportedCandidates": 100,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprContextFilter",
+      "tool": "modplus_mprcontextfilter",
+      "title": "Контекстный фильтр",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 109,
+      "signatureSupportedCandidates": 107,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCopyAlongCurve",
+      "tool": "modplus_mprcopyalongcurve",
+      "title": "Копировать по кривой",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 19,
+      "signatureSupportedCandidates": 18,
+      "nativeOperations": [
+        "divide_curve",
+        "copy_along_curve"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprCopyCropBox",
+      "tool": "modplus_mprcopycropbox",
+      "title": "Копировать обрезку вида",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 18,
+      "signatureSupportedCandidates": 17,
+      "nativeOperations": [
+        "copy_crop_box"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprCopyElementsToOpenDocuments",
+      "tool": "modplus_mprcopyelementstoopendocuments",
+      "title": "Копировать элементы",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 116,
+      "signatureSupportedCandidates": 104,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCopyParameterValues",
+      "tool": "modplus_mprcopyparametervalues",
+      "title": "Копировать значения",
+      "available": false,
+      "registered": true,
+      "originalMethodCandidates": 0,
+      "signatureSupportedCandidates": 0,
+      "nativeOperations": [
+        "copy_parameter_values"
+      ],
+      "workflowStatus": "granular_native_only"
+    },
+    {
+      "module": "mprCopySheetsToOpenDocuments",
+      "tool": "modplus_mprcopysheetstoopendocuments",
+      "title": "Копировать листы в документы",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 29,
+      "signatureSupportedCandidates": 26,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprCopyViewTemplateFilters",
+      "tool": "modplus_mprcopyviewtemplatefilters",
+      "title": "Фильтры видов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 14,
+      "signatureSupportedCandidates": 13,
+      "nativeOperations": [
+        "copy_view_filters"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprDimBias",
+      "tool": "modplus_mprdimbias",
+      "title": "Смещение размеров",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 28,
+      "signatureSupportedCandidates": 25,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprDimByLine",
+      "tool": "modplus_mprdimbyline",
+      "title": "Размеры вдоль линии",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 35,
+      "signatureSupportedCandidates": 31,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprElevations",
+      "tool": "modplus_mprelevations",
+      "title": "Высотные отметки",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 17,
+      "signatureSupportedCandidates": 14,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprEqualCurtainWalls",
+      "tool": "modplus_mprequalcurtainwalls",
+      "title": "Идентичные витражи",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 23,
+      "signatureSupportedCandidates": 22,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprExcelImport",
+      "tool": "modplus_mprexcelimport",
+      "title": "Импорт из Excel",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 99,
+      "signatureSupportedCandidates": 92,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprExportToExcel",
+      "tool": "modplus_mprexporttoexcel",
+      "title": "Экспорт в Excel",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 28,
+      "signatureSupportedCandidates": 27,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprExteriorPlanDimensions",
+      "tool": "modplus_mprexteriorplandimensions",
+      "title": "Наружные размеры на плане",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 45,
+      "signatureSupportedCandidates": 37,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprFamilyDuplicateFixer",
+      "tool": "modplus_mprfamilyduplicatefixer",
+      "title": "Исправление дубликатов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 26,
+      "signatureSupportedCandidates": 23,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprFastViewCut",
+      "tool": "modplus_mprfastviewcut",
+      "title": "Обрезка вида",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 11,
+      "signatureSupportedCandidates": 8,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprFavoriteViews",
+      "tool": "modplus_mprfavoriteviews",
+      "title": "Избранные виды",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 36,
+      "signatureSupportedCandidates": 35,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprFilterSelection",
+      "tool": "modplus_mprfilterselection",
+      "title": "Выбор по фильтру",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 11,
+      "signatureSupportedCandidates": 10,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprFindAndReplace",
+      "tool": "modplus_mprfindandreplace",
+      "title": "Поиск и замена",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 49,
+      "signatureSupportedCandidates": 45,
+      "nativeOperations": [
+        "replace_parameter_text"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprFlipped",
+      "tool": "modplus_mprflipped",
+      "title": "Отзеркаленные семейства",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 6,
+      "signatureSupportedCandidates": 5,
+      "nativeOperations": [
+        "inspect_flipped"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprFloorByRoom",
+      "tool": "modplus_mprfloorbyroom",
+      "title": "Пол по помещению",
+      "available": false,
+      "registered": true,
+      "originalMethodCandidates": 0,
+      "signatureSupportedCandidates": 0,
+      "nativeOperations": [
+        "create_floors_by_rooms"
+      ],
+      "workflowStatus": "granular_native_only"
+    },
+    {
+      "module": "mprFontReplacer",
+      "tool": "modplus_mprfontreplacer",
+      "title": "Заменить шрифт",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 30,
+      "signatureSupportedCandidates": 29,
+      "nativeOperations": [
+        "set_text_type_font"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprHeightSplitter",
+      "tool": "modplus_mprheightsplitter",
+      "title": "Разделить по высоте",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 39,
+      "signatureSupportedCandidates": 37,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprInteriorPlanDimensions",
+      "tool": "modplus_mprinteriorplandimensions",
+      "title": "Размеры на плане",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 80,
+      "signatureSupportedCandidates": 72,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprJoin",
+      "tool": "modplus_mprjoin",
+      "title": "Соединение элементов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 22,
+      "signatureSupportedCandidates": 21,
+      "nativeOperations": [
+        "join_geometry",
+        "unjoin_geometry",
+        "switch_join_order"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprLinksManager",
+      "tool": "modplus_mprlinksmanager",
+      "title": "Менеджер связей",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 157,
+      "signatureSupportedCandidates": 151,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMaterialManager",
+      "tool": "modplus_mprmaterialmanager",
+      "title": "Менеджер материалов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 68,
+      "signatureSupportedCandidates": 65,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMEPAlign",
+      "tool": "modplus_mprmepalign",
+      "title": "MEP выравнивание",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 62,
+      "signatureSupportedCandidates": 53,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMEPConnect",
+      "tool": "modplus_mprmepconnect",
+      "title": "MEP соединения",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 55,
+      "signatureSupportedCandidates": 46,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMEPCopy",
+      "tool": "modplus_mprmepcopy",
+      "title": "MEP копирование",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 32,
+      "signatureSupportedCandidates": 26,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMepElementsBender",
+      "tool": "modplus_mprmepelementsbender",
+      "title": "Обход пересечений",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 50,
+      "signatureSupportedCandidates": 48,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMEPRotate",
+      "tool": "modplus_mprmeprotate",
+      "title": "MEP вращение",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 24,
+      "signatureSupportedCandidates": 19,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMEPSplit",
+      "tool": "modplus_mprmepsplit",
+      "title": "MEP разделение",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 35,
+      "signatureSupportedCandidates": 33,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprMergeDims",
+      "tool": "modplus_mprmergedims",
+      "title": "Объединить размеры",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 5,
+      "signatureSupportedCandidates": 4,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprModelCompare",
+      "tool": "modplus_mprmodelcompare",
+      "title": "Сравнение моделей",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 75,
+      "signatureSupportedCandidates": 73,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprNestedFamilyParamsTransfer",
+      "tool": "modplus_mprnestedfamilyparamstransfer",
+      "title": "Связь параметров",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 21,
+      "signatureSupportedCandidates": 19,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprNotes",
+      "tool": "modplus_mprnotes",
+      "title": "Примечания",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 9,
+      "signatureSupportedCandidates": 8,
+      "nativeOperations": [
+        "create_text_note"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprNumbering",
+      "tool": "modplus_mprnumbering",
+      "title": "Нумерация",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 55,
+      "signatureSupportedCandidates": 54,
+      "nativeOperations": [
+        "number_elements"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprOverrideGraphicManager",
+      "tool": "modplus_mproverridegraphicmanager",
+      "title": "Менеджер переопределения графики",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 6,
+      "signatureSupportedCandidates": 5,
+      "nativeOperations": [
+        "clear_element_overrides"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprParameters",
+      "tool": "modplus_mprparameters",
+      "title": "Параметры",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 270,
+      "signatureSupportedCandidates": 248,
+      "nativeOperations": [
+        "set_parameters"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprParametrization",
+      "tool": "modplus_mprparametrization",
+      "title": "Параметризация",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 142,
+      "signatureSupportedCandidates": 127,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprPatterns",
+      "tool": "modplus_mprpatterns",
+      "title": "Штриховки",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 91,
+      "signatureSupportedCandidates": 88,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprPhases",
+      "tool": "modplus_mprphases",
+      "title": "Стадии",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 24,
+      "signatureSupportedCandidates": 23,
+      "nativeOperations": [
+        "list_phases",
+        "assign_phases"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprPlateWeight",
+      "tool": "modplus_mprplateweight",
+      "title": "Вес пластин",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 7,
+      "signatureSupportedCandidates": 6,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprRebarSolidAndVisible",
+      "tool": "modplus_mprrebarsolidandvisible",
+      "title": "Арматура как тело",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 14,
+      "signatureSupportedCandidates": 13,
+      "nativeOperations": [
+        "set_rebar_unobscured"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprRebarTools",
+      "tool": "modplus_mprrebartools",
+      "title": "Утилиты работы с арматурой",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 35,
+      "signatureSupportedCandidates": 28,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprRenameInFamily",
+      "tool": "modplus_mprrenameinfamily",
+      "title": "Пакетное переименование",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 38,
+      "signatureSupportedCandidates": 37,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprRoomColorVolume",
+      "tool": "modplus_mprroomcolorvolume",
+      "title": "Объем помещений",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 37,
+      "signatureSupportedCandidates": 35,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprRoomFinishing",
+      "tool": "modplus_mprroomfinishing",
+      "title": "Отделка помещений",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 170,
+      "signatureSupportedCandidates": 159,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprScheduleLookup",
+      "tool": "modplus_mprschedulelookup",
+      "title": "Поиск в спецификациях",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 4,
+      "signatureSupportedCandidates": 3,
+      "nativeOperations": [
+        "read_schedule_cells"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprSectionAnnotation",
+      "tool": "modplus_mprsectionannotation",
+      "title": "Аннотирование сечений",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 95,
+      "signatureSupportedCandidates": 92,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprSheetCopy",
+      "tool": "modplus_mprsheetcopy",
+      "title": "Дубликатор листов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 78,
+      "signatureSupportedCandidates": 73,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprSheetExport",
+      "tool": "modplus_mprsheetexport",
+      "title": "Экспорт листов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 282,
+      "signatureSupportedCandidates": 269,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprSheetRenumber",
+      "tool": "modplus_mprsheetrenumber",
+      "title": "Нумератор листов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 36,
+      "signatureSupportedCandidates": 35,
+      "nativeOperations": [
+        "renumber_sheets"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprSlabsReinforcement",
+      "tool": "modplus_mprslabsreinforcement",
+      "title": "Армирование плит",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 254,
+      "signatureSupportedCandidates": 235,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprSplitDimChain",
+      "tool": "modplus_mprsplitdimchain",
+      "title": "Разбить размеры",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 3,
+      "signatureSupportedCandidates": 2,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprSplitRebar",
+      "tool": "modplus_mprsplitrebar",
+      "title": "Разделение арматуры",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 23,
+      "signatureSupportedCandidates": 22,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprStairArrows",
+      "tool": "modplus_mprstairarrows",
+      "title": "Траектории лестниц",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 4,
+      "signatureSupportedCandidates": 3,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprStructureToParameter",
+      "tool": "modplus_mprstructuretoparameter",
+      "title": "Структуру в параметр",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 31,
+      "signatureSupportedCandidates": 29,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprTagless",
+      "tool": "modplus_mprtagless",
+      "title": "Элементы без марок",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 26,
+      "signatureSupportedCandidates": 25,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprTools",
+      "tool": "modplus_mprtools",
+      "title": "Утилиты",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 142,
+      "signatureSupportedCandidates": 39,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprToposolidFloorConverter",
+      "tool": "modplus_mprtoposolidfloorconverter",
+      "title": "Топотело-перекрытие",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 9,
+      "signatureSupportedCandidates": 7,
+      "nativeOperations": [
+        "convert_floors_toposolids"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprTypeManager",
+      "tool": "modplus_mprtypemanager",
+      "title": "Менеджер типоразмеров",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 43,
+      "signatureSupportedCandidates": 40,
+      "nativeOperations": [
+        "change_element_type"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprViewColorOn3D",
+      "tool": "modplus_mprviewcoloron3d",
+      "title": "Показать виды на 3D",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 12,
+      "signatureSupportedCandidates": 11,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprViewCopy",
+      "tool": "modplus_mprviewcopy",
+      "title": "Дубликатор видов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 54,
+      "signatureSupportedCandidates": 50,
+      "nativeOperations": [
+        "duplicate_views"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprViewIn3D",
+      "tool": "modplus_mprviewin3d",
+      "title": "3D подрезка",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 54,
+      "signatureSupportedCandidates": 53,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprViewRange",
+      "tool": "modplus_mprviewrange",
+      "title": "Секущий диапазон",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 9,
+      "signatureSupportedCandidates": 7,
+      "nativeOperations": [
+        "set_view_range"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprViewSync",
+      "tool": "modplus_mprviewsync",
+      "title": "Синхронизация видов",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 16,
+      "signatureSupportedCandidates": 15,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprVisibility",
+      "tool": "modplus_mprvisibility",
+      "title": "Видимость",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 72,
+      "signatureSupportedCandidates": 68,
+      "nativeOperations": [
+        "set_element_visibility"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprWallsReinforcement",
+      "tool": "modplus_mprwallsreinforcement",
+      "title": "Армирование стен",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 323,
+      "signatureSupportedCandidates": 292,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprWallSweep",
+      "tool": "modplus_mprwallsweep",
+      "title": "Развертки стен",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 85,
+      "signatureSupportedCandidates": 83,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    },
+    {
+      "module": "mprWarningViewer",
+      "tool": "modplus_mprwarningviewer",
+      "title": "Менеджер предупреждений",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 14,
+      "signatureSupportedCandidates": 13,
+      "nativeOperations": [
+        "list_warnings"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprWorksets",
+      "tool": "modplus_mprworksets",
+      "title": "Рабочие наборы",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 61,
+      "signatureSupportedCandidates": 58,
+      "nativeOperations": [
+        "list_worksets",
+        "assign_workset"
+      ],
+      "workflowStatus": "granular_native_plus_core_bindings"
+    },
+    {
+      "module": "mprWorldOrientation",
+      "tool": "modplus_mprworldorientation",
+      "title": "Сторона света",
+      "available": true,
+      "registered": true,
+      "originalMethodCandidates": 21,
+      "signatureSupportedCandidates": 20,
+      "nativeOperations": [],
+      "workflowStatus": "core_bindings_only"
+    }
+  ]
+}
