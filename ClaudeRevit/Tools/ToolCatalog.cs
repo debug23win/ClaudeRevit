@@ -24,7 +24,7 @@ public static class ToolCatalog
     {
         var n = tool.GetType().Name;
         if (tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal)) return "ModPlus headless";
-        if (n == "RunModPlusHeadless") return "ModPlus";
+        if (tool.Name == "run_modplus_headless" || n == "RunModPlusHeadless") return "ModPlus";
         if (n is "GetModPlusTools" or "GetModPlusAlgorithm" or "ModPlusSumParameters" or "RunModPlusCommand") return "ModPlus";
         if(n is "UpsertConnectionNode" or "PlanTrussLayout" or "RunCheckpointJob") return "Modeling";
         if(n is "CreateParametricSection" or "InspectFamilyFiles") return "Family editor";

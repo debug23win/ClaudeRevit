@@ -66,10 +66,6 @@ namespace ClaudeRevit.Services
 }
 namespace ClaudeRevit.Tools
 {
-    public static class ToolCatalog
-    {
-        public static string CategoryOf(IRevitTool tool) => tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal) ? "ModPlus headless" : "ModPlus";
-    }
     public sealed class ForwardingFixture : IRevitTool
     {
         public string Name { get; init; } = "modplus_mprnumbering";

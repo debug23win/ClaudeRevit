@@ -8,6 +8,8 @@
     <Compile Include="../ClaudeRevit/Tools/ModPlusTools.cs" Link="src/ModPlusTools.cs" />
     <Compile Include="../ClaudeRevit/Tools/IRevitTool.cs" Link="src/IRevitTool.cs" />
     <Compile Include="../ClaudeRevit/Tools/ToolPolicy.cs" Link="src/ToolPolicy.cs" />
+    <Compile Include="../ClaudeRevit/Tools/ToolCatalog.cs" Link="src/ToolCatalog.cs" />
+    <Compile Include="../ClaudeRevit/Services/ToolSearchLogic.cs" Link="src/ToolSearchLogic.cs" />
     <Compile Include="../ClaudeRevit/Tools/DynamicToolProxy.cs" Link="src/DynamicToolProxy.cs" />
     <Compile Include="../ClaudeRevit/Tools/ToolInput.cs" Link="src/ToolInput.cs" />
     <Compile Include="../ClaudeRevit/Tools/ToolInputException.cs" Link="src/ToolInputException.cs" />

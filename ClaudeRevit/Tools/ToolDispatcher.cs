@@ -646,8 +646,10 @@ public class ToolDispatcher : IExternalEventHandler
                     using var json=JsonDocument.Parse(completedResult);
                     if(json.RootElement.TryGetProperty("preview",out var preview)&&preview.ValueKind==JsonValueKind.True)rolledBack=true;
                     if(job.Name.StartsWith("modplus_mpr",StringComparison.Ordinal)||job.Name=="run_modplus_headless")
-                        if(json.RootElement.TryGetProperty("committed",out var committed)&&committed.ValueKind==JsonValueKind.False||
-                           json.RootElement.TryGetProperty("rolledBack",out var rollback)&&rollback.ValueKind==JsonValueKind.True)rolledBack=true;
+                    {
+                        if((json.RootElement.TryGetProperty("committed",out var committed)&&committed.ValueKind==JsonValueKind.False)||
+                           (json.RootElement.TryGetProperty("rolledBack",out var rollback)&&rollback.ValueKind==JsonValueKind.True))rolledBack=true;
+                    }
                 }
                 catch(JsonException) { }
             }
