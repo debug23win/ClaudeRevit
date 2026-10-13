@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
 
@@ -9,12 +10,21 @@ namespace ClaudeRevit.Services;
 public static class ModPlusCatalog
 {
     private static readonly Lazy<JsonElement> Bundled = new(() =>
+        Parse(ReadEmbedded(Assembly.GetExecutingAssembly(), "ClaudeRevit.Standards.ModPlus2027.json")
+            ?? throw new InvalidOperationException("Bundled ModPlus catalog is missing.")));
+
+    // The add-in embeds the large ModPlus snapshots gzipped as "<name>.gz"; the isolated test
+    // projects embed them uncompressed under the plain name. Null when neither is present.
+    public static string? ReadEmbedded(Assembly assembly, string name) => ReadEmbedded(assembly.GetManifestResourceStream, name);
+
+    public static string? ReadEmbedded(Func<string, Stream?> open, string name)
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("ClaudeRevit.Standards.ModPlus2027.json")
-            ?? throw new InvalidOperationException("Bundled ModPlus catalog is missing.");
+        using var compressed = open(name + ".gz");
+        using var stream = compressed != null ? new GZipStream(compressed, CompressionMode.Decompress) : open(name);
+        if (stream == null) return null;
         using var reader = new StreamReader(stream);
-        return Parse(reader.ReadToEnd());
-    });
+        return reader.ReadToEnd();
+    }
     private static readonly object Gate = new();
     private static string? _cachedFile;
     private static DateTime _cachedWrite;

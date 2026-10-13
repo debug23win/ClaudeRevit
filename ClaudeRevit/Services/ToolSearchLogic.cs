@@ -36,7 +36,6 @@ public static class ToolSearchLogic
         // Code / learning / self-extension
         "execute_csharp", "run_dynamo_python", "save_tool",
         "get_tool_source", "get_script_journal", "get_full_result", "save_memory",
-        "run_modplus_headless",
         "save_project_memory", "generate_diagnostic_report", "find_tools", "run_batch", "undo_last",
     };
 

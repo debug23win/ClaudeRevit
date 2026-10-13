@@ -1,6 +1,5 @@
 #nullable disable
-// Geometry adapted from locally supplied ModPlus mprToposolidFloorConverter 1.0.1.0.
-// Original algorithm copyright: ModPlus. Dialogs/statistics removed; reports are JSON.
+// Floor ↔ toposolid conversion on the Revit API, without dialogs; reports are JSON.
 using System;
 using System.Collections.Generic;
 using System.Linq;

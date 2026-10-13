@@ -240,9 +240,9 @@ Users get the new version with the same installer / `install.ps1` one-liner.
 
 ## Tools
 
-The plugin exposes **378 tools in Revit 2027 / 292 in Revit 2025–2026** to Claude across these categories:
+The plugin exposes **293 tools in Revit 2027 (378 with the opt-in ModPlus aliases) / 292 in Revit 2025–2026** to Claude across these categories:
 
-- **ModPlus headless (2027)** — 32 native operations, 85 module aliases and `run_modplus_headless` for typed original-method pipelines; [coverage and limits](docs/modplus-headless.md)
+- **ModPlus headless (2027)** — `run_modplus_headless` for every module: 32 native operations and typed original-method pipelines (85 per-module aliases are opt-in); [coverage and limits](docs/modplus-headless.md)
 
 - **Inspection** — get/list elements, parameters, levels, materials, phases, families, project info, warnings, batch element locations/bounding boxes (mm)
 - **Geometry creation** — walls, floors, roofs, rooms, levels, grids, doors, windows, columns, beams, foundations, MEP (ducts/pipes), topography, curtain walls

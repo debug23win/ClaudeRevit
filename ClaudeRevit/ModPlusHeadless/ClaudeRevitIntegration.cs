@@ -11,9 +11,16 @@ namespace ModPlus.Headless;
 
 public static class ModPlusHeadlessRegistration
 {
-    private static BindingCatalog bundled;
-    public static BindingCatalog Bundled => bundled ??= BindingCatalog.FromEmbedded();
+    // Parsed on first use, not at Revit startup: the snapshot is several megabytes of JSON and
+    // the router needs only its static schema until a request actually runs.
+    // PublicationOnly: a failed load (e.g. a bad CLAUDEREVIT_MODPLUS_BINDINGS file) is retried.
+    private static readonly Lazy<BindingCatalog> bundled =
+        new Lazy<BindingCatalog>(BindingCatalog.FromEmbedded, System.Threading.LazyThreadSafetyMode.PublicationOnly);
+    public static BindingCatalog Bundled => bundled.Value;
     public static IReadOnlyList<string> RegisterBundled(ToolRegistry registry = null) => RegisterAll(Bundled, registry);
+    // The per-module aliases repeat the router's schema 85 times, which costs tens of thousands of
+    // tokens in every full MCP tool list. run_modplus_headless covers every module; aliases are opt-in.
+    public static bool AliasesRequested => Environment.GetEnvironmentVariable("CLAUDEREVIT_MODPLUS_ALIASES") == "1";
     // Call explicitly from the server's startup code. This source never copies
     // files, changes application settings or registers itself on load.
     public static IReadOnlyList<string> RegisterAll(string definitionsFile, ToolRegistry registry = null)
@@ -52,7 +59,9 @@ public sealed class ModPlusHeadlessModuleTool : IRevitTool
     public bool RequiresCodeExecutionOptIn => true;
     public bool InvalidatesCatalog => true;
     private static JsonElement Field(object value) => JsonSerializer.SerializeToElement(value);
-    public InputSchema InputSchema => new InputSchema
+    public InputSchema InputSchema => Schema;
+    // Static so the router can publish it without loading the binding catalog.
+    public static InputSchema Schema => new InputSchema
     {
         Properties = new Dictionary<string, JsonElement>
         {

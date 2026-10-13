@@ -39,9 +39,38 @@
     <Compile Remove="ModPlusHeadless\**\*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(RevitVersion)' == '2027'">
-    <EmbeddedResource Include="Standards\ModPlusHeadless\bindings.json" LogicalName="ClaudeRevit.ModPlusHeadless.Bindings.json" />
+    <CompressedResource Include="Standards\ModPlusHeadless\bindings.json" LogicalName="ClaudeRevit.ModPlusHeadless.Bindings.json.gz" />
     <EmbeddedResource Include="ModPlusHeadless\*.cs"><LogicalName>toolsrc/modplus/%(Filename)%(Extension)</LogicalName></EmbeddedResource>
   </ItemGroup>
+
+  <!-- The ModPlus snapshots are large, repetitive JSON (about 10 MB together, 0.6 MB gzipped).
+       They are embedded compressed and inflated on first use; ModPlusCatalog.ReadEmbedded also
+       accepts the uncompressed name, which the isolated test projects embed. -->
+  <UsingTask TaskName="GzipFile" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Source ParameterType="System.String" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+        using (var input = File.OpenRead(Source))
+        using (var output = File.Create(Destination))
+        using (var gzip = new GZipStream(output, CompressionLevel.Optimal))
+            input.CopyTo(gzip);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="EmbedCompressedResources" BeforeTargets="PrepareForBuild"
+          Inputs="@(CompressedResource)" Outputs="@(CompressedResource->'$(IntermediateOutputPath)gz\%(LogicalName)')">
+    <GzipFile Source="%(CompressedResource.FullPath)" Destination="$(IntermediateOutputPath)gz\%(CompressedResource.LogicalName)" />
+    <!-- Still evaluated when the target is skipped as up to date (MSBuild output inference). -->
+    <ItemGroup>
+      <EmbeddedResource Include="@(CompressedResource->'$(IntermediateOutputPath)gz\%(LogicalName)')" />
+    </ItemGroup>
+  </Target>
 
   <!-- Revit API references via Nice3point's NuGet packages. These ship reference
        assemblies only — they don't bring Revit's runtime DLLs into our output.
@@ -68,7 +97,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Standards\Workflows.json" LogicalName="ClaudeRevit.Standards.Workflows.json" />
     <EmbeddedResource Include="Standards\BimStarterTools.json" LogicalName="ClaudeRevit.Standards.BimStarterTools.json" />
-    <EmbeddedResource Include="Standards\ModPlus2027.json" LogicalName="ClaudeRevit.Standards.ModPlus2027.json" />
+    <CompressedResource Include="Standards\ModPlus2027.json" LogicalName="ClaudeRevit.Standards.ModPlus2027.json.gz" />
     <EmbeddedResource Include="Standards\BimStarter2020.json" LogicalName="ClaudeRevit.Standards.BimStarter2020.json" />
     <EmbeddedResource Include="Standards\ADSK2019_2021.json" LogicalName="ClaudeRevit.Standards.ADSK2019_2021.json" />
     <EmbeddedResource Include="Tools\**\*.cs">

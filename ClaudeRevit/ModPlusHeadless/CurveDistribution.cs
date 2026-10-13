@@ -1,6 +1,5 @@
 #nullable disable
-// Spacing/parameter traversal adapted from ModPlus mprCopyAlongCurve.Divide.
-// Original algorithm copyright: ModPlus. Input checks and JSON/API facade added.
+// Spacing/parameter traversal along a curve, with input checks and a JSON/API facade.
 using System;
 using System.Collections.Generic;
 using System.Linq;

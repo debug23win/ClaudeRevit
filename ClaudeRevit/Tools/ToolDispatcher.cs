@@ -504,7 +504,9 @@ public class ToolDispatcher : IExternalEventHandler
             // code does not run while the user has code execution switched off.
             if (tool.RequiresCodeExecutionOptIn && !Services.SettingsStore.AllowCodeExecution)
                 throw new InvalidOperationException(ToolPolicy.CodeDisabledMessage);
-            if ((ActiveDocumentOnly.Contains(tool.GetType().Name) || tool.IsScriptTool && job.Input.TryGetValue("code",out var script) && script.GetString()?.Contains("uiapp.ActiveUIDocument") == true) &&
+            // An edited ModPlusTools.cs override arrives wrapped in a proxy; key on the wrapped class.
+            var toolClass = (tool is DynamicToolProxy proxied ? proxied.Inner : tool).GetType().Name;
+            if ((ActiveDocumentOnly.Contains(toolClass) || tool.IsScriptTool && job.Input.TryGetValue("code",out var script) && script.GetString()?.Contains("uiapp.ActiveUIDocument") == true) &&
                 !Services.DocumentSessions.Same(boundDocument,app.ActiveUIDocument?.Document))
                 throw new InvalidOperationException("This UI operation requires its document tab to be active. Activate the intended tab and retry.");
             if(tool.Name.StartsWith("create_",StringComparison.Ordinal)||tool.Name=="rename_element")

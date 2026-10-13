@@ -1135,7 +1135,7 @@ public class ChatService
                     {
                         var query = inp.TryGetValue("query", out var qEl) && qEl.ValueKind == JsonValueKind.String
                             ? qEl.GetString() ?? "" : "";
-                        var search = ToolCatalog.Search(ToolRegistry.Instance.All, query);
+                        var search = ToolCatalog.Search(ToolRegistry.Instance.All.Where(t => !ToolCatalog.IsModPlusAlias(t)), query);
                         var revealedAny = false;
                         foreach (var c in search.Categories) revealedAny |= Reveal(c);
                         if (revealedAny) toolSetChanged = true;
@@ -1743,7 +1743,7 @@ public class ChatService
 
         bool Ok(IRevitTool t) => ToolPolicy.IsEnabled(t, disabledGroups);
 
-        var all = ToolRegistry.Instance.All.Where(Ok).ToList();
+        var all = ToolRegistry.Instance.All.Where(t => Ok(t) && !ToolCatalog.IsModPlusAlias(t)).ToList();
 
         var core = all.Where(t => ToolCatalog.CoreToolNames.Contains(t.Name))
             .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();

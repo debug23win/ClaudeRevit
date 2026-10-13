@@ -102,7 +102,9 @@ public sealed class GetModPlusTools : IRevitTool
                 available2027 = m.GetProperty("available2027"), adapterStatus = m.GetProperty("adapterStatus"),
                 serviceAdapter = m.GetProperty("module").GetString() == "mprSumParameters" ? "modplus_sum_parameters" : null,
 #if REVIT2027
-                headlessTool = m.GetProperty("module").GetString() == "mprSumParameters" ? null : "modplus_" + m.GetProperty("module").GetString()!.ToLowerInvariant(),
+                // Aliases are opt-in (CLAUDEREVIT_MODPLUS_ALIASES=1); name one only if it is registered.
+                headlessTool = m.GetProperty("module").GetString() == "mprSumParameters" ? null
+                    : ToolRegistry.Instance.Get("modplus_" + m.GetProperty("module").GetString()!.ToLowerInvariant())?.Name,
                 headlessRouter = m.GetProperty("module").GetString() == "mprSumParameters" ? null : "run_modplus_headless",
 #endif
                 externalCommandCount = m.GetProperty("externalCommands").GetArrayLength(),

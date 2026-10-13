@@ -1,7 +1,8 @@
 # ModPlus integration
 
 Starting with v3.9.3, Revit 2027 also includes the supplied headless adapter package:
-85 module aliases, one compact router and 32 native API operations. See
+one router for every module and 32 native API operations; the 85 per-module
+aliases are opt-in. See
 [headless coverage and examples](modplus-headless.md). The four tools below remain
 available in Revit 2025–2027 with their existing version restrictions.
 

@@ -7,11 +7,18 @@ or decompiled ModPlus implementation sources are distributed.
 
 ## Entry points and actual coverage
 
-`run_modplus_headless` is the compact API-chat entry point. MCP clients can also
-discover 85 aliases named `modplus_` plus the lowercase module ID, for example
-`modplus_mprnumbering`. Those aliases share the same schema; the router adds
-`module`. Ordinary ModPlus discovery loads the router rather than 85 duplicate
-schemas. `get_modplus_tools` links module records to their headless entry points.
+`run_modplus_headless` is the single entry point for every module, in API chat and
+for MCP clients: pass the exact `module` ID from `get_modplus_tools`. It belongs to
+the deferred **ModPlus** group, so it loads when a message mentions ModPlus or
+`find_tools` finds it, and is not sent with every request.
+
+The 85 per-module aliases (`modplus_` plus the lowercase module ID, for example
+`modplus_mprnumbering`) repeat the router's schema and would add tens of thousands
+of tokens to every full MCP tool list. They are off by default. Set the environment
+variable `CLAUDEREVIT_MODPLUS_ALIASES=1` before starting Revit to register them for
+MCP clients; API chat still uses the router. `get_modplus_tools` names an alias
+only when it is registered. The binding snapshot is parsed on first use, not at
+Revit startup.
 
 | Action | Behavior |
 | --- | --- |
@@ -22,7 +29,7 @@ schemas. `get_modplus_tools` links module records to their headless entry points
 
 The 83 available original modules contain 5,287 candidate method bindings;
 4,800 have supported argument signatures. These numbers describe metadata/ABI
-coverage, **not 4,800 verified unattended workflows**. Two additional aliases
+coverage, **not 4,800 verified unattended workflows**. Two additional modules
 (`mprCopyParameterValues`, `mprFloorByRoom`) provide native operations despite
 the original 2027 modules being unavailable in the snapshot. `mprSumParameters`
 continues to use the fixed adapter documented in [the base integration](modplus.md).
@@ -75,14 +82,14 @@ transaction around each call. In every mode an outer group covers the operation.
 
 The code-execution switch is required for headless calls, including original
 pipelines. The **ModPlus** group controls the router; **ModPlus headless** controls
-the aliases. Both groups and the code switch apply even through a saved-source
+the opt-in aliases. Both groups and the code switch apply even through a saved-source
 proxy. The existing optional confirmation setting still applies.
 
 The bound project must be the active Revit tab. Original methods also require
 ModPlus's own current document to match. Reflected execution checks assembly
 MVID and SHA-256 against the snapshot and never loads vendor assemblies itself.
 `CLAUDEREVIT_MODPLUS_BINDINGS` can point to a regenerated local binding JSON;
-it is read at startup and must come from a trusted local source.
+it is read on first use and must come from a trusted local source.
 
 These tools own their transactions and run outside the chat's turn group. Preview
 defaults to true and rolls back model edits. Commit produces one named Undo group

@@ -90,6 +90,11 @@ public static class ToolCatalog
     public static bool IsCore(IRevitTool tool) =>
         IsCustom(tool) || CoreToolNames.Contains(tool.Name);
 
+    // The opt-in ModPlus per-module aliases repeat run_modplus_headless's schema. API chat reaches
+    // every module through that router, so a find_tools match must not load 85 copies of it.
+    public static bool IsModPlusAlias(IRevitTool tool) =>
+        tool.Name.StartsWith("modplus_mpr", StringComparison.Ordinal);
+
     // Groups to pre-load based on the user's message. Only deferred groups are returned.
     public static List<string> PrewarmCategories(string prompt) =>
         Services.ToolSearchLogic.Prewarm(prompt);

@@ -125,4 +125,19 @@ public class ModPlusTests
     }
     [Fact]
     public void RussianModPlusRequestsPrewarmItsDeferredGroup() => Assert.Contains("ModPlus", ToolSearchLogic.Prewarm("Модплюс: сумма параметров"));
+    // The router is deferred with its group: it must not ride along on every request.
+    [Fact]
+    public void HeadlessRouterIsNotACoreTool() => Assert.DoesNotContain("run_modplus_headless", ToolSearchLogic.CoreToolNames);
+    [Fact]
+    public void EmbeddedSnapshotsAreReadGzippedOrPlain()
+    {
+        const string json = "{\"schemaVersion\":1}";
+        var gz = new MemoryStream();
+        using (var zip = new System.IO.Compression.GZipStream(gz, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            zip.Write(System.Text.Encoding.UTF8.GetBytes(json));
+        var gzBytes = gz.ToArray();
+        Assert.Equal(json, ModPlusCatalog.ReadEmbedded(n => n == "data.json.gz" ? new MemoryStream(gzBytes) : null, "data.json"));
+        Assert.Equal(json, ModPlusCatalog.ReadEmbedded(n => n == "data.json" ? new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json)) : null, "data.json"));
+        Assert.Null(ModPlusCatalog.ReadEmbedded(_ => null, "data.json"));
+    }
 }

@@ -36,10 +36,8 @@ public sealed class BindingCatalog
     {
         string local = Environment.GetEnvironmentVariable("CLAUDEREVIT_MODPLUS_BINDINGS");
         if (!string.IsNullOrWhiteSpace(local)) return FromFile(Path.GetFullPath(local));
-        using Stream stream = typeof(BindingCatalog).Assembly.GetManifestResourceStream("ClaudeRevit.ModPlusHeadless.Bindings.json")
-            ?? throw new InvalidOperationException("Embedded ModPlus headless bindings are missing.");
-        using var reader = new StreamReader(stream);
-        return new BindingCatalog(reader.ReadToEnd());
+        return new BindingCatalog(ClaudeRevit.Services.ModPlusCatalog.ReadEmbedded(typeof(BindingCatalog).Assembly, "ClaudeRevit.ModPlusHeadless.Bindings.json")
+            ?? throw new InvalidOperationException("Embedded ModPlus headless bindings are missing."));
     }
     public IEnumerable<JsonElement> Modules => root.GetProperty("modules").EnumerateArray();
     public IEnumerable<JsonElement> Shared => root.TryGetProperty("shared", out JsonElement shared) ? shared.EnumerateArray() : Array.Empty<JsonElement>();

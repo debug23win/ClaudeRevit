@@ -11,6 +11,8 @@ internal sealed class DynamicToolProxy : IRevitTool
 {
     private readonly IRevitTool _inner;
     public DynamicToolProxy(IRevitTool inner) => _inner = inner;
+    // The wrapped tool, for checks keyed by its class (e.g. the dispatcher's active-tab list).
+    internal IRevitTool Inner => _inner;
 
     public string Name => _inner.Name;
     public string Description => _inner.Description;

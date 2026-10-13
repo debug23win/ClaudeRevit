@@ -6,8 +6,8 @@ using ModPlus.Headless;
 
 namespace ClaudeRevit.Tools;
 
-// One compact entry point for API chat. The 85 module names remain available to MCP clients;
-// ordinary prompts need not load 85 copies of the same pipeline schema.
+// One compact entry point for every module, in API chat and MCP alike: one schema instead of 85
+// copies of the same pipeline schema. Per-module aliases are registered only on request.
 public sealed class RunModPlusHeadless : IRevitTool
 {
     public string Name => "run_modplus_headless";
@@ -22,7 +22,7 @@ public sealed class RunModPlusHeadless : IRevitTool
     {
         get
         {
-            var schema = new ModPlusHeadlessModuleTool("mprNumbering", ModPlusHeadlessRegistration.Bundled).InputSchema;
+            var schema = ModPlusHeadlessModuleTool.Schema;
             return new InputSchema
             {
                 Properties = new Dictionary<string, JsonElement>(schema.Properties!) { ["module"] = NativeToolUtil.Field("string", "Exact module ID from get_modplus_tools, e.g. mprNumbering.") },
