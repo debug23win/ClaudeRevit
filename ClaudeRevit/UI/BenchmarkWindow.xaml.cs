@@ -81,7 +81,7 @@ public partial class BenchmarkWindow : Window
                     "codex" => codex.Select(m => new ModelOption(m.Id, m.Name, m.Efforts, m.DefaultEffort)).ToList(),
                     "claudecode" => new[] { "", "opus", "sonnet", "haiku" }.Select(id => new ModelOption(id, id == "" ? "CLI default" : id,
                         new[] { "low", "medium", "high" }, "high")).ToList(),
-                    _ => new[] { "auto", "sonnet-5", "opus-4-8", "opus-5", "haiku-4-5", "alt" }
+                    _ => new[] { "auto", "sonnet-5", "sonnet-5-5", "opus-5-5", "opus-4-8", "opus-5", "haiku-5-5", "haiku-4-5", "alt" }
                         .Select(id => new ModelOption(id, id, System.Array.Empty<string>(), "")).ToList()
                 };
                 box.ItemsSource = options;

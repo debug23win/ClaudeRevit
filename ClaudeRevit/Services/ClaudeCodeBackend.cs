@@ -29,6 +29,7 @@ public static class ClaudeCodeBackend
         public bool Completed;
         // From the final `result` event — real numbers even on a subscription.
         public long InputTokens;
+        public long CachedInputTokens;
         public long OutputTokens;
         public int NumTurns;
         public double CostUsd;
@@ -49,13 +50,13 @@ public static class ClaudeCodeBackend
     // make two dropdown entries behave identically. So the newer models pass their FULL model id,
     // which Claude Code also accepts, and the pane's choice actually decides.
     //
-    // Returns null for "auto" and "fable-5" — there we let the CLI pick, because the
-    // advisor-escalation that "auto" means on the API has no equivalent inside Claude Code's own
-    // loop. A tag the CLI doesn't recognise surfaces as a CLI error rather than a silent fallback.
+    // Returns null for "auto" — there we let the CLI pick, because the advisor-escalation that
+    // "auto" means on the API has no equivalent inside Claude Code's own loop. Fable 5 used to
+    // map to null too, which silently ran the CLI's default model instead of the one chosen.
+    // A tag the CLI doesn't recognise surfaces as a CLI error rather than a silent fallback.
     public static string? ModelAlias(string? tag) => tag switch
     {
-        "opus-5" => "claude-opus-5",
-        "fable-5-1" => "claude-fable-5-1",
+        "opus-5-5" or "sonnet-5-5" or "haiku-5-5" or "opus-5" or "fable-5" or "fable-5-1" => ClaudeModels.ApiId(tag),
         "opus-4-8" or "opus-4-7" or "opus-4-6" => "opus",
         "sonnet-5" or "sonnet-4-6" => "sonnet",
         "haiku-4-5" => "haiku",
@@ -140,7 +141,7 @@ public static class ClaudeCodeBackend
                 // .cmd/.bat shims aren't PE images — must run through cmd.exe. The path is real, so
                 // cmd won't print a "not recognized" error.
                 var cmdArgs = new List<string> { "/c", resolved };
-                cmdArgs.AddRange(args);
+                cmdArgs.AddRange(ForCmd(args));
                 proc = Start("cmd.exe", cmdArgs, workDir);
             }
             else
@@ -264,8 +265,12 @@ public static class ClaudeCodeBackend
                 if (root.TryGetProperty("duration_ms", out var dm) && dm.TryGetInt64(out var dmv)) result.DurationMs = dmv;
                 if (root.TryGetProperty("usage", out var u) && u.ValueKind == JsonValueKind.Object)
                 {
-                    if (u.TryGetProperty("input_tokens", out var it) && it.TryGetInt64(out var itv)) result.InputTokens = itv;
-                    if (u.TryGetProperty("output_tokens", out var ot) && ot.TryGetInt64(out var otv)) result.OutputTokens = otv;
+                    long Read(string name) => u.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
+                    // input_tokens counts only the uncached part. The prompt is all three, as on the
+                    // API path; cache reads are reported separately, as Codex reports them.
+                    result.CachedInputTokens = Read("cache_read_input_tokens");
+                    result.InputTokens = Read("input_tokens") + Read("cache_creation_input_tokens") + result.CachedInputTokens;
+                    result.OutputTokens = Read("output_tokens");
                 }
             }
 
@@ -314,7 +319,7 @@ public static class ClaudeCodeBackend
         if (exe.IndexOf(Path.DirectorySeparatorChar) >= 0 || exe.IndexOf('/') >= 0)
             return File.Exists(exe) ? exe : null;
 
-        var exts = new[] { "", ".cmd", ".exe", ".bat", ".ps1" };
+        var exts = SearchExtensions(OperatingSystem.IsWindows());
 
         // Search each PATH entry.
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
@@ -351,7 +356,8 @@ public static class ClaudeCodeBackend
         };
         foreach (var c in candidates)
         {
-            if (c != null) { try { if (File.Exists(c)) return c; } catch { } }
+            if (c == null || !Launchable(c, OperatingSystem.IsWindows())) continue;
+            try { if (File.Exists(c)) return c; } catch { }
         }
 
         // Claude Desktop (the MSIX Store app) BUNDLES the Claude Code CLI under its package dir at
@@ -382,6 +388,21 @@ public static class ClaudeCodeBackend
 
         return null;
     }
+
+    // Windows can start only .exe directly and .cmd/.bat through cmd.exe. An npm global install
+    // puts an extensionless sh script ("claude") next to claude.cmd and claude.ps1; searched
+    // first, that script was "found" and then failed to start (not a valid Win32 application).
+    internal static string[] SearchExtensions(bool windows) =>
+        windows ? new[] { ".exe", ".cmd", ".bat" } : new[] { "", ".cmd", ".exe", ".bat", ".ps1" };
+
+    internal static bool Launchable(string path, bool windows) =>
+        !windows || SearchExtensions(true).Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+
+    // cmd.exe ends a command at a line break, even inside quotes, so a multi-line argument (the
+    // appended driving rules) cut the command short and silently dropped every later flag —
+    // --allowedTools, --resume. Arguments that pass through cmd.exe are kept on one line.
+    internal static List<string> ForCmd(IEnumerable<string> args) =>
+        args.Select(a => a.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ')).ToList();
 
     // Checked before every CLI run, so a confirmed sign-in is remembered for a while instead of
     // paying a process start each message — keyed by AuthFingerprint, so switching the CLI to an

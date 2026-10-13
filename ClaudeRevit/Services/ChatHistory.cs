@@ -64,6 +64,26 @@ public sealed class BackendTurn
     // for the transcript (which model answered, and why the requested one did not).
     public string? ServedModelTag;
     public string? FallbackNote;
+
+    // Why the reply ended ("end_turn", "tool_use", "max_tokens", "refusal", ...) and, for a
+    // refusal, the classifier category when the API names one. Null where a backend has none.
+    public string? StopReason;
+    public string? RefusalCategory;
+}
+
+public static class ChatHistoryEdits
+{
+    // Recovery for a history whose thinking blocks the API no longer accepts (preserved thinking,
+    // "bound to a different conversation"): the documented fix is to remove every thinking block
+    // and keep each turn's text and tool calls. An assistant turn left empty is dropped with them.
+    public static int StripThinking(List<ApiTurn> history)
+    {
+        var removed = 0;
+        foreach (var turn in history)
+            removed += turn.Blocks.RemoveAll(b => b is ChatThinkingBlock or ChatRedactedThinkingBlock);
+        history.RemoveAll(t => t.Role == "assistant" && t.Blocks.Count == 0);
+        return removed;
+    }
 }
 
 public readonly record struct AdvisorUsage(

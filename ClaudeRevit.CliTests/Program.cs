@@ -83,6 +83,27 @@ internal static class Program
                 using var agents=JsonDocument.Parse(argv[Array.IndexOf(argv,"--agents")+1]!);
                 Check(agents.RootElement.GetProperty("revit_planner").GetProperty("tools").GetArrayLength()==0,"Planner gained mutation tools");
             }
+            Check(ClaudeCodeBackend.SearchExtensions(true)[0] == ".exe" && !ClaudeCodeBackend.SearchExtensions(true).Contains(""), "Windows search still tries extensionless shims");
+            Check(!ClaudeCodeBackend.Launchable(Path.Combine("npm", "claude"), true) && ClaudeCodeBackend.Launchable(Path.Combine("npm", "claude.cmd"), true), "Unlaunchable npm shim accepted on Windows");
+            Check(ClaudeCodeBackend.ForCmd(new[] { "a\nb\r\nc" })[0] == "a b c", "Multi-line argument reaches cmd.exe");
+            Check(ClaudeCodeBackend.ModelAlias("fable-5") == "claude-fable-5" && ClaudeCodeBackend.ModelAlias("opus-5-5") == "claude-opus-5-5" && ClaudeCodeBackend.ModelAlias("auto") == null, "CLI model mapping");
+            if (OperatingSystem.IsWindows())
+            {
+                // An npm global install: an extensionless sh script next to claude.cmd. The .cmd shim
+                // must be chosen, and the multi-line rules must not cut the command short in cmd.exe.
+                var npm = Path.Combine(root, "npm"); Directory.CreateDirectory(npm);
+                File.WriteAllText(Path.Combine(npm, "claude"), "#!/bin/sh\nexit 1\n");
+                File.WriteAllText(Path.Combine(npm, "claude.cmd"), "@\"" + exe + "\" %*\r\n");
+                Environment.SetEnvironmentVariable("PATH", npm + Path.PathSeparator + saved["PATH"]);
+                Check(ClaudeCodeBackend.Resolve("claude") == Path.Combine(npm, "claude.cmd"), "npm sh shim chosen over claude.cmd");
+                var shim = await ClaudeCodeBackend.RunAsync("claude", "test", root, "mcp.json", "session-1", "mcp__clauderevit__*", _ => { }, _ => { }, ct, "sonnet", "high");
+                using (var result = JsonDocument.Parse(shim.Text))
+                {
+                    var argv = result.RootElement.GetProperty("args").EnumerateArray().Select(a => a.GetString()).ToArray();
+                    Check(argv.Contains("--allowedTools") && argv.Contains("--resume") && argv.Contains("session-1"), "cmd.exe dropped flags after the multi-line rules");
+                }
+                Environment.SetEnvironmentVariable("PATH", saved["PATH"]);
+            }
             var codexArgs=CodexBackend.Arguments("http://localhost/mcp","test-session");
             Check(codexArgs.Contains("agents.enabled=true") && codexArgs.Contains("agents.max_concurrent_threads_per_session=3"),"Codex modeller has no bounded subagents");
             Environment.SetEnvironmentVariable("CLAUDEREVIT_TEST_AUTH", "api");
@@ -96,7 +117,7 @@ internal static class Program
             var watch = Stopwatch.StartNew();
             try { await ClaudeCodeBackend.CompleteAsync(exe, "test", root, cancel.Token); throw new Exception("Hung child was not cancelled"); }
             catch (OperationCanceledException) { Check(watch.Elapsed < TimeSpan.FromSeconds(5), "Cancellation hung"); }
-            Console.WriteLine("CLI checks passed: subscription authentication, API environment exclusion, multiple models, judge tool isolation, modeller MCP flags, UTF-8, errors and cancellation.");
+            Console.WriteLine("CLI checks passed: subscription authentication, API environment exclusion, multiple models, judge tool isolation, modeller MCP flags, npm shim launch, UTF-8, errors and cancellation.");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
@@ -158,5 +179,6 @@ internal static class Program
 
 namespace ClaudeRevit.Services
 {
-    public static class McpServer { public const string DrivingRules = "Use only the configured Revit MCP tools."; }
+    // Multi-line, like the real rules: the cmd.exe shim path must survive the line break.
+    public static class McpServer { public const string DrivingRules = "Use only the configured Revit MCP tools.\n\nVerify every change."; }
 }

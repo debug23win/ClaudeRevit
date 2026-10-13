@@ -192,10 +192,18 @@ Use `region_pdf` to leave out the title block and legends. Detection is heuristi
 
 ## Refusal fallback and other API changes
 
-- **Server-side fallback.** Requests to Claude Fable 5, Fable 5.1 and Opus 5 send `fallbacks: "default"`.
+- **Server-side fallback.** Requests to Claude Fable 5, Fable 5.1, Opus 5, Opus 5.5 and Sonnet 5.5 send `fallbacks: "default"`.
   - When the safety classifier declines a request, Anthropic's recommended fallback model answers it, and the transcript says which model answered.
   - Usage is billed at the rate of the model that served the request.
   - Switch it off under Settings → General.
   - If the API rejects the parameter for a request, that turn is retried without it, and the session stops sending it.
+- **Preserved thinking (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5).** These models reject an edited conversation history for accounts created from 31 August 2026, so for them the history is append-only:
+  - no tool-result aging and no client-side compaction (the server compacts instead);
+  - the document and selection context stays in its user message instead of trailing each request;
+  - the system prompt is kept as first sent for the whole conversation.
+
+  What can still change (a newly loaded tool group, a model switch) is covered by `block_binding: drop_block`: the API drops the thinking it can no longer trust instead of rejecting the request. If a request is still rejected for its thinking blocks, they are removed from the history and the request is sent again once.
+- **Stop reasons.** A declined reply (`refusal`) is not shown as an answer: its partial text and tool calls are discarded and the transcript names the classifier category. A reply cut off by the output limit or the context window says so instead of looking complete.
+- **Cost display.** Prices follow the current list: Opus 5 at $5/$25 (was shown at $10/$50), Sonnet 5 at $2/$10, Fable 5.1 cache reads at $0.25 and Opus 5.5 at $0.20 per million tokens, Haiku 5.5 by prompt size. Conversation summaries run on Haiku 5.5, with Haiku 4.5 as fallback.
 - **`eager_input_streaming`** is on for the code tools (`execute_csharp`, `run_dynamo_python`, …), so a long script doesn't stall the stream.
 - **`strict` tool schemas are not used.** They require `additionalProperties: false` and every field to be required, which would mean rewriting about 280 schemas full of optional fields. The tools already validate their inputs and return typed, named errors.

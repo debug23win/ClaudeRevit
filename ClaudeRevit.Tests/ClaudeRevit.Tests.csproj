@@ -80,6 +80,7 @@
     <Compile Include="..\ClaudeRevit\Services\ToolResultAging.cs" Link="src\ToolResultAging.cs" />
     <Compile Include="..\ClaudeRevit\Services\ToolResultArchive.cs" Link="src\ToolResultArchive.cs" />
     <Compile Include="..\ClaudeRevit\Services\ChatHistory.cs" Link="src\ChatHistory.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ClaudeModels.cs" Link="src\ClaudeModels.cs" />
     <Compile Include="..\ClaudeRevit\Services\TextUtil.cs" Link="src\TextUtil.cs" />
     <Compile Include="..\ClaudeRevit\Services\Log.cs" Link="src\Log.cs" />
     <Compile Include="..\ClaudeRevit\Services\CodexCli.cs" Link="src\CodexCli.cs" />

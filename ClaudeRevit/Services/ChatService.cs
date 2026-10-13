@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using Anthropic;
 using Anthropic.Core;
+using Anthropic.Exceptions;
 using Anthropic.Helpers;
 using Anthropic.Models.Beta;
 using Anthropic.Models.Beta.Messages;
@@ -178,11 +179,14 @@ public class ChatService
         return contextK > 0 ? contextK * 1000L * 3 / 4 : AltCompactionThresholdTokens;
     }
     private const int CompactionKeepTailTurns = 3;
-    private const string CompactionModel = "claude-haiku-4-5";
+    private const string CompactionModel = "haiku-5-5";
+    private const string CompactionFallbackModel = "haiku-4-5";
 
     private AnthropicClient? _client;
     private readonly OpenAIBackend _openAI = new();
     private readonly List<ApiTurn> _history = new();
+    // The system prompt as first sent to a preserved-thinking model in this conversation.
+    private List<BetaTextBlockParam>? _frozenSystemBlocks;
     private long _lastPromptTokens;
 
     // Ephemeral instances (the benchmark) keep their conversation in memory only: they never load
@@ -311,6 +315,7 @@ public class ChatService
         _documentKey = snapshot.DocumentKey;
         if (preserveHistory) { PersistClaudeCodeSession(); PersistCodexSession(); return; }
         _history.Clear();
+        _frozenSystemBlocks = null;
         _history.AddRange(HistoryStore.LoadApiHistory(_workspace));
         _claudeCodeSessionId = ReadSession(ClaudeCodeSessionFile);
         _codexSessionId = ReadSession(CodexSessionFile);
@@ -376,6 +381,7 @@ public class ChatService
         // deliberately NOT touched here — accumulated experience must outlive a window clear,
         // and the digest already sits in the (session-stable) system prompt.
         _history.Clear();
+        _frozenSystemBlocks = null;
         _lastPromptTokens = 0;
         _execCsharpOk = 0;
         _promoteNudged = false;
@@ -433,8 +439,10 @@ public class ChatService
         var client = GetClient();
         var parameters = new MessageCreateParams
         {
-            Model = ResolveModel(modelTag),
-            MaxTokens = 1500,
+            Model = ClaudeModels.ApiId(modelTag),
+            // Thinking counts against max_tokens and cannot be switched off on Fable or Opus 5.x, so
+            // 1500 could leave nothing for the verdict. Unused budget is not billed.
+            MaxTokens = 16000,
             System = new List<BetaTextBlockParam> { new() { Text = systemPrompt } },
             Messages = new List<BetaMessageParam>
             {
@@ -442,6 +450,10 @@ public class ChatService
             }
         };
         var msg = await client.Beta.Messages.Create(parameters, ct);
+        var verdict = ToBackendTurn(msg);
+        if (verdict.StopReason == "refusal")
+            throw new InvalidOperationException("The judge model declined to grade this result" +
+                (string.IsNullOrEmpty(verdict.RefusalCategory) ? "." : $" (classifier category: {verdict.RefusalCategory})."));
         return string.Concat(msg.Content.Select(b => b.TryPickText(out var t) ? t.Text : ""));
     }
 
@@ -638,7 +650,7 @@ public class ChatService
 
         LastTask = new TaskMetrics(
             modelAlias != null ? "claude-code:" + modelAlias : "claude-code",
-            res.NumTurns, res.InputTokens, res.OutputTokens, 0, res.DurationMs / 1000.0);
+            res.NumTurns, res.InputTokens, res.OutputTokens, 0, res.DurationMs / 1000.0, CachedInputTokens: res.CachedInputTokens);
 
         if (res.IsError && string.IsNullOrEmpty(res.Error)) res.Error = res.Text.Length > 0 ? res.Text : "Claude Code reported an error.";
 
@@ -808,7 +820,7 @@ public class ChatService
         // rest. Purely additive to what's already revealed this session.
         foreach (var cat in ToolCatalog.PrewarmCategories(lastUser)) Reveal(cat);
 
-        var appendOnly = !alt && AppendOnlyHistory(model);
+        var appendOnly = !alt && ClaudeModels.AppendOnlyHistory(model);
         if (!appendOnly) await CompactIfNeededAsync(conversation, ui, alt, ct);
 
         // Tool-result aging (Headroom-style): every tool result from a PRIOR user prompt
@@ -854,7 +866,7 @@ public class ChatService
         // Assembles the Claude tool list, appending the advisor tool while Auto is in advisor mode
         // and the per-turn backstop hasn't been hit. Used for the initial build AND every rebuild
         // (a find_tools reveal or a save_tool) so the advisor tool isn't dropped mid-turn.
-        var advisorModelId = ResolveModel(SettingsStore.AutoAdvisorModel);
+        var advisorModelId = ClaudeModels.ApiId(SettingsStore.AutoAdvisorModel);
         List<BetaToolUnion> ClaudeTools()
         {
             var defs = BuildToolDefs(allowedTools);
@@ -869,13 +881,23 @@ public class ChatService
         }
         else
         {
-            systemBlocks = BuildSystemBlocks(advisorMode);
+            // Preserved-thinking models bind their thinking to the system prompt, so it stays as
+            // first sent for the whole conversation; memory saved meanwhile is already in the
+            // conversation itself. Cleared with the history (ClearHistory / SwitchWorkspace).
+            systemBlocks = appendOnly ? (_frozenSystemBlocks ??= BuildSystemBlocks(advisorMode)) : BuildSystemBlocks(advisorMode);
             toolDefs = ClaudeTools();
         }
 
         var userTurn = new ApiTurn { Role = "user", Blocks = { new ChatTextBlock(lastUser) } };
         if (!string.IsNullOrEmpty(imageBase64))
             userTurn.Blocks.Add(new ChatImageBlock(imageMime ?? "image/png", imageBase64));
+        // Preserved-thinking models: the document/selection context stays in this user turn. As a
+        // trailing block it would vanish from the next request, which they treat as a history edit.
+        if (appendOnly)
+        {
+            userTurn.Blocks.Add(new ChatTextBlock(dynamicContext));
+            dynamicContext = "";
+        }
         _history.Add(userTurn);
 
         var turnLabel = "Claude: " + Truncate(lastUser, 60);
@@ -1021,6 +1043,17 @@ public class ChatService
                 }
                 modelsUsed.Add(alt ? "alt:" + (altModelForTurn ?? SettingsStore.AltModel) : turn.ServedModelTag ?? claudeModelForTurn);
 
+                // A refusal is not an answer: its partial text and any tool calls in it are neither run
+                // nor kept, and the turn stops. A refused first request also takes its prompt out of the
+                // history, so a rephrased request does not carry the declined one along.
+                var stopNote = ClaudeModels.StopNote(turn.StopReason, turn.RefusalCategory);
+                if (turn.StopReason == "refusal")
+                {
+                    if (_history.Count > 0 && ReferenceEquals(_history[^1], userTurn)) _history.RemoveAt(_history.Count - 1);
+                    await ui.InvokeAsync(() => conversation.Add(new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = stopNote! }));
+                    break;
+                }
+
                 // Preserve blocks in order: thinking blocks must precede tool_use on replay.
                 var assistantTurn = new ApiTurn { Role = "assistant" };
                 var toolUses = new List<ChatToolUseBlock>();
@@ -1036,6 +1069,13 @@ public class ChatService
                 {
                     if (assistantTurn.Blocks.Count > 0)
                         _history.Add(assistantTurn);
+                    // Cut off by the output limit or the context window: keep what arrived and say so,
+                    // rather than presenting it as complete or auto-continuing a reply out of room.
+                    if (stopNote != null)
+                    {
+                        await ui.InvokeAsync(() => conversation.Add(new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = stopNote }));
+                        break;
+                    }
                     if (!sawText)
                     {
                         await ui.InvokeAsync(() => conversation.Add(new ChatMessage
@@ -1458,31 +1498,30 @@ public class ChatService
     private const string AdvisorBeta = "advisor-tool-2026-03-01";
     private const string CompactionBeta = "compact-2026-01-12";
     private const string ServerFallbackBeta = "server-side-fallback-2026-07-01";
-
-    // Models whose safety classifier can decline a request (stop_reason "refusal"). For them the
-    // API can answer a declined request on Anthropic's recommended fallback model instead
-    // (fallbacks: "default"), so the user gets an answer rather than a dead end.
-    internal static bool SupportsServerFallback(string model) => model is "fable-5" or "fable-5-1" or "opus-5";
+    private const string BindingControlsBeta = "thinking-binding-controls-2026-08-01";
 
     // Set when the API rejected `fallbacks` for this session (a request feature the routed
     // fallback model lacks is refused up front); from then on requests go without it.
     private static volatile bool _serverFallbackRejected;
-    private static bool UseServerFallback(string model) => SettingsStore.ServerFallback && !_serverFallbackRejected && SupportsServerFallback(model);
+    private static bool UseServerFallback(string model) => SettingsStore.ServerFallback && !_serverFallbackRejected && ClaudeModels.SupportsServerFallback(model);
 
-    // Claude Fable 5.1 keeps its thinking across turns ("preserved thinking"), and any edit to an
-    // earlier turn invalidates it: for accounts created from 31 August 2026 the API answers an
-    // edited history with a 400. Two of our own mechanisms edit history — tool-result aging
-    // rewrites old results in place, and client-side compaction replaces old turns with a
-    // summary — so for this model both are off, and the server's compaction (which the API does
-    // not count as an edit) keeps the context bounded instead.
-    internal static bool AppendOnlyHistory(string model) => model is "fable-5-1";
+    // Models with preserved thinking (ClaudeModels.AppendOnlyHistory) reject an edited history for
+    // accounts created from 31 August 2026. Our own edits are off for them: no tool-result aging,
+    // no client-side compaction (the server's compaction is not an edit), the document context
+    // stays in its user turn, and the system prompt is frozen per conversation. What can still
+    // change — a revealed tool group, a model switch, a session restored with different memory —
+    // is covered by block_binding "drop_block": the API drops the thinking it can no longer trust
+    // instead of answering 400. Off for the session if the API rejects the field.
+    private static volatile bool _blockBindingRejected;
+    private static bool UseBlockBinding(string model) => !_blockBindingRejected && ClaudeModels.AppendOnlyHistory(model);
 
-    private static List<ApiEnum<string, AnthropicBeta>>? BetasFor(string model, bool advisor, bool fallback = false)
+    private static List<ApiEnum<string, AnthropicBeta>>? BetasFor(string model, bool advisor, bool fallback = false, bool binding = false)
     {
         var betas = new List<ApiEnum<string, AnthropicBeta>>();
         if (advisor) betas.Add(AdvisorBeta);
-        if (AppendOnlyHistory(model)) betas.Add(CompactionBeta);
+        if (ClaudeModels.AppendOnlyHistory(model)) betas.Add(CompactionBeta);
         if (fallback) betas.Add(ServerFallbackBeta);
+        if (binding) betas.Add(BindingControlsBeta);
         return betas.Count > 0 ? betas : null;
     }
 
@@ -1498,23 +1537,22 @@ public class ChatService
     {
         var client = GetClient();
         var effort = EffortFor(model);
-        var thinking = ThinkingFor(model);
         var messages = BuildApiMessages(dynamicContext);
-        MessageCreateParams Build(bool fallback) => new()
+        MessageCreateParams Build(bool fallback, bool binding) => new()
         {
-            Model = ResolveModel(model),
+            Model = ClaudeModels.ApiId(model),
             MaxTokens = MaxOutputTokens,
-            Thinking = thinking,
+            Thinking = ThinkingFor(model, binding),
             Messages = messages,
             System = systemBlocks,
             Tools = toolDefs,
             OutputConfig = effort != null ? new BetaOutputConfig { Effort = effort.Value } : null,
-            // Append-only models get the server's compaction instead of ours (see AppendOnlyHistory).
-            ContextManagement = AppendOnlyHistory(model)
+            // Append-only models get the server's compaction instead of ours (see UseBlockBinding).
+            ContextManagement = ClaudeModels.AppendOnlyHistory(model)
                 ? new BetaContextManagementConfig { Edits = [new BetaCompact20260112Edit()] }
                 : null,
             Fallbacks = fallback ? new Default() : null,
-            Betas = BetasFor(model, useAdvisorBeta, fallback)
+            Betas = BetasFor(model, useAdvisorBeta, fallback, binding)
         };
 
         var aggregator = new BetaMessageContentAggregator();
@@ -1542,20 +1580,50 @@ public class ChatService
             }
         }
 
+        // A request the API rejects up front (4xx, nothing streamed yet) is retried once per cause:
+        //  - `fallbacks` refused (a fallback model could not serve the request as sent): drop it
+        //    for the session;
+        //  - block_binding refused: drop it for the session;
+        //  - a thinking block bound to a different conversation (preserved thinking): strip every
+        //    thinking block from the history, the API's documented recovery, and resend.
         var fallback = UseServerFallback(model);
-        try
+        var binding = UseBlockBinding(model);
+        var stripped = false;
+        while (true)
         {
-            await Run(Build(fallback));
-        }
-        catch (Exception ex) when (fallback && assistantBubble == null && !ct.IsCancellationRequested &&
-                                   ex.Message.Contains("fallback", StringComparison.OrdinalIgnoreCase))
-        {
-            // The API refuses `fallbacks` up front when a fallback model could not serve this
-            // request as sent. Answer this turn without it and stop asking for the session.
-            _serverFallbackRejected = true;
-            Log.Info("Server-side fallback rejected; continuing without it: " + Truncate(ex.Message, 300));
-            aggregator = new BetaMessageContentAggregator();
-            await Run(Build(false));
+            try
+            {
+                await Run(Build(fallback, binding));
+                break;
+            }
+            catch (AnthropicApiException ex) when ((int)ex.StatusCode is >= 400 and < 500 &&
+                                                   assistantBubble == null && !ct.IsCancellationRequested)
+            {
+                var error = ex.Message + " " + ex.ResponseBody;
+                if (fallback && error.Contains("fallback", StringComparison.OrdinalIgnoreCase))
+                {
+                    _serverFallbackRejected = true;
+                    fallback = false;
+                    Log.Info("Server-side fallback rejected; continuing without it: " + Truncate(error, 300));
+                }
+                else if (binding && (error.Contains("block_binding", StringComparison.OrdinalIgnoreCase) ||
+                                     error.Contains("thinking-binding", StringComparison.OrdinalIgnoreCase)))
+                {
+                    _blockBindingRejected = true;
+                    binding = false;
+                    Log.Info("Thinking block binding rejected; continuing without it: " + Truncate(error, 300));
+                }
+                else if (!stripped && error.Contains("signature", StringComparison.OrdinalIgnoreCase) &&
+                         error.Contains("thinking", StringComparison.OrdinalIgnoreCase))
+                {
+                    stripped = true;
+                    var removed = ChatHistoryEdits.StripThinking(_history);
+                    messages = BuildApiMessages(dynamicContext);
+                    Log.Info($"History rejected for its thinking blocks; resending without them ({removed} removed): " + Truncate(error, 300));
+                }
+                else throw;
+                aggregator = new BetaMessageContentAggregator();
+            }
         }
 
         BetaMessage message;
@@ -1611,6 +1679,8 @@ public class ChatService
             else if (block.TryPickAdvisorToolResult(out _))
                 turn.AdvisorConsults++;
         }
+        try { turn.StopReason = message.StopReason?.Raw(); } catch { /* unknown value: treat as a normal end */ }
+        try { turn.RefusalCategory = message.StopDetails?.Category?.Raw(); } catch { }
         try
         {
             var u = message.Usage;
@@ -1632,39 +1702,21 @@ public class ChatService
                 {
                     if (iter.TryPickBetaAdvisorMessageIterationUsage(out var adv))
                         turn.AdvisorUsages.Add(new AdvisorUsage(
-                            TagFromModel(adv.Model.Raw() ?? ""),
+                            ClaudeModels.TagFromModel(adv.Model.Raw() ?? ""),
                             adv.InputTokens, adv.OutputTokens,
                             adv.CacheCreationInputTokens, adv.CacheReadInputTokens));
                     else if (fellBack && iter.TryPickBetaMessageIterationUsage(out var declined))
                         turn.AdvisorUsages.Add(new AdvisorUsage(
-                            TagFromModel(declined.Model.Raw() ?? ""),
+                            ClaudeModels.TagFromModel(declined.Model.Raw() ?? ""),
                             declined.InputTokens, declined.OutputTokens,
                             declined.CacheCreationInputTokens, declined.CacheReadInputTokens));
                 }
-                if (fellBack || turn.FallbackNote != null) turn.ServedModelTag = TagFromModel(message.Model.Raw() ?? "");
+                if (fellBack || turn.FallbackNote != null) turn.ServedModelTag = ClaudeModels.TagFromModel(message.Model.Raw() ?? "");
             }
             catch { /* usage iterations are best-effort */ }
         }
         catch { /* non-fatal */ }
         return turn;
-    }
-
-    // Normalise an advisor/iteration model id (either "claude-opus-4-8" or an enum form like
-    // "ClaudeOpus4_8") to our internal UsageTracker rate tag. Defaults to opus-4-8, the advisor.
-    private static string TagFromModel(string s)
-    {
-        s = s.ToLowerInvariant().Replace("_", "-");
-        // Most specific first: "claude-opus-5" must not fall into the generic opus branch, and
-        // "claude-fable-5-1" must not collapse into "fable-5".
-        if (s.Contains("opus-5")) return "opus-5";
-        if (s.Contains("fable-5-1")) return "fable-5-1";
-        if (s.Contains("opus") && s.Contains("4-7")) return "opus-4-7";
-        if (s.Contains("opus")) return "opus-4-8";
-        if (s.Contains("sonnet") && s.Contains("4-6")) return "sonnet-4-6";
-        if (s.Contains("sonnet")) return "sonnet-5";
-        if (s.Contains("haiku")) return "haiku-4-5";
-        if (s.Contains("fable")) return "fable-5";
-        return "opus-4-8";
     }
 
     // The advisor tool definition for Auto mode: the executor consults the advisor model at most
@@ -1816,6 +1868,11 @@ public class ChatService
     // Rebuilds the SDK message list from our own history model. The cache breakpoint sits
     // on the last block of the last stored message; the dynamic context is appended AFTER
     // it (uncached) so a changed selection never invalidates the cached conversation prefix.
+    // That moving breakpoint keeps the 1-hour TTL on purpose. A 5-minute entry would write each
+    // round's new tokens at 1.25x instead of 2x, but any pause over five minutes (the user
+    // checking the model between prompts, or one long Fable step) would then re-write the whole
+    // conversation instead of reading it at 0.1x (0.025x on Fable 5.1). 1 hour is cheaper unless
+    // prompts usually follow each other within five minutes.
     private List<BetaMessageParam> BuildApiMessages(string dynamicContext)
     {
         var msgs = new List<BetaMessageParam>(_history.Count);
@@ -1833,7 +1890,7 @@ public class ChatService
                     : null;
                 blocks.Add(ToParam(ordered[j], cache));
             }
-            if (isLast)
+            if (isLast && dynamicContext.Length > 0)
                 blocks.Add(new BetaTextBlockParam { Text = dynamicContext }); // trailing, uncached
             msgs.Add(new BetaMessageParam
             {
@@ -1915,27 +1972,58 @@ public class ChatService
             }
             else
             {
-                var resp = await GetClient().Beta.Messages.Create(new MessageCreateParams
+                summary = null;
+                // Haiku 5.5 first (a tenth of Haiku 4.5's price); it has safety classifiers and no
+                // server-side fallback, so an error, a refusal or an empty summary falls back to
+                // Haiku 4.5, the previous summariser.
+                foreach (var tag in new[] { CompactionModel, CompactionFallbackModel })
                 {
-                    Model = CompactionModel,
-                    MaxTokens = 2000,
-                    Messages = new List<BetaMessageParam>
+                    var messages = new List<BetaMessageParam>
                     {
                         new BetaMessageParam
                         {
                             Role = ApiRole.User,
                             Content = instruction + transcript
                         }
+                    };
+                    // Haiku 5.5 takes thinking and effort settings; Haiku 4.5 gets its previous
+                    // request unchanged. (A null-converted Thinking would be sent as "thinking": null.)
+                    var request = ClaudeModels.SupportsAdaptiveThinking(tag)
+                        ? new MessageCreateParams
+                        {
+                            Model = ClaudeModels.ApiId(tag),
+                            // Haiku 5.5's tokenizer counts about 30% more tokens for the same text.
+                            MaxTokens = 3000,
+                            // A summary needs no deliberation; thinking would only eat the output budget.
+                            Thinking = new BetaThinkingConfigDisabled(),
+                            OutputConfig = new BetaOutputConfig { Effort = Effort.Low },
+                            Messages = messages
+                        }
+                        : new MessageCreateParams { Model = ClaudeModels.ApiId(tag), MaxTokens = 2000, Messages = messages };
+                    BetaMessage resp;
+                    try
+                    {
+                        resp = await GetClient().Beta.Messages.Create(request, ct);
                     }
-                }, ct);
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex) when (tag != CompactionFallbackModel)
+                    {
+                        Log.Info($"Compaction on {tag} failed; retrying on {CompactionFallbackModel}: " + Truncate(ex.Message, 200));
+                        continue;
+                    }
 
-                var sb = new StringBuilder();
-                foreach (var b in resp.Content)
-                    if (b.TryPickText(out var t))
-                        sb.Append(t.Text);
-                summary = sb.ToString();
-
-                TrackUsage("haiku-4-5", ToBackendTurn(resp));
+                    var sb = new StringBuilder();
+                    foreach (var b in resp.Content)
+                        if (b.TryPickText(out var t))
+                            sb.Append(t.Text);
+                    var usage = ToBackendTurn(resp);
+                    TrackUsage(tag, usage);
+                    if (usage.StopReason != "refusal" && !string.IsNullOrWhiteSpace(sb.ToString()))
+                    {
+                        summary = sb.ToString();
+                        break;
+                    }
+                }
             }
         }
         catch
@@ -2066,35 +2154,25 @@ public class ChatService
     // LESS than the default on exactly the work that benefits most — a long-horizon agentic loop
     // over a live model, where a shallow plan costs far more in wasted tool rounds than the thinking
     // it saved. Haiku 4.5 rejects the parameter outright, so it gets none.
-    private static Effort? EffortFor(string model) => model switch
-    {
-        "haiku-4-5" => null,
-        _ => Effort.High
-    };
+    private static Effort? EffortFor(string model) => ClaudeModels.SupportsAdaptiveThinking(model) ? Effort.High : null;
 
     // Thinking has to be asked for by name on Opus 4.8/4.7 and Sonnet 5: omitting it runs them with
     // NO thinking at all. That is how the "strong" model in the legacy escalation ended up being the
     // one that didn't think — the opposite of the point of escalating. Opus 5 and Fable think by
     // default, and adaptive is accepted there too, so one rule covers every current model. Haiku 4.5
     // predates adaptive (it takes a token budget) and is left alone.
-    private static BetaThinkingConfigParam? ThinkingFor(string model)
+    // `binding` adds block_binding "drop_block" for preserved-thinking models (see UseBlockBinding).
+    private static BetaThinkingConfigParam? ThinkingFor(string model, bool binding = false)
     {
-        if (model == "haiku-4-5") return null;
-        BetaThinkingConfigParam adaptive = new BetaThinkingConfigAdaptive();
+        if (!ClaudeModels.SupportsAdaptiveThinking(model)) return null;
+        BetaThinkingConfigParam adaptive = binding
+            ? new BetaThinkingConfigAdaptive
+            {
+                BlockBinding = new BetaThinkingBlockBinding { PrefixMismatchBehavior = BetaThinkingPrefixMismatchBehavior.DropBlock }
+            }
+            : new BetaThinkingConfigAdaptive();
         return adaptive;
     }
-
-    private static string ResolveModel(string model) => model switch
-    {
-        "opus-5" => "claude-opus-5",
-        "fable-5-1" => "claude-fable-5-1",
-        "opus-4-8" => "claude-opus-4-8",
-        "fable-5" => "claude-fable-5",
-        "haiku-4-5" => "claude-haiku-4-5",
-        "sonnet-4-6" => "claude-sonnet-4-6",
-        "opus-4-7" => "claude-opus-4-7",
-        _ => "claude-sonnet-5"
-    };
 
     private static string FormatInput(IReadOnlyDictionary<string, JsonElement> input)
     {
