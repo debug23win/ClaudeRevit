@@ -1,5 +1,11 @@
 # Claude Revit
 
+**v3.9.4:** Claude API fixes: Fable 5.1 no longer fails on the second tool round
+for new accounts, refusals and cut-off replies are reported, Opus 5.5 / Sonnet 5.5 /
+Haiku 5.5 are available, and the cost display follows current prices. ModPlus
+aliases are opt-in and the Revit 2027 DLL is 6.9 MB instead of 16.2 MB.
+[Release notes](docs/releases/v3.9.4.md).
+
 **v3.9.3:** ModPlus headless adapters for Revit 2027: 85 module aliases and one
 compact router, with 32 native API operations across 27 modules. Preview rolls
 model changes back; typed original-method pipelines require matching installed
