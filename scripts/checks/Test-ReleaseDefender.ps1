@@ -15,17 +15,26 @@ try {
     function Set-MpPreference { [CmdletBinding()]param($DisableRealtimeMonitoring,$DisableBehaviorMonitoring,$DisableArchiveScanning,$DisableScriptScanning,$DisableIOAVProtection) Assert (-not ($DisableRealtimeMonitoring -or $DisableBehaviorMonitoring -or $DisableArchiveScanning -or $DisableScriptScanning -or $DisableIOAVProtection)) 'Protection was weakened'; $qaMock.preferenceWrites++ }
     function Get-MpPreference { return @{ExclusionPath=@('C:\','D:\','C:\retained-example')} }
     function Remove-MpPreference { [CmdletBinding()]param($ExclusionPath) Assert (($ExclusionPath -join ',') -eq 'C:\,D:\') 'Only runner whole-drive exclusions may be removed'; $qaMock.exclusionRemovals++ }
-    function Update-MpSignature { [CmdletBinding()]param() $qaMock.signatureUpdates++ }
+    function Update-MpSignature { [CmdletBinding()]param() $qaMock.signatureUpdates++; if ($qaMock.signatureFailures -gt 0) { $qaMock.signatureFailures--; throw 'The remote procedure call failed.' } }
     function Get-MpComputerStatus { [CmdletBinding()]param() $qaMock.statusReads++; return @{ AntivirusEnabled=$qaMock.ready; RealTimeProtectionEnabled=$qaMock.ready } }
     function Start-Sleep { param($Seconds) $qaMock.waits++ }
     $env:GITHUB_ACTIONS='true'; $env:RUNNER_OS='Windows'; $env:RUNNER_ENVIRONMENT='github-hosted'
-    $qaMock.policyWrites=0; $qaMock.serviceStarts=0; $qaMock.preferenceWrites=0; $qaMock.exclusionRemovals=0; $qaMock.signatureUpdates=0; $qaMock.statusReads=0; $qaMock.waits=0; $qaMock.ready=$true
+    $qaMock.policyWrites=0; $qaMock.serviceStarts=0; $qaMock.preferenceWrites=0; $qaMock.exclusionRemovals=0; $qaMock.signatureUpdates=0; $qaMock.statusReads=0; $qaMock.waits=0; $qaMock.ready=$true; $qaMock.signatureFailures=0
     & $activationScript | Out-Null
     Assert ($qaMock.policyWrites -eq 1 -and $qaMock.serviceStarts -eq 1 -and $qaMock.preferenceWrites -eq 1 -and $qaMock.exclusionRemovals -eq 1 -and $qaMock.signatureUpdates -eq 1 -and $qaMock.statusReads -eq 1) 'Ready scanner was not verified'
     $qaMock.ready=$false; $qaMock.statusReads=0; $qaMock.waits=0
     try { & $activationScript | Out-Null; throw 'Inactive scanner was accepted' }
     catch { Assert ($_.Exception.Message -like '*publication remains blocked*') 'Inactive scanner did not fail closed' }
     Assert ($qaMock.statusReads -eq 12 -and $qaMock.waits -eq 12) 'Activation wait must be bounded'
+    # A signature RPC that fails while the service restarts is retried; one that keeps failing
+    # still blocks publication after a bounded number of attempts.
+    $qaMock.ready=$true; $qaMock.signatureUpdates=0; $qaMock.waits=0; $qaMock.signatureFailures=2
+    & $activationScript | Out-Null
+    Assert ($qaMock.signatureUpdates -eq 3 -and $qaMock.waits -eq 2) 'Transient signature failure was not retried'
+    $qaMock.signatureUpdates=0; $qaMock.waits=0; $qaMock.signatureFailures=99
+    try { & $activationScript | Out-Null; throw 'Failed signature update was accepted' }
+    catch { Assert ($_.Exception.Message -like '*publication remains blocked*') 'Failed signature update did not fail closed' }
+    Assert ($qaMock.signatureUpdates -eq 6 -and $qaMock.waits -eq 5) 'Signature retries must be bounded'
     Write-Output 'RELEASE_DEFENDER_CHECKS_PASSED'
 }
 finally { foreach ($name in $original.Keys) { [Environment]::SetEnvironmentVariable($name,$original[$name]) } }

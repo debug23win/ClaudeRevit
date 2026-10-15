@@ -13,7 +13,17 @@ Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $f
 # Remove only the two whole-drive exclusions supplied by the runner image.
 $broadExclusions = @((Get-MpPreference).ExclusionPath | Where-Object { $_ -in @('C:\','D:\') })
 if ($broadExclusions.Count) { Remove-MpPreference -ExclusionPath $broadExclusions -ErrorAction Stop }
-Update-MpSignature -ErrorAction Stop
+# Right after the mode and preference changes above the service can still be restarting, and
+# the signature RPC then fails ("The remote procedure call failed"). Retry a bounded number of
+# times; if the signatures never update, publication stays blocked.
+for ($update = 1; ; $update++) {
+    try { Update-MpSignature -ErrorAction Stop; break }
+    catch {
+        if ($update -ge 6) { throw "Defender signature update failed $update times; release publication remains blocked. $($_.Exception.Message)" }
+        Write-Warning "Defender signature update attempt $update failed: $($_.Exception.Message) Retrying."
+        Start-Sleep -Seconds (10 * $update)
+    }
+}
 for ($attempt = 0; $attempt -lt 12; $attempt++) {
     $status = Get-MpComputerStatus -ErrorAction Stop
     if ($status.AntivirusEnabled -and $status.RealTimeProtectionEnabled) {
