@@ -22,7 +22,8 @@ public class DeriveParameters : IRevitTool
         "height_mm, elevation_mm, top_elevation_mm), identity (level_name, type_name, family_name, category, " +
         "host_name, host_id), or a TEMPLATE combining them.\n" +
         "template example: \"{level_name}-{type_name}\" — any source name in braces, plus {index} for a running " +
-        "number. Use `round` for numeric sources and `factor` to scale (e.g. tonnes).\n" +
+        "number. Use `round` for numeric sources and `factor` to scale (e.g. tonnes) into a Number/Text target; " +
+        "Length/Area/Volume targets are converted from mm/m²/m³ automatically.\n" +
         "Target a category (optionally on_level) or an explicit element_ids list. Writes text or numeric " +
         "parameters; Length/Area/Volume targets convert the declared source units to Revit internal units; mismatched dimensions are rejected. Number/Text targets retain source values.";
 
@@ -50,7 +51,7 @@ public class DeriveParameters : IRevitTool
                 description = "With source='template': text with {placeholders}, e.g. \"{level_name}-{type_name}-{index}\"."
             }),
             ["round"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "Decimals for numeric sources. Default 1." }),
-            ["factor"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Multiply numeric result by this. Default 1." }),
+            ["factor"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Multiply the numeric result, in its source unit (mm, m², m³), by this. Default 1. Length/Area/Volume targets are converted to Revit units automatically: do not use factor for unit conversion." }),
             ["skip_if_filled"] = JsonSerializer.SerializeToElement(new
             {
                 type = "boolean", description = "Don't overwrite a parameter that already has a value. Default false."
@@ -119,6 +120,9 @@ public class DeriveParameters : IRevitTool
                 }
                 written.Add(new { id = el.Id.Value, value = shown });
             }
+            // A source/target dimension mismatch is the call's contract error, the same for every
+            // element: fail the call once instead of repeating it per element as a partial success.
+            catch (ToolInputException) { throw; }
             catch (Exception ex) { failed.Add(new { id = el.Id.Value, reason = ex.Message }); }
         }
 
@@ -126,9 +130,11 @@ public class DeriveParameters : IRevitTool
         {
             parameter = paramName,
             source,
+            ok = written.Count > 0 || failed.Count == 0,
             written = written.Count,
             skipped = elements.Count - written.Count - failed.Count,
-            failed,
+            failed_count = failed.Count,
+            failed = failed.Take(50),
             sample = written.Take(50)
         });
     }

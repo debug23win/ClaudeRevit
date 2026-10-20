@@ -66,11 +66,11 @@ public static class ToolResultAging
             }
             catch (System.Text.Json.JsonException) { }
 
+            var summary = ToolResultCap.Summarize(tr.Content, tr.ToolUseId, "aged result", KeepChars, aged: true);
+            // The envelope carries fixed fields; a result only a little over the threshold would grow.
+            if (summary.Length >= tr.Content.Length) continue;
             ToolResultArchive.Record(tr.ToolUseId, tr.Content);
-            turn.Blocks[i] = new ChatToolResultBlock(
-                tr.ToolUseId,
-                ToolResultCap.Summarize(tr.Content, tr.ToolUseId, "aged result", KeepChars, aged: true),
-                tr.IsError);
+            turn.Blocks[i] = new ChatToolResultBlock(tr.ToolUseId, summary, tr.IsError);
             aged++;
         }
         return aged;

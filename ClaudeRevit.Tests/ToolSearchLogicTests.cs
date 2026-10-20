@@ -26,11 +26,11 @@ public class ToolSearchLogicTests
     };
 
     [Fact]
-    public void Search_by_group_word_reveals_whole_group()
+    public void Search_by_group_word_loads_the_matching_tools()
     {
         var r = ToolSearchLogic.Search(Catalog(), "place rebar stirrups");
         Assert.Contains("Rebar", r.Categories);
-        // All three rebar tools travel together, not just the one keyword hit.
+        // All three match the group word; a group larger than 12 is covered in AuditSafetyTests.
         Assert.Contains("create_rebar", r.Message);
         Assert.Contains("create_rebar_batch", r.Message);
         Assert.Contains("get_rebar_in_host", r.Message);

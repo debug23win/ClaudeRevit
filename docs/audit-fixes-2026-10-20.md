@@ -41,9 +41,35 @@ A receipt proves only the readback scope. Before claiming dimensional or paramet
 
 Task journals expose authorization-process and API-provider request counts/times plus post-write readback time, in addition to existing total, queue, Revit, worker and token/cache metrics. Phase sums may overlap; provider time includes network/server/streaming and must not be presented as pure model reasoning time. Failed journal writes are surfaced in diagnostics. SPDS updater failures/incomplete sources persist in the model and are exposed by `audit_spds_schedule`. The updater writes that state only when it changes, so ordinary edits do not modify the table's DataStorage element (in a workshared model, writing it on every edit would hand its ownership to whoever edited last and fail collaborators' edits). `refresh_utc` is the time the state was last recorded.
 
+## Follow-up review of this change
+
+A review of the change itself found the issues below; all are fixed here, with regression tests where they can run without Revit.
+
+- **Failure state survives aging.** An exception is reported as a JSON failure, not "Error: …" text, and the repeated-error nudge is a `system_note` field inside the JSON instead of text after it. Non-JSON text starting with "Error" counts as a failure.
+- **Aging never grows a result.** Aged summaries copy only `error`, `warnings` and `errors`, each bounded to 300 characters (the receipt is already in the head). A result whose summary would not be shorter is kept as is.
+- **Pages survive completion.** `get_full_result` pages already carry the fields completion adds, so a page fitted to the ceiling is not re-capped. The test now runs the production path (completion, then cap).
+- **System prompt** describes the JSON aged summary and `next_offset` paging instead of the removed text marker.
+- **Post-write readback time** is recorded: the dispatcher passes the task id, since the Revit API thread does not carry the chat flow's AsyncLocal.
+- **Pre-loading** runs on the user's own words, not the attachment manifest, and pre-loads each group once per conversation, so later prompts naming it do not append tools and rewrite the prompt cache.
+- **Catalog.** A call without sections, family_category or query returns an overview with family type counts per category. The paging block comes first, and the per-list limit is halved until the response fits (`limit_reduced_to`). A nonzero `offset` needs a single list, since one offset applies to every returned list.
+- **Benchmark.** An API run that ends at its round budget is marked `[task budget reached]`, as a cancelled run already was. `0` still means no limit, as documented.
+- **Undo.**
+  - `"steps": null` means a whole-action undo again.
+  - When the Redo of the user's own step is not confirmed, the result says that step is probably still undone and asks for one Redo.
+  - Rolled-back and preview calls no longer archive empty change lists.
+- **Cleanup.**
+  - The purge analysis runs once per call.
+  - All candidates are rehearsed in one delete; candidates are rehearsed one by one only when that shows a cascade or an error.
+  - Failures and cascades are bounded samples with totals, after the per-target details.
+- **Unload.** `unload_family` also refuses when another type references the family's types through a parameter (profiles, grid and level heads, view titles), which Revit would silently reset instead of deleting.
+- **Names.** A name that matches several types resolves to its exact-case match when there is one. System types accept the qualified "Family: Type" form (for example "Basic Wall: Exterior"), which is what the ambiguity error suggests.
+- **Derived parameters.** A source/target dimension mismatch fails the call once instead of every element being reported as a partial success. Failures are bounded. The schema says `factor` scales in the source unit and is not for unit conversion.
+- **Weight.** `density_kg_m3` is the fallback, as documented, and no longer overrides material densities. Parameter writes report `parameter_written` and bounded `parameter_failures` instead of failing silently.
+- **Native density case.** It uses 1234 kg/m³ converted by Revit, which matches no default density, and passes a 9999 kg/m³ fallback that must not win.
+
 ## Validation
 
-Follow-up review fixes: 426 unit tests pass, 14 of them new; each new test fails on the previous revision. Builds for Revit 2025/2026/2027, MCP, CLI and the 51 ModPlus checks pass (run on Linux with Windows targeting).
+Follow-up review fixes: 430 unit tests pass, 18 of them new (the 14 for discovery, matching, headless budget and archive fail on the previous revision). Builds for Revit 2025/2026/2027, MCP, CLI and the 51 ModPlus checks pass (run on Linux with Windows targeting).
 
 Local checks on Windows: **412 unit tests passed**, isolated pane/MCP/CLI checks passed, **51 ModPlus adapter checks passed**, builds for Revit 2025/2026/2027 and native-harness compilation succeeded (existing compiler warnings remain). No production project was modified, no live model calls were billed, and native Revit execution remains pending.
 
@@ -55,7 +81,7 @@ Pure regression tests exercise failure preservation, escaped/Unicode paging, arc
 | --- | --- |
 | `audit_total_wall_thickness` | 20 + editable core + 30 mm totals 300 mm |
 | `audit_derived_length_internal_units` | A wall's measured length copied into a Length parameter remains the same number of internal feet |
-| `audit_material_density_7850` | A 1 m³ solid with structural steel density weighs 7850 kg |
+| `audit_material_density_1234` | A 1 m³ solid of a 1234 kg/m³ material (no default density, converted by Revit) weighs 1234 kg, even with a 9999 kg/m³ fallback given |
 | `audit_placed_unbounded_room_survives_cleanup` | A placed room with zero area remains after cleaning unplaced rooms |
 
 Compilation is not execution: these new native cases still require Revit 2027. Also run live acceptance for Python exception rollback, painted/nested references during purge, family unload cascades, Undo/Redo interleaved with manual edits/tab switching, and SPDS refresh recovery. Use disposable RVT/RFA fixtures, not production models.

@@ -40,6 +40,16 @@ public class UnloadFamily : IRevitTool
         var instances = new FilteredElementCollector(doc).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>()
             .Where(i => symbols.Contains(i.GetTypeId())).Select(i => i.Id.Value).ToArray();
         if (instances.Length > 0) throw new ToolInputException($"Family has {instances.Length} placed instances; nothing was deleted.");
+        // Profiles, grid and level heads and view titles are used through a type parameter, not
+        // through instances. Revit resets such a reference to <none> instead of deleting the
+        // type, so the deletion rehearsal below cannot see it: look for it directly.
+        var referencing = new FilteredElementCollector(doc).WhereElementIsElementType()
+            .Where(t => !symbols.Contains(t.Id))
+            .Where(t => t.Parameters.Cast<Parameter>().Any(p => p.StorageType == StorageType.ElementId && symbols.Contains(p.AsElementId())))
+            .Select(t => $"{(t as ElementType)?.FamilyName}: {t.Name}".TrimStart(':', ' '))
+            .Take(20).ToArray();
+        if (referencing.Length > 0)
+            throw new ToolInputException($"Types reference this family's types through a parameter (profile, head, title…): {string.Join(", ", referencing)}. Nothing was deleted.");
         var allowed = symbols.Append(id).ToHashSet();
         using (var preview = new SubTransaction(doc))
         {

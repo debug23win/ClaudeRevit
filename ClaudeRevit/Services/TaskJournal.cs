@@ -18,6 +18,8 @@ public static class TaskJournal
     public static string? LastWriteError => Volatile.Read(ref _lastWriteError);
     public static string? CurrentId => Current.Value;
     public static IDisposable MeasurePhase(string phase) => new PhaseScope(CurrentId, phase);
+    // The Revit API thread does not carry the chat flow's AsyncLocal, so code there passes the id.
+    public static IDisposable MeasurePhase(string? id, string phase) => new PhaseScope(id, phase);
     private sealed class PhaseScope(string? id, string phase) : IDisposable
     {
         private readonly long _started = System.Diagnostics.Stopwatch.GetTimestamp();

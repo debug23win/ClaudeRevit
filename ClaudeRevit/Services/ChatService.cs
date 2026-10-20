@@ -116,10 +116,11 @@ public class ChatService
         "in bounded batches and get_checkpoint_job before continuing. Preview does not advance a job. Reuse its key " +
         "and exact plan/revision; do not recreate completed steps. Save the RVT for crash durability. " +
         "For live schedules agree nesting_policy and source categories; use audit_spds_schedule and actual sheet exports.\n\n" +
-        "AGED RESULTS: To save tokens, tool results from earlier prompts are shown truncated with an " +
-        "'[aged to save tokens …]' marker carrying an id. This is normal. If you genuinely need a full old " +
-        "result AND it cannot have changed, call get_full_result with that id; if the model may have changed " +
-        "since, re-query the live model instead.\n\n" +
+        "AGED RESULTS: To save tokens, large tool results from earlier prompts are replaced by a JSON summary " +
+        "with \"aged\": true, its original ok/status fields, a short \"head\" excerpt and a full_result_id. The head " +
+        "is an excerpt of history, not a current result. If you genuinely need the full old result AND it cannot " +
+        "have changed, call get_full_result with that id and follow next_offset while has_more is true; if the " +
+        "model may have changed since, re-query the live model instead.\n\n" +
         "For destructive operations, briefly confirm with the user if intent is ambiguous. Otherwise just proceed. " +
         "If a tool returns an error, read it and adjust. Each completed batch/tool call has one undo entry. " +
         "No transaction stays open between calls.\n\n" +
@@ -211,7 +212,13 @@ public class ChatService
     // Core schemas plus explicitly selected tool names, in stable append order.
     // Search reveals at most 12 names; clearing history resets discovery.
     public int? MaxToolRoundsOverride { get; set; }
+    // Set when the last prompt ended because it used up its tool-call rounds.
+    public bool StoppedAtRoundLimit { get; private set; }
     private readonly List<string> _revealedTools = new();
+    // Groups already pre-loaded this session. A reveal appends tool schemas, and tools are the
+    // first cached prefix, so every reveal rewrites the whole prompt cache; a group is pre-loaded
+    // once, and later prompts naming it reuse what is there (find_tools reaches the rest).
+    private readonly HashSet<string> _prewarmedGroups = new();
 
     private static IEnumerable<IRevitTool> SearchableTools()
     {
@@ -329,6 +336,7 @@ public class ChatService
         _execCsharpOk = 0;
         _promoteNudged = false;
         _revealedTools.Clear();
+        _prewarmedGroups.Clear();
     }
     private static string? ReadSession(string path)
     { try { return File.Exists(path) ? File.ReadAllText(path).Trim() : null; } catch { return null; } }
@@ -385,6 +393,7 @@ public class ChatService
         _execCsharpOk = 0;
         _promoteNudged = false;
         _revealedTools.Clear();
+        _prewarmedGroups.Clear();
         _claudeCodeSessionId = null;
         PersistClaudeCodeSession();
         _codexSessionId = null;
@@ -817,8 +826,11 @@ public class ChatService
         // ("add rebar", "make a section") so those tools are present on the first round and the
         // model doesn't have to spend a find_tools round first. It can still find_tools for the
         // rest. Purely additive to what's already revealed this session.
-        if (ToolCatalog.PrewarmCategories(lastUser).Count > 0)
-            foreach (var name in ToolCatalog.Search(SearchableTools(), lastUser).ToolNames)
+        // Only the user's own words count: the attachment manifest (paths, ".pdf", "inspect")
+        // would otherwise open groups the request never asked for.
+        var newGroups = ToolCatalog.PrewarmCategories(request.Text).Where(_prewarmedGroups.Add).ToHashSet();
+        if (newGroups.Count > 0)
+            foreach (var name in ToolCatalog.Search(SearchableTools().Where(t => newGroups.Contains(ToolCatalog.CategoryOf(t))), request.Text).ToolNames)
                 if (!_revealedTools.Contains(name)) _revealedTools.Add(name);
 
         var appendOnly = !alt && ClaudeModels.AppendOnlyHistory(model);
@@ -905,6 +917,7 @@ public class ChatService
 
         // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
         var maxIterations = MaxToolRoundsOverride ?? SettingsStore.MaxToolRounds;
+        StoppedAtRoundLimit = false;
 
         // Auto-escalation to a stronger model: keep a cheap/fast model for routine work, switch
         // to a stronger one when the task looks hard up front, or once the fast model starts
@@ -963,6 +976,7 @@ public class ChatService
             {
                 if (iter >= maxIterations)
                 {
+                    StoppedAtRoundLimit = true;
                     await ui.InvokeAsync(() => conversation.Add(new ChatMessage
                     {
                         Role = "assistant", AssistantName = _assistantName,
@@ -1249,7 +1263,7 @@ public class ChatService
                     }
                     catch (Exception ex)
                     {
-                        content = $"Error: {ex.Message}";
+                        content = ToolResult.Failure("tool_error", ex.Message);
                         isError = true;
                         var display = $"{FormatInput(inp)}\n✗ {ex.Message}";
                         await ui.InvokeAsync(() =>
@@ -1351,11 +1365,11 @@ public class ChatService
                     {
                         resultTurn.Blocks[bi] = b with
                         {
-                            Content = b.Content +
-                                "\n\n[SYSTEM: this exact error has now happened " + n + " times. Retrying the " +
+                            Content = ToolResult.WithSystemNote(b.Content,
+                                "[SYSTEM: this exact error has now happened " + n + " times. Retrying the " +
                                 "same call will NOT work — do not repeat it. Instead: look up the EXACT name/id " +
                                 "with a list_* or get_* tool, or use a different tool or approach (execute_csharp " +
-                                "is an available fallback), or ask the user how to proceed.]"
+                                "is an available fallback), or ask the user how to proceed.]")
                         };
                     }
                 }

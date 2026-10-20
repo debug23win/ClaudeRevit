@@ -64,8 +64,8 @@ public class AuditSafetyTests
         do
         {
             var page = ToolResultCap.Page("fixture", text, offset, 30_000);
-            // Pages must survive the production dispatcher cap unchanged.
-            Assert.Equal(page, ToolResultCap.Apply(page, "get_full_result"));
+            // Pages must survive the production dispatcher path (completion, then cap) unchanged.
+            Assert.Equal(page, ToolResultCap.Apply(ToolResult.Complete(page), "get_full_result"));
             using var parsed = JsonDocument.Parse(page); var r = parsed.RootElement;
             restored.Append(r.GetProperty("content").GetString());
             if (!r.GetProperty("has_more").GetBoolean()) break;
@@ -252,6 +252,66 @@ public class AuditSafetyTests
         Assert.Single(ToolSearchLogic.Search(catalog, "create_rebar_24").ToolNames);
         Assert.Empty(ToolSearchLogic.Search(catalog, "create").ToolNames);
         Assert.InRange(ToolSearchLogic.Search(catalog, "rebar").ToolNames.Count, 1, 12);
+    }
+
+    [Fact]
+    public void AgedErrorTextAndNotedFailuresKeepTheirFailureState()
+    {
+        var text = "Error: Compilation error:\n" + new string('x', 2_000);
+        var aged = JsonNode.Parse(ToolResultCap.Summarize(text, "id1", "aged result", 400, aged: true))!;
+        Assert.False(aged["ok"]!.GetValue<bool>());
+        Assert.Equal("failed", aged["status"]!.GetValue<string>());
+
+        var failure = ToolResult.Failure("validation", "Type 'X' not found. Available: " + new string('y', 2_000));
+        var noted = ToolResult.WithSystemNote(failure, "[SYSTEM: this exact error has now happened 2 times.]");
+        var parsed = JsonNode.Parse(noted)!;   // still one JSON value
+        Assert.Contains("happened 2 times", parsed["system_note"]!.GetValue<string>());
+        var agedNoted = JsonNode.Parse(ToolResultCap.Summarize(noted, "id2", "aged result", 400, aged: true))!;
+        Assert.False(agedNoted["ok"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public void AgingNeverMakesAResultLarger()
+    {
+        var receipt = new JsonObject { ["added"] = 1, ["modified"] = 0, ["deleted"] = 0, ["details_id"] = "changes_x",
+            ["readback"] = new JsonArray(new JsonObject { ["id"] = 1, ["category"] = "Walls", ["bounds_mm"] = new string('1', 120) }) };
+        var content = new JsonObject { ["ok"] = true, ["id"] = 123, ["message"] = new string('w', 450), ["receipt"] = receipt }
+            .ToJsonString(ToolResult.Options);
+        Assert.InRange(content.Length, 701, 1_200);
+        var history = new List<ApiTurn>
+        {
+            new() { Role = "user", Blocks = { new ChatToolResultBlock("t1", content, false) } },
+            new() { Role = "assistant", Blocks = { new ChatTextBlock("ok") } },
+            new() { Role = "user", Blocks = { new ChatTextBlock("next") } },
+        };
+        ToolResultAging.AgeOlderTurns(history, 1);
+        var kept = ((ChatToolResultBlock)history[0].Blocks[0]).Content;
+        Assert.True(kept.Length <= content.Length, $"aged {kept.Length} > original {content.Length}");
+
+        var large = new JsonObject { ["ok"] = true, ["items"] = new string('z', 20_000), ["receipt"] = receipt.DeepClone() }.ToJsonString(ToolResult.Options);
+        var agedLarge = ToolResultCap.Summarize(large, "id3", "aged result", 400, aged: true);
+        Assert.True(agedLarge.Length < 1_500, $"aged summary is {agedLarge.Length} chars");
+    }
+
+    [Fact]
+    public void CatalogOverviewCountsFamilyTypesAndOffsetNeedsOneList()
+    {
+        var categories = new JsonObject();
+        for (var c = 0; c < 60; c++)
+            categories["Category " + c] = new JsonArray(Enumerable.Range(0, 60).Select(i => (JsonNode?)JsonValue.Create($"Family {c}: A rather long type name number {i}")).ToArray());
+        using var catalog = JsonDocument.Parse(new JsonObject { ["levels"] = new JsonArray(1, 2), ["family_types_by_category"] = categories, ["materials"] = new JsonArray("A", "B") }.ToJsonString());
+        var overview = CatalogPage.SelectFitting(catalog.RootElement, null, null, 0, 40, null, 38_000);
+        Assert.True(overview.ToJsonString(ToolResult.Options).Length <= 38_000);
+        Assert.Equal(60, overview["catalog"]!["family_type_counts_by_category"]!["Category 7"]!.GetValue<int>());
+        Assert.NotNull(overview["paging"]!["materials"]);
+
+        var names = CatalogPage.SelectFitting(catalog.RootElement, new[] { "family_types_by_category" }, null, 0, 40, null, 38_000);
+        Assert.True(names.ToJsonString(ToolResult.Options).Length <= 38_000);
+        Assert.NotNull(names["limit_reduced_to"]);
+
+        Assert.Throws<ArgumentException>(() => CatalogPage.Select(catalog.RootElement, null, null, 40, 40, null));
+        var one = CatalogPage.Select(catalog.RootElement, new[] { "family_types_by_category" }, null, 40, 40, "Category 7");
+        Assert.Equal(20, one["catalog"]!["family_types_by_category"]!["Category 7"]!.AsArray().Count);
     }
 
     [Fact]

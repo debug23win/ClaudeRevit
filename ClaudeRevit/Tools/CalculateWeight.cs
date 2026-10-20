@@ -70,6 +70,8 @@ public class CalculateWeight : IRevitTool
 
         var rows = new List<(long id, string type, double kg)>();
         var noVolume = new List<long>();
+        var written = 0;
+        var writeFailures = new List<object>();
 
         foreach (var el in elements)
         {
@@ -85,16 +87,23 @@ public class CalculateWeight : IRevitTool
             if (!string.IsNullOrWhiteSpace(writeParam))
             {
                 var p = el.LookupParameter(writeParam);
-                if (p != null && !p.IsReadOnly)
+                string? problem = p == null ? "parameter not found" : p.IsReadOnly ? "read-only" : null;
+                if (problem == null)
                 {
                     try
                     {
-                        if (p.StorageType == StorageType.Double) p.Set(kg.Value);
-                        else if (p.StorageType == StorageType.String) p.Set(Math.Round(kg.Value, 2).ToString("0.##"));
-                        else if (p.StorageType == StorageType.Integer) p.Set((int)Math.Round(kg.Value));
+                        var set = p!.StorageType switch
+                        {
+                            StorageType.Double => p.Set(kg.Value),
+                            StorageType.String => p.Set(Math.Round(kg.Value, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)),
+                            StorageType.Integer => p.Set((int)Math.Round(kg.Value)),
+                            _ => false
+                        };
+                        if (set) written++; else problem = "incompatible parameter type";
                     }
-                    catch { }
+                    catch (Exception ex) { problem = ex.Message; }
                 }
+                if (problem != null) writeFailures.Add(new { id = el.Id.Value, reason = problem });
             }
         }
 
@@ -115,6 +124,9 @@ public class CalculateWeight : IRevitTool
             by_type = byType,
             no_volume = noVolume.Take(50),
             wrote_parameter = writeParam,
+            parameter_written = written,
+            parameter_failed_count = writeFailures.Count,
+            parameter_failures = writeFailures.Take(50),
             sample = rows.Take(50).Select(r => new { id = r.id, type = r.type, kg = Math.Round(r.kg, 2) })
         });
     }
@@ -136,12 +148,13 @@ public class CalculateWeight : IRevitTool
             var dM = Units.FeetToMm(diaFt) / 1000.0;
             var lM = Units.FeetToMm(totalLenFt) / 1000.0;
             var volM3 = Math.PI * dM * dM / 4.0 * lM;
-            return volM3 * (explicitDensity ?? DensityOf(doc, el) ?? SteelDensity);
+            // density_kg_m3 is the fallback for elements whose material has no density, as described.
+            return volM3 * (DensityOf(doc, el) ?? explicitDensity ?? SteelDensity);
         }
 
         var volFt3 = VolumeFt3(el);
         if (volFt3 == null || volFt3 <= 0) return null;
-        var density = explicitDensity ?? DensityOf(doc, el) ?? DefaultDensity(el);
+        var density = DensityOf(doc, el) ?? explicitDensity ?? DefaultDensity(el);
         return Units.CuFeetToCuM(volFt3.Value) * density;
     }
 

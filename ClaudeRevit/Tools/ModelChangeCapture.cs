@@ -84,16 +84,19 @@ internal sealed class ModelChangeCapture
             added_ids = added, modified_ids = modified, deleted_ids = deleted,
             rolled_back = rolledBack, units = "Revit internal: ft, kg; bounds below in mm"
         });
-        if (added.Length + modified.Length + deleted.Length > 0 || rolledBack) Services.ToolResultArchive.Record(receiptId, detail);
+        // A rolled-back or preview call has nothing to page through; archiving its empty list would
+        // only push real results out of the bounded archive.
+        var archived = added.Length + modified.Length + deleted.Length > 0;
+        if (archived) Services.ToolResultArchive.Record(receiptId, detail);
         Receipt = new
         {
             added = added.Length, modified = modified.Length, deleted = deleted.Length,
-            rolled_back = rolledBack, details_id = receiptId,
+            rolled_back = rolledBack, details_id = archived ? receiptId : null,
             details_truncated = detail.Length > Services.ToolResultArchive.MaxContentChars,
             verification = "Changed IDs re-read after execution; dimensional/parameter expectations require verify_model_result.",
             readback = added.Concat(modified).Take(8).Select(Readback).ToArray()
         };
-        return new { receipt_id=receiptId, added_count=added.Length,modified_count=modified.Length,deleted_count=deleted.Length,
+        return new { receipt_id=archived ? receiptId : null, added_count=added.Length,modified_count=modified.Length,deleted_count=deleted.Length,
             added_by_category=ByCategory(added),modified_by_category=ByCategory(modified),
             added_by_representation=added.GroupBy(id=>InfoOf(id).Representation).ToDictionary(g=>g.Key,g=>g.Count()),
             added_ids=added.Take(IdLimit).ToArray(),modified_ids=modified.Take(IdLimit).ToArray(),deleted_ids=deleted.Take(IdLimit).ToArray(),

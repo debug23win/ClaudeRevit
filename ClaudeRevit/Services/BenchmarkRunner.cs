@@ -116,6 +116,8 @@ public static class BenchmarkRunner
                     // selections never consult the pane's subscription toggle or old overrides.
                     await chat.SendAsync(conversation, execution.Tag, taskCts.Token, mcpSelection: execution.Agent);
                     error = chat.LastRunError;
+                    // The API path stops at the round budget by itself instead of being cancelled.
+                    budgetStopped = chat.StoppedAtRoundLimit;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested) { budgetStopped = true; }
                 catch (OperationCanceledException) { throw; }

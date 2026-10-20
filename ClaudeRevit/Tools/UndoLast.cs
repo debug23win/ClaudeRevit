@@ -174,6 +174,11 @@ internal sealed class UndoSequencer
     {
         _app.Idling -= OnIdling;
         _active = null;
+        // The step undone last was the user's own edit and Revit never confirmed restoring it:
+        // whatever stopped the sequence, that edit is most likely still undone, so say so first.
+        if (_foreign != null && !_redoConfirmed)
+            problem = $"The user's own step '{_foreign}' was undone and Revit did not confirm the Redo " +
+                $"({problem ?? "no confirmation"}). It is probably still undone: ask the user to press Redo (Ctrl+Y) once in Revit to restore it.";
         ActionHistory.Pop(_key, _done);
         var undoneEntries = _entries.Skip(_entries.Count - _done).ToList();
         var leftovers = _doc.IsValidObject ? undoneEntries.SelectMany(x => x.AddedSample).Count(id => _doc.GetElement(new ElementId(id)) != null) : 0;

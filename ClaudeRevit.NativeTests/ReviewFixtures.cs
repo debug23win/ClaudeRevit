@@ -26,7 +26,7 @@ internal static class ReviewFixtures
         Check("set_parameter_reaches_material_named_like_a_type", () => WithProject(app, MaterialBeatsSameNamedType));
         Check("audit_total_wall_thickness", () => WithProject(app, TotalThickness));
         Check("audit_derived_length_internal_units", () => WithProject(app, DerivedLength));
-        Check("audit_material_density_7850", () => WithProject(app, MaterialDensity));
+        Check("audit_material_density_1234", () => WithProject(app, MaterialDensity));
         Check("audit_placed_unbounded_room_survives_cleanup", () => WithProject(app, PlacedRoom));
         return new { passed = checks.Count(c => (bool)c.GetType().GetProperty("ok")!.GetValue(c)!), total = checks.Count, checks };
     }
@@ -72,10 +72,13 @@ internal static class ReviewFixtures
 
     private static object MaterialDensity(UIApplication app, Document doc)
     {
+        // 1234 kg/m3 is no default density in CalculateWeight, so only a correctly read material
+        // asset gives this mass; Revit converts the value itself, independently of Units.cs.
         using var tx = new Transaction(doc, "QA density"); tx.Start();
-        var materialId = Material.Create(doc, "QA_Steel_7850");
+        var materialId = Material.Create(doc, "QA_Density_1234");
         var material = (Material)doc.GetElement(materialId);
-        var asset = new StructuralAsset("QA_Steel_Asset", StructuralAssetClass.Metal) { Density = 7850 * Math.Pow(.3048, 3) };
+        var asset = new StructuralAsset("QA_Density_Asset", StructuralAssetClass.Generic)
+        { Density = UnitUtils.ConvertToInternalUnits(1234, UnitTypeId.KilogramsPerCubicMeter) };
         material.SetMaterialAspectByPropertySet(MaterialAspect.Structural, PropertySetElement.Create(doc, asset).Id);
         var side = 1 / .3048;
         var loop = CurveLoop.Create(new List<Curve>
@@ -87,10 +90,11 @@ internal static class ReviewFixtures
             new SolidOptions(materialId, ElementId.InvalidElementId));
         var shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel)); shape.SetShape(new GeometryObject[] { solid });
         doc.Regenerate();
-        using var result = JsonDocument.Parse(new CalculateWeight().Execute(SyntheticFixtures.Args(new { element_ids = new[] { shape.Id.Value } }), app));
+        // The fallback density must not override the material's own.
+        using var result = JsonDocument.Parse(new CalculateWeight().Execute(SyntheticFixtures.Args(new { element_ids = new[] { shape.Id.Value }, density_kg_m3 = 9999 }), app));
         var mass = result.RootElement.GetProperty("total_kg").GetDouble();
-        if (Math.Abs(mass - 7850) > .02) throw new InvalidOperationException($"A 1 m3 steel solid must weigh 7850 kg, got {mass}.");
-        tx.RollBack(); return new { volume_m3 = 1, expected_kg = 7850, actual_kg = mass };
+        if (Math.Abs(mass - 1234) > .02) throw new InvalidOperationException($"A 1 m3 solid of a 1234 kg/m3 material must weigh 1234 kg, got {mass}.");
+        tx.RollBack(); return new { volume_m3 = 1, expected_kg = 1234, actual_kg = mass };
     }
 
     private static object PlacedRoom(UIApplication app, Document doc)

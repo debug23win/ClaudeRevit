@@ -21,7 +21,8 @@ public static class ToolResult
             if (!obj.ContainsKey("ok") && obj["error"] is { } error && error.ToJsonString() is not ("null" or "\"\"")) return false;
             return true;
         }
-        catch (JsonException) { return true; } // legacy text results
+        // Legacy text results; the chat loop reports an exception as "Error: …" text.
+        catch (JsonException) { return !raw.TrimStart().StartsWith("Error", StringComparison.Ordinal); }
     }
     private static bool IsFalse(JsonNode? node) => node is JsonValue v && v.TryGetValue<bool>(out var b) && !b;
     private static bool IsTrue(JsonNode? node) => node is JsonValue v && v.TryGetValue<bool>(out var b) && b;
@@ -113,6 +114,22 @@ public static class ToolResult
         JsonValue v when v.TryGetValue<int>(out var n) => n > 0,
         _ => false
     };
+
+    // A note from the chat loop, kept inside the result so it stays one JSON value (text appended
+    // after the JSON would make it unparseable, and history aging would then lose its failure state).
+    public static string WithSystemNote(string raw, string note)
+    {
+        try
+        {
+            if (JsonNode.Parse(raw) is JsonObject obj)
+            {
+                obj["system_note"] = note;
+                return obj.ToJsonString(Options);
+            }
+        }
+        catch (JsonException) { }
+        return raw + "\n\n" + note;
+    }
 
     public static string Failure(string code, string message) => new JsonObject
     {

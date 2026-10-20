@@ -60,10 +60,12 @@ public class CleanModel : IRevitTool
             : all.ToHashSet();
 
         var report = new List<object>();
+        // Purge analysis is a whole-model pass; both default targets share one result per call.
+        var purgeable = new Lazy<ISet<ElementId>>(() => doc.GetUnusedElements(new HashSet<ElementId>()));
         var toDelete = new List<ElementId>();
 
-        if (targets.Contains("unused_family_types")) report.Add(UnusedFamilyTypes(doc, toDelete));
-        if (targets.Contains("unused_materials")) report.Add(UnusedMaterials(doc, toDelete));
+        if (targets.Contains("unused_family_types")) report.Add(UnusedFamilyTypes(doc, toDelete, purgeable.Value));
+        if (targets.Contains("unused_materials")) report.Add(UnusedMaterials(doc, toDelete, purgeable.Value));
         if (targets.Contains("exploded_imports")) report.Add(ExplodedImports(doc, toDelete));
         if (targets.Contains("unplaced_rooms")) report.Add(UnplacedRooms(doc, toDelete));
         if (targets.Contains("empty_groups")) report.Add(EmptyGroups(doc, toDelete));
@@ -71,54 +73,83 @@ public class CleanModel : IRevitTool
         var deleted = 0;
         var failures = new List<object>();
         var cascades = new List<object>();
-        var candidates = toDelete.Distinct().ToHashSet();
-        // Rehearse actual Revit deletion in a subtransaction even for dry runs.
-        // Never silently cascade outside the candidate set, including on apply.
-        foreach (var id in candidates)
+        var candidates = toDelete.Distinct().Where(id => doc.GetElement(id) != null).ToHashSet();
+        // Rehearse actual Revit deletion in a subtransaction even for dry runs, and never cascade
+        // outside the candidate set, including on apply. The whole set is rehearsed in one delete
+        // first: one regeneration instead of one per candidate, which on a large model is the
+        // difference between seconds and minutes. Only when that shows a cascade or an error is
+        // each candidate rehearsed on its own, to find which ones to refuse.
+        var clean = false;
+        if (candidates.Count > 0)
         {
             ToolContext.ThrowIfCancelled();
-            if (doc.GetElement(id) == null) continue;
-            using var sub = new SubTransaction(doc);
-            sub.Start();
+            using var rehearsal = new SubTransaction(doc);
+            rehearsal.Start();
             try
             {
-                var removed = doc.Delete(id).ToArray();
-                var unexpected = removed.Where(x => !candidates.Contains(x)).ToArray();
-                cascades.Add(new { id = id.Value, deleted_ids = removed.Select(x => x.Value).ToArray(),
-                    unexpected_ids = unexpected.Select(x => x.Value).ToArray() });
-                if (!apply || unexpected.Length > 0) sub.RollBack();
-                else { sub.Commit(); deleted += removed.Length; }
-                if (unexpected.Length > 0) failures.Add(new { id = id.Value, reason = "Dependent elements outside the candidate set: deletion refused." });
+                var removed = doc.Delete(candidates).ToArray();
+                clean = removed.All(candidates.Contains);
+                if (clean && apply) { rehearsal.Commit(); deleted = removed.Length; }
+                else rehearsal.RollBack();
             }
             catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
             catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
+            catch (Exception)
             {
-                if (sub.GetStatus() == TransactionStatus.Started) sub.RollBack();
-                failures.Add(new { id = id.Value, reason = Short(ex.Message) });
+                if (rehearsal.GetStatus() == TransactionStatus.Started) rehearsal.RollBack();
             }
         }
+        if (!clean)
+            foreach (var id in candidates)
+            {
+                ToolContext.ThrowIfCancelled();
+                if (doc.GetElement(id) == null) continue;
+                using var sub = new SubTransaction(doc);
+                sub.Start();
+                try
+                {
+                    var removed = doc.Delete(id).ToArray();
+                    var unexpected = removed.Where(x => !candidates.Contains(x)).ToArray();
+                    if (!apply || unexpected.Length > 0) sub.RollBack();
+                    else { sub.Commit(); deleted += removed.Length; }
+                    if (unexpected.Length > 0)
+                    {
+                        cascades.Add(new { id = id.Value, unexpected_ids = unexpected.Take(20).Select(x => x.Value).ToArray(), unexpected_count = unexpected.Length });
+                        failures.Add(new { id = id.Value, reason = "Dependent elements outside the candidate set: deletion refused." });
+                    }
+                }
+                catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    if (sub.GetStatus() == TransactionStatus.Started) sub.RollBack();
+                    failures.Add(new { id = id.Value, reason = Short(ex.Message) });
+                }
+            }
 
+        // Samples stay bounded so the per-target details (what the user is shown before apply)
+        // are never pushed out of the response by long id lists.
         return Services.Json.Serialize(new
         {
             preview = !apply,
             mode = apply ? "applied" : "dry_run",
-            candidates = toDelete.Distinct().Count(),
+            candidates = candidates.Count,
             deleted_elements = apply ? deleted : 0,
-            failures,
-            cascades,
             details = report,
+            failures_total = failures.Count,
+            failures = failures.Take(50),
+            cascades_total = cascades.Count,
+            cascades = cascades.Take(50),
             note = apply
-                ? "Applied safe candidates only; inspect failures and cascades. Each tool call is one undo step."
+                ? "Applied safe candidates only; candidates whose deletion would also remove other elements were refused (see cascades). Each tool call is one undo step."
                 : "DRY RUN — nothing was deleted. Show this to the user, then call again with apply=true to proceed."
         });
     }
 
     // Native Purge Unused understands references in parameters, nested types,
     // painted faces and other model data that instance counting misses.
-    private static object UnusedFamilyTypes(Document doc, List<ElementId> sink)
+    private static object UnusedFamilyTypes(Document doc, List<ElementId> sink, ISet<ElementId> purgeable)
     {
-        var purgeable = doc.GetUnusedElements(new HashSet<ElementId>());
         var candidates = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
             .Where(s => purgeable.Contains(s.Id) && s.Family?.IsInPlace != true).ToList();
         // Retain at least one type in every loaded family.
@@ -134,9 +165,8 @@ public class CleanModel : IRevitTool
         return new { target = "unused_family_types", count = selected.Count, sample = selected.Take(50).Select(s => $"{s.Family.Name}: {s.Name}") };
     }
 
-    private static object UnusedMaterials(Document doc, List<ElementId> sink)
+    private static object UnusedMaterials(Document doc, List<ElementId> sink, ISet<ElementId> purgeable)
     {
-        var purgeable = doc.GetUnusedElements(new HashSet<ElementId>());
         var materials = new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>()
             .Where(m => purgeable.Contains(m.Id)).ToList();
         sink.AddRange(materials.Select(m => m.Id));

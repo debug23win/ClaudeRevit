@@ -21,6 +21,9 @@ internal static class NameResolve
 
         var matches = all.Where(e => Matches(e, name)).ToArray();
         if (matches.Length == 1) return matches[0];
+        // An exact-case hit still decides between names that differ only in case, as before.
+        var exact = matches.Where(e => e.Name == name?.Trim()).ToArray();
+        if (exact.Length == 1) return exact[0];
         if (matches.Length > 1) throw new ToolInputException($"Ambiguous {kind} '{name}'; use Family: Type or an explicit id. Matches: {string.Join(", ", matches.Select(Display))}");
         throw new InvalidOperationException(NotFound(name, kind, all.Select(Display)));
     }
@@ -30,11 +33,14 @@ internal static class NameResolve
         if (string.IsNullOrWhiteSpace(name)) return false;
         var requested = name.Trim();
         if (string.Equals(element.Name?.Trim(), requested, StringComparison.OrdinalIgnoreCase)) return true;
-        if (element is not FamilySymbol symbol) return false;
-        return string.Equals($"{symbol.FamilyName}: {symbol.Name}", requested, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals($"{symbol.FamilyName}:{symbol.Name}", requested, StringComparison.OrdinalIgnoreCase);
+        // System types qualify too ("Basic Wall: Exterior" vs "Curtain Wall: Exterior"), so the
+        // form the ambiguity error suggests always resolves.
+        if (element is not ElementType type || string.IsNullOrEmpty(type.FamilyName)) return false;
+        return string.Equals($"{type.FamilyName}: {type.Name}", requested, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals($"{type.FamilyName}:{type.Name}", requested, StringComparison.OrdinalIgnoreCase);
     }
-    private static string Display(Element element) => element is FamilySymbol symbol ? $"{symbol.FamilyName}: {symbol.Name}" : element.Name;
+    private static string Display(Element element) =>
+        element is ElementType type && !string.IsNullOrEmpty(type.FamilyName) ? $"{type.FamilyName}: {type.Name}" : element.Name;
 
     // A ready-made exception for call sites that already did their own lookup.
     public static ToolInputException Missing(string? name, string kind, IEnumerable<string?> available) =>

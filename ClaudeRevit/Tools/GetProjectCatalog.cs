@@ -22,7 +22,9 @@ public class GetProjectCatalog : IRevitTool
         "kind/discipline), loadable family types grouped by category, system types (walls, " +
         "floors, roofs), materials, and the full reinforcement catalog (bar types with " +
         "diameters, rebar shapes, hook types, cover types, area/path reinforcement types). " +
-        "Request sections and a family_category/query for the current task; use paging offsets for additional entries. " +
+        "Without sections, family_category or query it returns an overview with family type counts per category; " +
+        "request sections and a family_category/query for the names. offset continues one list, so pass the single " +
+        "section (and family_category) named in paging. A response that would not fit reports limit_reduced_to. " +
         "The result is cached for the session; pass refresh=true after loading new families or " +
         "creating new types.";
 
@@ -33,7 +35,7 @@ public class GetProjectCatalog : IRevitTool
             ["sections"] = JsonSerializer.SerializeToElement(new { type = "array", items = new { type = "string", @enum = new[] { "document", "levels", "view_templates", "family_types_by_category", "system_types", "materials", "reinforcement" } }, description = "Optional sections; request only assets needed for the current task." }),
             ["family_category"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional category substring for family_types_by_category, e.g. Structural Framing." }),
             ["query"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional substring filter within catalog lists." }),
-            ["offset"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 0, description = "Default 0; list continuation offsets are in paging." }),
+            ["offset"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 0, description = "Default 0. Continues one list: use next_offset from paging with the single section (and family_category) it belongs to." }),
             ["limit"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 1, maximum = 300, description = "Default 40 per list." }),
             ["refresh"] = JsonSerializer.SerializeToElement(new
             {
@@ -74,9 +76,10 @@ public class GetProjectCatalog : IRevitTool
         }
 
         // One serialization site so the cached and fresh response shapes can't diverge.
-        var response = Services.CatalogPage.Select(catalog,
+        var response = Services.CatalogPage.SelectFitting(catalog,
             input.TryGetValue("sections", out var sections) ? sections.EnumerateArray().Select(s => s.GetString()!).ToArray() : null,
-            NativeToolUtil.Text(input, "query"), ToolInput.OptionalInt(input, "offset") ?? 0, ToolInput.OptionalInt(input, "limit") ?? 40, NativeToolUtil.Text(input, "family_category"));
+            NativeToolUtil.Text(input, "query"), ToolInput.OptionalInt(input, "offset") ?? 0, ToolInput.OptionalInt(input, "limit") ?? 40, NativeToolUtil.Text(input, "family_category"),
+            Services.ToolResultCap.MaxChars - 2_000);
         response["cached"] = cached;
         return response.ToJsonString(Services.ToolResult.Options);
     }

@@ -15,7 +15,7 @@ public class BenchmarkRunnerTests : IDisposable
         _dispatcher.Starts = _dispatcher.Ends = 0; _dispatcher.ScopeActive = _dispatcher.Family = false;
         _dispatcher.LevelCreated = false;
         _dispatcher.Tools.Clear(); ToolDispatcher.ForceSuppress = false; DocumentSessions.CurrentDocumentKey = "test-document";
-        ChatService.Send = _ => Task.CompletedTask; ChatService.Grade = "{\"pass\":true,\"score\":90,\"reason\":\"objective test\"}";
+        ChatService.Send = _ => Task.CompletedTask; ChatService.StopAtRoundLimit = false; ChatService.Grade = "{\"pass\":true,\"score\":90,\"reason\":\"objective test\"}";
     }
     public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, true); }
     private Task Run(IReadOnlyList<BenchmarkTask> tasks, List<BenchmarkResult> rows, CancellationToken ct = default) =>
@@ -38,6 +38,15 @@ public class BenchmarkRunnerTests : IDisposable
         Assert.Equal(0.001, first.RootElement.GetProperty("phase_seconds").GetProperty("revit_execution_sum").GetDouble());
         Assert.True(second.RootElement.GetProperty("skipped").GetBoolean());
         Assert.False(second.RootElement.GetProperty("graded").GetBoolean());
+    }
+    [Fact]
+    public async Task ApiRunStoppedAtItsRoundBudgetIsMarkedBudgetStopped()
+    {
+        // The API path ends at the round limit by itself; nothing is cancelled.
+        ChatService.StopAtRoundLimit = true;
+        var rows = new List<BenchmarkResult>();
+        await Run(new[] { BenchmarkTasks.All[0] }, rows);
+        Assert.StartsWith("[task budget reached]", rows[0].Reason);
     }
     [Fact]
     public async Task CancellationRollsBackScopeAndRestoresSuppression()

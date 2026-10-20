@@ -466,7 +466,9 @@ public class ToolDispatcher : IExternalEventHandler
             if (target == null) { job.Tcs.TrySetResult(Services.ToolResult.Failure("validation", "No bound document. Nothing was undone.")); job.Operation.Dispose(); return; }
             try
             {
-                int? steps = job.Input.ContainsKey("steps") ? ToolInput.RequiredInt(job.Input, "steps") : null;
+                // An explicit null is how strict/nullable schemas send "not given": undo the whole action.
+                int? steps = job.Input.TryGetValue("steps", out var stepsValue) && stepsValue.ValueKind != JsonValueKind.Null
+                    ? ToolInput.RequiredInt(job.Input, "steps") : null;
                 if (steps is <= 0) throw new ToolInputException("steps must be a positive integer.");
                 Services.Log.Info($"tool → undo_last steps={steps?.ToString() ?? "action"}");
                 job.Tcs.Task.ContinueWith(_ => job.Operation.Dispose(), TaskScheduler.Default);
@@ -680,7 +682,7 @@ public class ToolDispatcher : IExternalEventHandler
             try
             {
             object? delta;
-            using (Services.TaskJournal.MeasurePhase("post_write_readback")) delta = changes?.Complete(rolledBack);
+            using (Services.TaskJournal.MeasurePhase(job.TaskId, "post_write_readback")) delta = changes?.Complete(rolledBack);
             if (completedResult != null && changes?.Receipt is { } receipt &&
                 (changes.AddedCount + changes.ModifiedCount + changes.DeletedCount > 0 || executionRolledBack))
             {

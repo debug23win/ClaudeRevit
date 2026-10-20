@@ -37,20 +37,22 @@ public static class ToolResultCap
                 foreach (var key in Controls)
                     if (source[key] is { } value && value.ToJsonString(ToolResult.Options).Length <= 1_000)
                         envelope[key] = value.DeepClone();
-                foreach (var key in new[] { "error", "warnings", "errors", "verification", "plan", "receipt" })
+                // An aged summary is replayed on every later request, so its copies stay short; the
+                // receipt is already in the head.
+                foreach (var key in aged ? new[] { "error", "warnings", "errors" } : new[] { "error", "warnings", "errors", "verification", "plan", "receipt" })
                     if (source[key] is { } value)
-                        envelope[key] = Bounded(value, key is "warnings" or "errors");
+                        envelope[key] = Bounded(value, key is "warnings" or "errors", aged ? 300 : 3_000);
             }
         }
         catch (JsonException) { }
         return WithBoundedText(envelope, "head", result, 0, Math.Min(headChars, result.Length));
     }
 
-    private static JsonNode Bounded(JsonNode value, bool array)
+    private static JsonNode Bounded(JsonNode value, bool array, int limit)
     {
         var raw = value.ToJsonString(ToolResult.Options);
-        if (raw.Length <= 3_000) return value.DeepClone();
-        var excerpt = raw[..400] + "… (see archive)";
+        if (raw.Length <= limit) return value.DeepClone();
+        var excerpt = raw[..Math.Min(400, limit / 2)] + "… (see archive)";
         return array ? new JsonArray(new JsonObject { ["code"] = "details_archived", ["message"] = excerpt }) : JsonValue.Create(excerpt)!;
     }
 
@@ -63,8 +65,10 @@ public static class ToolResultCap
             throw new ArgumentOutOfRangeException(nameof(offset), "Do not split a Unicode surrogate pair; use the returned next_offset and a limit of at least 2.");
         return WithBoundedText(new JsonObject
         {
+            // The fields ToolResult.Complete would add are present already, so the dispatcher's
+            // completion cannot push a page fitted to the ceiling over it.
             ["ok"] = true, ["id"] = id, ["offset"] = offset, ["total_chars"] = content.Length,
-            ["historical"] = true
+            ["historical"] = true, ["warnings"] = new JsonArray(), ["errors"] = new JsonArray(), ["status"] = "success"
         }, "content", content, offset, Math.Min(limit, content.Length - offset));
     }
 
