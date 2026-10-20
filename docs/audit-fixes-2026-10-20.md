@@ -9,7 +9,7 @@ The supplied interim report contains 168 entries (1 critical, 50 high, 103 mediu
 - Transactional logical failures roll back before responding. Failed items in `run_batch` roll back their subtransaction while successful items remain in the batch. Script transaction groups also roll back on logical failures. This protects Revit model changes, not external file/network effects of arbitrary code.
 - Results and aged history stay one JSON value. Truncation preserves failure, preview, commit and rollback control fields. Large diagnostics retain an archive reference.
 - `get_full_result` returns JSON pages: `content`, `offset`, `next_offset`, `has_more`, `total_chars`. Follow the returned offset. Each serialized page fits the response ceiling, including escaped characters and emoji.
-- Archive entries retain up to 2,000,000 characters; `archive_truncated` explicitly identifies larger originals. Memory and disk are bounded. Archives are historical evidence, not a substitute for re-querying edited model elements.
+- Archive entries retain up to 2,000,000 characters; `archive_truncated` explicitly identifies larger originals. Memory and disk are bounded. The in-memory cache evicts the least recently used entry (a plain dictionary evicted the newest one after its first removal, so later lookups re-read the archive file). Archives are historical evidence, not a substitute for re-querying edited model elements.
 
 ## Model correctness and deletion
 
@@ -24,10 +24,12 @@ The supplied interim report contains 168 entries (1 critical, 50 high, 103 mediu
 ## Context and responsiveness
 
 - Direct API discovery reveals individual tools, at most 12 per search; exact names reveal one. Ambiguous Russian grid/section-size stems no longer prewarm reinforcement or family authoring. Disabled tools are excluded.
+- Tools picked out by the query's own words are ranked, and matches beyond the 12 are listed by name so one exact-name search loads any of them. A group named only by a keyword is loaded whole: tool descriptions are English, so a Russian request ("хомуты по зонам") gives no word to rank by, and the first 12 in registration order would hide the rest of the group. Every keyword group in a prompt is loaded, so "арматура и разрез" gets both.
+- Group keywords match at the start of a word or after a common Russian verb prefix ("образмерь", "замаркируй", "сгруппируй", "заармируй"). Keys are split like the text, so "технико-эконом" and "СП 1.13130" match, and quotes, guillemets and brackets separate words.
 - Subscription MCP discovery keeps its existing compact gateway; API discovery and subscription timings are different execution profiles.
 - Codex driving rules are included in the initial prompt, not duplicated in every resumed prompt. MCP initialization continues to deliver current session instructions.
 - Catalog lists retain complete cached data and expose bounded pages/counts, section selection, family-category and substring filters. External edits invalidate the affected document cache.
-- Cyrillic headless results use Unicode serialization and a serialized-size budget.
+- Cyrillic headless results are re-encoded without `\uXXXX` escapes before the budget is measured, so the limit counts real text and the kept head is readable. Callers still serialize with the default encoder; the test now builds its input the same way.
 - Prepared PNG attachments fit the actual inline base64 budget. Markdown throttles continuous deltas instead of postponing rendering until streaming stops.
 - Optional closing suggestions do not trigger automatic continuation. Benchmark API round limits use the benchmark's configured budget rather than a smaller pane setting.
 
@@ -37,9 +39,11 @@ Every changed call returns a receipt with exact change counts, a paged archive o
 
 A receipt proves only the readback scope. Before claiming dimensional or parameter correctness, use `verify_model_result` with declared expected values; it already performs independent native checks. No generic success flag certifies engineering adequacy or drawing compliance.
 
-Task journals expose authorization-process and API-provider request counts/times plus post-write readback time, in addition to existing total, queue, Revit, worker and token/cache metrics. Phase sums may overlap; provider time includes network/server/streaming and must not be presented as pure model reasoning time. Failed journal writes are surfaced in diagnostics. SPDS updater failures/incomplete sources persist in the model and are exposed by `audit_spds_schedule`.
+Task journals expose authorization-process and API-provider request counts/times plus post-write readback time, in addition to existing total, queue, Revit, worker and token/cache metrics. Phase sums may overlap; provider time includes network/server/streaming and must not be presented as pure model reasoning time. Failed journal writes are surfaced in diagnostics. SPDS updater failures/incomplete sources persist in the model and are exposed by `audit_spds_schedule`. The updater writes that state only when it changes, so ordinary edits do not modify the table's DataStorage element (in a workshared model, writing it on every edit would hand its ownership to whoever edited last and fail collaborators' edits). `refresh_utc` is the time the state was last recorded.
 
 ## Validation
+
+Follow-up review fixes: 426 unit tests pass, 14 of them new; each new test fails on the previous revision. Builds for Revit 2025/2026/2027, MCP, CLI and the 51 ModPlus checks pass (run on Linux with Windows targeting).
 
 Local checks on Windows: **412 unit tests passed**, isolated pane/MCP/CLI checks passed, **51 ModPlus adapter checks passed**, builds for Revit 2025/2026/2027 and native-harness compilation succeeded (existing compiler warnings remain). No production project was modified, no live model calls were billed, and native Revit execution remains pending.
 

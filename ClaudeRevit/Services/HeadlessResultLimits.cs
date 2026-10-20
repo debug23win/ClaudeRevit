@@ -10,8 +10,16 @@ public static class HeadlessResultLimits
     { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     public static string Compact(string raw)
     {
+        if (raw.Length <= 30_000 && !raw.Contains("\\u", StringComparison.Ordinal)) return raw;
+        // Callers serialize with the default encoder, which writes each Cyrillic character as a
+        // six-character \uXXXX escape. Re-encode first, so the budget counts real text and the
+        // head is readable instead of carrying literal escapes.
+        JsonNode? parsed;
+        try { parsed = JsonNode.Parse(raw); }
+        catch (System.Text.Json.JsonException) when (raw.Length <= 30_000) { return raw; }
+        raw = parsed?.ToJsonString(Options) ?? raw;
         if (raw.Length <= 30_000) return raw;
-        var source = JsonNode.Parse(raw) as JsonObject ?? throw new InvalidOperationException("Expected a structured headless result.");
+        var source = parsed as JsonObject ?? throw new InvalidOperationException("Expected a structured headless result.");
         var result = new JsonObject { ["truncated"] = true, ["total_chars"] = raw.Length };
         foreach (var name in new[] { "ok", "preview", "committed", "rolledBack", "rejected", "idsTemporary", "modelModified", "module", "operation", "error", "errorCode" })
             if (source[name] is { } value) result[name] = value.ToJsonString(Options).Length <= 2_000 ? value.DeepClone() : JsonValue.Create(value.ToJsonString(Options)[..2_000] + "…");

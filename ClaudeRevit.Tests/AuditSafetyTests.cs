@@ -126,11 +126,23 @@ public class AuditSafetyTests
     [Fact]
     public void CyrillicFitsHeadlessBudgetWithoutAsciiExpansion()
     {
-        var raw = new JsonObject { ["ok"] = true, ["text"] = new string('Я', 40_000) }.ToJsonString(ToolResult.Options);
+        // Production callers use the default serializer, which escapes every Cyrillic character.
+        var raw = System.Text.Json.JsonSerializer.Serialize(new { ok = true, text = new string('Я', 40_000) });
+        Assert.Contains("\\u042F", raw);
         var result = HeadlessResultLimits.Compact(raw);
         Assert.True(result.Length <= 30_000);
         Assert.DoesNotContain("\\u042F", result);
         Assert.Contains(new string('Я', 9000), result);
+    }
+
+    [Fact]
+    public void EscapedCyrillicUnderTheBudgetIsNotTruncated()
+    {
+        // 20 000 characters of text serialize to 120 000 escaped characters, yet fit as text.
+        var raw = System.Text.Json.JsonSerializer.Serialize(new { ok = true, text = new string('Я', 20_000) });
+        var result = HeadlessResultLimits.Compact(raw);
+        Assert.DoesNotContain("\"truncated\"", result);
+        Assert.Contains(new string('Я', 20_000), result);
     }
 
     [Theory]
@@ -168,6 +180,70 @@ public class AuditSafetyTests
     [Fact]
     public void AxisGridAndSectionSizeDoNotLoadRebarOrFamilyAuthoring()
         => Assert.Empty(ToolSearchLogic.Prewarm("Создай колонны сечением 400х400 по сетке осей"));
+
+    [Theory]
+    [InlineData("образмерь стены на плане", "Annotation")]
+    [InlineData("замаркируй все двери", "Annotation")]
+    [InlineData("сгруппируй эти элементы", "Groups")]
+    [InlineData("разгруппируй группу", "Groups")]
+    [InlineData("заармируй плиту перекрытия", "Rebar")]
+    [InlineData("посчитай технико-экономические показатели", "Documentation")]
+    [InlineData("проверь эвакуацию по СП 1.13130", "Documentation")]
+    [InlineData("lay welded mesh on the slab", "Rebar")]
+    [InlineData("открой вид «Разрез 1»", "Views")]
+    public void PrefixedRussianVerbsAndPunctuatedKeysStillPrewarm(string prompt, string expected)
+        => Assert.Contains(expected, ToolSearchLogic.Prewarm(prompt));
+
+    private static ToolSearchLogic.ToolInfo[] LargeRebarAndViewsCatalog() =>
+        Enumerable.Range(0, 27).Select(i => new ToolSearchLogic.ToolInfo($"rebar_tool_{i:00}", "Places reinforcement.", "Rebar", false))
+            .Append(new ToolSearchLogic.ToolInfo("create_stirrup_zones", "Places stirrups by zones.", "Rebar", false))
+            .Concat(Enumerable.Range(0, 20).Select(i => new ToolSearchLogic.ToolInfo($"view_tool_{i:00}", "Creates a view.", "Views", false)))
+            .ToArray();
+
+    [Fact]
+    public void RussianKeywordOnlyQueryLoadsTheWholeGroupInsteadOfTheFirstTwelve()
+    {
+        // English descriptions give a Russian query nothing to rank by; the group must stay reachable.
+        var result = ToolSearchLogic.Search(LargeRebarAndViewsCatalog(), "хомуты по зонам в балке");
+        Assert.Contains("create_stirrup_zones", result.ToolNames);
+        Assert.Equal(28, result.ToolNames.Count);
+    }
+
+    [Fact]
+    public void TwoKeywordGroupsInOnePromptAreBothLoaded()
+    {
+        var result = ToolSearchLogic.Search(LargeRebarAndViewsCatalog(), "добавь арматуру в колонну и сделай разрез");
+        Assert.Contains("Rebar", result.Categories);
+        Assert.Contains("Views", result.Categories);
+        Assert.Contains("rebar_tool_00", result.ToolNames);
+        Assert.Contains("view_tool_00", result.ToolNames);
+    }
+
+    [Fact]
+    public void RankedSearchNamesTheMatchesItDidNotLoad()
+    {
+        var result = ToolSearchLogic.Search(LargeRebarAndViewsCatalog(), "rebar tool");
+        Assert.Equal(12, result.ToolNames.Count);
+        Assert.Contains("Also matched but not loaded", result.Message);
+        var omitted = Enumerable.Range(0, 27).Select(i => $"rebar_tool_{i:00}").Except(result.ToolNames).ToList();
+        Assert.NotEmpty(omitted);
+        Assert.All(omitted, name => Assert.Contains(name, result.Message));
+    }
+
+    [Fact]
+    public void ArchiveCacheKeepsTheNewestEntriesAndEvictsTheOldest()
+    {
+        var prefix = "lru_" + Guid.NewGuid().ToString("N") + "_";
+        for (var i = 0; i < 310; i++) ToolResultArchive.Record(prefix + i, "content " + i);
+        Assert.True(ToolResultArchive.IsCached(prefix + 309));
+        Assert.True(ToolResultArchive.IsCached(prefix + 308));
+        Assert.False(ToolResultArchive.IsCached(prefix + 0));
+        // A lookup refreshes recency, so a re-read entry survives the next wave of inserts.
+        Assert.Equal("content 20", ToolResultArchive.Lookup(prefix + 20));
+        for (var i = 310; i < 320; i++) ToolResultArchive.Record(prefix + i, "content " + i);
+        Assert.True(ToolResultArchive.IsCached(prefix + 20));
+        Assert.True(ToolResultArchive.IsCached(prefix + 319));
+    }
 
     [Fact]
     public void ExactDiscoveryLoadsOneSchemaAndVagueVerbLoadsNone()
