@@ -16,8 +16,8 @@ namespace ClaudeRevit.Services;
 // blocks produced last turn flip once, exactly where the cache is being extended anyway.
 public static class ToolResultAging
 {
-    // The aged replacement (KeepChars + truncation suffix + marker ≈ 550 chars) is
-    // always shorter than MinChars — that inequality IS the idempotence guarantee.
+    // The explicit aged marker keeps summaries idempotent even when preserved control
+    // fields make the envelope larger than the nominal head budget.
     public const int MinChars = 700;
     public const int KeepChars = 400;
 
@@ -58,14 +58,19 @@ public static class ToolResultAging
         {
             if (turn.Blocks[i] is not ChatToolResultBlock tr) continue;
             if (tr.Content.Length <= MinChars) continue;
+            try
+            {
+                using var parsed = System.Text.Json.JsonDocument.Parse(tr.Content);
+                if (parsed.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    parsed.RootElement.TryGetProperty("aged", out var marker) && marker.ValueKind == System.Text.Json.JsonValueKind.True) continue;
+            }
+            catch (System.Text.Json.JsonException) { }
 
+            var summary = ToolResultCap.Summarize(tr.Content, tr.ToolUseId, "aged result", KeepChars, aged: true);
+            // The envelope carries fixed fields; a result only a little over the threshold would grow.
+            if (summary.Length >= tr.Content.Length) continue;
             ToolResultArchive.Record(tr.ToolUseId, tr.Content);
-            turn.Blocks[i] = new ChatToolResultBlock(
-                tr.ToolUseId,
-                TextUtil.Truncate(tr.Content, KeepChars) +
-                "\n[aged to save tokens — call get_full_result with id \"" + tr.ToolUseId +
-                "\" if you truly need the full original output]",
-                tr.IsError);
+            turn.Blocks[i] = new ChatToolResultBlock(tr.ToolUseId, summary, tr.IsError);
             aged++;
         }
         return aged;

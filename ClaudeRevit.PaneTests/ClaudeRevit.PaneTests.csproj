@@ -8,9 +8,12 @@
     <RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\ClaudeRevit\UI\MarkdownProps.cs" Link="MarkdownProps.cs" />
+    <Compile Include="..\ClaudeRevit\UI\MarkdownInlineRenderer.cs" Link="MarkdownInlineRenderer.cs" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <Compile Include="..\ClaudeRevit\Services\AttachmentReader.cs" Link="AttachmentReader.cs" />
     <Compile Include="..\ClaudeRevit\Services\AttachmentStore.cs" Link="AttachmentStore.cs" />
+    <Compile Include="..\ClaudeRevit\Services\ChatHistory.cs" Link="ChatHistory.cs" />
     <Compile Include="..\ClaudeRevit\Services\AttachmentImage.cs" Link="AttachmentImage.cs" />
     <Compile Include="..\ClaudeRevit\Services\ChatRequestInbox.cs" Link="ChatRequestInbox.cs" />
     <Page Include="..\ClaudeRevit\UI\ChatPaneView.xaml" Link="ChatPaneView.xaml" />

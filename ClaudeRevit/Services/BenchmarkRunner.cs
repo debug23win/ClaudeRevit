@@ -95,7 +95,7 @@ public static class BenchmarkRunner
                     before = await StatsAsync(task, false, documentKey, ct);
                 }
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed before the benchmark task.");
-                var chat = new ChatService(ephemeral: true) { SubscriptionMode = false };
+                var chat = new ChatService(ephemeral: true) { SubscriptionMode = false, MaxToolRoundsOverride = maxRoundsPerTask > 0 ? maxRoundsPerTask : int.MaxValue };
                 chat.OnStatus = phase => onStatus($"{task.Id} · {task.Title} · {phase}");
                 var conversation = new ObservableCollection<ChatMessage> { new() { Role = "user", Text = task.Prompt +
                     "\nBenchmark: keep the current document active; do not save or close it, open another document, or change application/global settings. " +
@@ -116,6 +116,8 @@ public static class BenchmarkRunner
                     // selections never consult the pane's subscription toggle or old overrides.
                     await chat.SendAsync(conversation, execution.Tag, taskCts.Token, mcpSelection: execution.Agent);
                     error = chat.LastRunError;
+                    // The API path stops at the round budget by itself instead of being cancelled.
+                    budgetStopped = chat.StoppedAtRoundLimit;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested) { budgetStopped = true; }
                 catch (OperationCanceledException) { throw; }
@@ -295,7 +297,7 @@ public static class BenchmarkRunner
                 scoring_formula = "quality * (0.8 + 0.2 * min(1, reference_seconds / seconds))",
                 reference_seconds = r.ReferenceSeconds, reference_source = r.ReferenceSource,
                 timing_scope = "modeller_and_tools_excluding_probe_judge_reset",
-                execution_profile = execution.Backend == "api" ? "api_progressive_v1" : "compact_mcp_v1",
+                execution_profile = execution.Backend == "api" ? "api_selective_v2" : "compact_mcp_v2",
                 task_suite_version = "v3.8.4",
                 objective_checks = r.Objective,
                 seed_fingerprint = r.SeedFingerprint,

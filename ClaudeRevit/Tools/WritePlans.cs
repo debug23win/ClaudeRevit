@@ -56,6 +56,7 @@ internal static class WritePlans
         JsonObject? obj;
         try { obj = JsonNode.Parse(result) as JsonObject; } catch (JsonException) { return result; }
         if (obj == null) return result;
+        if (!Services.ToolResult.LooksSuccessful(result)) return result;
         var isPreview = obj["preview"] is JsonValue pv && pv.TryGetValue<bool>(out var b) && b;
         if (isPreview)
         {

@@ -22,9 +22,10 @@ public class DeriveParameters : IRevitTool
         "height_mm, elevation_mm, top_elevation_mm), identity (level_name, type_name, family_name, category, " +
         "host_name, host_id), or a TEMPLATE combining them.\n" +
         "template example: \"{level_name}-{type_name}\" — any source name in braces, plus {index} for a running " +
-        "number. Use `round` for numeric sources and `factor` to scale (e.g. tonnes).\n" +
+        "number. Use `round` for numeric sources and `factor` to scale (e.g. tonnes) into a Number/Text target; " +
+        "Length/Area/Volume targets are converted from mm/m²/m³ automatically.\n" +
         "Target a category (optionally on_level) or an explicit element_ids list. Writes text or numeric " +
-        "parameters; numeric targets receive Revit-internal units unless the source is already unit-specific.";
+        "parameters; Length/Area/Volume targets convert the declared source units to Revit internal units; mismatched dimensions are rejected. Number/Text targets retain source values.";
 
     public InputSchema InputSchema => new()
     {
@@ -50,7 +51,7 @@ public class DeriveParameters : IRevitTool
                 description = "With source='template': text with {placeholders}, e.g. \"{level_name}-{type_name}-{index}\"."
             }),
             ["round"] = JsonSerializer.SerializeToElement(new { type = "integer", description = "Decimals for numeric sources. Default 1." }),
-            ["factor"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Multiply numeric result by this. Default 1." }),
+            ["factor"] = JsonSerializer.SerializeToElement(new { type = "number", description = "Multiply the numeric result, in its source unit (mm, m², m³), by this. Default 1. Length/Area/Volume targets are converted to Revit units automatically: do not use factor for unit conversion." }),
             ["skip_if_filled"] = JsonSerializer.SerializeToElement(new
             {
                 type = "boolean", description = "Don't overwrite a parameter that already has a value. Default false."
@@ -103,7 +104,7 @@ public class DeriveParameters : IRevitTool
                 {
                     d = Math.Round(d * factor, decimals);
                     shown = d.ToString(CultureInfo.InvariantCulture);
-                    if (p.StorageType == StorageType.Double) p.Set(d);
+                    if (p.StorageType == StorageType.Double) SetMeasured(p, d, source);
                     else if (p.StorageType == StorageType.Integer) p.Set((int)Math.Round(d));
                     else if (p.StorageType == StorageType.String) p.Set(shown);
                     else { failed.Add(new { id = el.Id.Value, reason = "incompatible parameter type" }); continue; }
@@ -114,11 +115,14 @@ public class DeriveParameters : IRevitTool
                     if (p.StorageType == StorageType.String) p.Set(shown);
                     else if (p.StorageType == StorageType.Integer && int.TryParse(shown, out var iv)) p.Set(iv);
                     else if (p.StorageType == StorageType.Double &&
-                             double.TryParse(shown, NumberStyles.Any, CultureInfo.InvariantCulture, out var dv)) p.Set(dv);
+                             double.TryParse(shown, NumberStyles.Any, CultureInfo.InvariantCulture, out var dv)) SetMeasured(p, dv, source);
                     else { failed.Add(new { id = el.Id.Value, reason = "incompatible parameter type" }); continue; }
                 }
                 written.Add(new { id = el.Id.Value, value = shown });
             }
+            // A source/target dimension mismatch is the call's contract error, the same for every
+            // element: fail the call once instead of repeating it per element as a partial success.
+            catch (ToolInputException) { throw; }
             catch (Exception ex) { failed.Add(new { id = el.Id.Value, reason = ex.Message }); }
         }
 
@@ -126,11 +130,29 @@ public class DeriveParameters : IRevitTool
         {
             parameter = paramName,
             source,
+            ok = written.Count > 0 || failed.Count == 0,
             written = written.Count,
             skipped = elements.Count - written.Count - failed.Count,
-            failed,
+            failed_count = failed.Count,
+            failed = failed.Take(50),
             sample = written.Take(50)
         });
+    }
+
+    private static void SetMeasured(Parameter p, double value, string source)
+    {
+        var spec = p.Definition.GetDataType();
+        // Text/Number parameters keep the declared source value. Measurable targets
+        // require a matching source dimension; template strings carry no unit contract.
+        if (spec == SpecTypeId.Number) { p.Set(value); return; }
+        var unit = source switch
+        {
+            "length_mm" or "height_mm" or "elevation_mm" or "top_elevation_mm" when spec == SpecTypeId.Length => UnitTypeId.Millimeters,
+            "area_m2" when spec == SpecTypeId.Area => UnitTypeId.SquareMeters,
+            "volume_m3" when spec == SpecTypeId.Volume => UnitTypeId.CubicMeters,
+            _ => throw new ToolInputException("Source dimension does not match the destination parameter. Use a Number/Text target for unitless or template values.")
+        };
+        p.Set(UnitUtils.ConvertToInternalUnits(value, unit));
     }
 
     private static bool HasValue(Parameter p) => p.StorageType switch

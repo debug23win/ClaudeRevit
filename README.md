@@ -293,6 +293,10 @@ See [`ClaudeRevit/Tools/`](ClaudeRevit/Tools) for tool implementations and share
 
 ---
 
+## Audit fixes and validation
+
+Result/rollback integrity, paged archives and catalogs, metric conversions, guarded cleanup/Undo, bounded discovery, streaming images/markdown and phase diagnostics are documented in [the audit validation notes](docs/audit-fixes-2026-10-20.md). New native fixtures are compiled separately; their live Revit acceptance status is explicit.
+
 ## License
 
 MIT — do whatever you want with it.

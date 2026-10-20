@@ -77,3 +77,6 @@ catalogue description or the presence of a fixture generator cannot do so.
 See [executed October 2026 cases](../docs/native-acceptance-2026-10.md) for results
 and the [BIMStarter findings](../docs/bimstarter-reference-cases.md) for expected
 minimum-count behavior and remaining visibility checks.
+
+
+`review_fixes` also contains the four independent October 20 audit cases (total multilayer width, derived Length units, material density and placed zero-area rooms). See [audit validation notes](../docs/audit-fixes-2026-10-20.md); their native execution is pending and is not implied by a successful build.

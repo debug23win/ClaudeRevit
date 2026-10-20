@@ -15,10 +15,13 @@ namespace ClaudeRevit.Services
     {
         public ChatService(bool ephemeral) { }
         public bool SubscriptionMode { get; set; }
+        public int? MaxToolRoundsOverride { get; set; }
         public Action<int, int>? OnRound { get; set; }
         public Action<string>? OnStatus { get; set; }
         public TurnTimings Timings { get; } = new() { ModelAndToolsSeconds = 0.01, ToolWaitSeconds = 0.004, QueueSeconds = 0.002, RevitExecutionSeconds = 0.001 };
         public string? LastRunError => null;
+        public static bool StopAtRoundLimit { get; set; }
+        public bool StoppedAtRoundLimit => StopAtRoundLimit;
         public sealed record TaskMetrics(string Model, int Rounds, long InputTokens, long OutputTokens, string UsageScope = "turn");
         public TaskMetrics? LastTask => new("test-model", 2, 100, 20);
         public static Func<CancellationToken, Task> Send { get; set; } = _ => Task.CompletedTask;

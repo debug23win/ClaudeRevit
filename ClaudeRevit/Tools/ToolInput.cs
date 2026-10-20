@@ -8,6 +8,13 @@ namespace ClaudeRevit.Tools;
 // Null-kind element, so absence and null must be treated the same.
 internal static class ToolInput
 {
+    public static int NonnegativeInteger(JsonElement value, string name)
+    {
+        var input = new Dictionary<string, JsonElement> { [name] = value };
+        var n = RequiredInt(input, name);
+        if (n < 0) throw new ToolInputException($"Parameter '{name}' must be nonnegative.");
+        return n;
+    }
     public static double? OptionalDouble(IReadOnlyDictionary<string, JsonElement> input, string name) =>
         input.TryGetValue(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
 

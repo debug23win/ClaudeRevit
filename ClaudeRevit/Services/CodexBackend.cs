@@ -146,6 +146,7 @@ public static class CodexBackend
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
         var key = AuthFingerprint.For(exe, Path.Combine(codexHome, "auth.json"));
         if (SignedIn.TryGetValue(key, out var at) && DateTime.UtcNow - at < SignInValidFor) return;
+        using var authPhase = TaskJournal.MeasurePhase("authorization_process");
         using var login = Start(exe, new[] { "login", "status" }, workDir);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));

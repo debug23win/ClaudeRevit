@@ -52,7 +52,7 @@ public class CreateIsolatedFoundation : IRevitTool
             symbol = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_StructuralFoundation)
                 .OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Name == name)
+                .FirstOrDefault(s => NameResolve.Matches(s, name))
                 ?? throw NameResolve.MissingType(doc, name, "Foundation type", BuiltInCategory.OST_StructuralFoundation);
         }
         else

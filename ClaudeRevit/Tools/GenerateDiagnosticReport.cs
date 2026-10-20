@@ -36,6 +36,6 @@ public class GenerateDiagnosticReport : IRevitTool
         var report = ExperienceStore.BuildDiagnosticReport();
         // Also persist a fresh copy so the on-disk file matches what was just shown.
         ExperienceStore.WriteDiagnosticReport();
-        return Json.Serialize(new { report, saved_to = ExperienceStore.ReportPath });
+        return Json.Serialize(new { report, saved_to = ExperienceStore.ReportPath, journal_write_error = TaskJournal.LastWriteError, task_journal = TaskJournal.PathName });
     }
 }

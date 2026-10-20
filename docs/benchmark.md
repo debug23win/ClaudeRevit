@@ -59,13 +59,12 @@ quality. Use `scoring_version=quality-speed-v1` to distinguish new records.
 
 ## Latency and subscription tool discovery (v3.7.4)
 
-The pane and benchmark CLI use `execution_profile=compact_mcp_v1`: 13 common
+The pane and benchmark CLI use `execution_profile=compact_mcp_v2`: 13 common
 native tools plus `discover_revit_tools` and `invoke_revit_tool`. Discovery
 returns up to five matching input schemas with a next-page offset; the gateway
-uses the ordinary document-bound dispatcher, always-enabled code execution and cancellation.
+uses the ordinary document-bound dispatcher, the code-execution permission setting and cancellation.
 Specialised family/rebar/standards tools remain available. Ordinary external MCP
-clients still receive the full catalogue. API mode uses its existing progressive
-group loading and records `api_progressive_v1`.
+clients still receive the full catalogue. API mode reveals up to 12 individual tools per discovery (one for an exact name) and records `api_selective_v2`. Do not combine these runs with older execution profiles when comparing speed.
 
 The prompt supplies actual level IDs/elevations, active view and selection.
 Agents query only missing facts instead of surveying the whole project for every

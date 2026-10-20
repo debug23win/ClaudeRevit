@@ -8,7 +8,7 @@ namespace ClaudeRevit.Tools;
 // The point is token budget: every request re-sends the full tool list (and on
 // OpenAI-compatible providers there is no prompt caching, so it is re-counted every turn),
 // which alone can blow a free tier's tokens-per-minute limit. Turning off the groups you
-// don't need shrinks each request a lot. Categorisation is a coarse, class-name heuristic —
+// don't need shrinks each request. Provider cache behavior varies. Categorisation is a coarse, class-name heuristic —
 // it only has to be good enough to disable big chunks (MEP, sheets, schedules, views…).
 public static class ToolCatalog
 {
@@ -100,7 +100,7 @@ public static class ToolCatalog
         Services.ToolSearchLogic.Prewarm(prompt);
 
     // find_tools backend: adapt the registered tools to plain (name, desc, category, isCore)
-    // records and delegate the scoring/reveal to the pure logic.
+    // records and delegate bounded individual-tool selection to the pure logic.
     public static Services.ToolSearchLogic.SearchResult Search(IEnumerable<IRevitTool> allTools, string query)
     {
         var infos = allTools.Select(t =>

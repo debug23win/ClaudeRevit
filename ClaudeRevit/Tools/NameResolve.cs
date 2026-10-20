@@ -19,13 +19,28 @@ internal static class NameResolve
         var col = new FilteredElementCollector(doc).OfClass(typeof(T));
         var all = (source != null ? source(col) : col.Cast<T>()).ToList();
 
-        var hit = all.FirstOrDefault(e => e.Name == name)
-                  ?? all.FirstOrDefault(e => string.Equals(e.Name?.Trim(), name?.Trim(),
-                         StringComparison.OrdinalIgnoreCase));
-        if (hit != null) return hit;
-
-        throw new InvalidOperationException(NotFound(name, kind, all.Select(e => e.Name)));
+        var matches = all.Where(e => Matches(e, name)).ToArray();
+        if (matches.Length == 1) return matches[0];
+        // An exact-case hit still decides between names that differ only in case, as before.
+        var exact = matches.Where(e => e.Name == name?.Trim()).ToArray();
+        if (exact.Length == 1) return exact[0];
+        if (matches.Length > 1) throw new ToolInputException($"Ambiguous {kind} '{name}'; use Family: Type or an explicit id. Matches: {string.Join(", ", matches.Select(Display))}");
+        throw new InvalidOperationException(NotFound(name, kind, all.Select(Display)));
     }
+
+    public static bool Matches(Element element, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var requested = name.Trim();
+        if (string.Equals(element.Name?.Trim(), requested, StringComparison.OrdinalIgnoreCase)) return true;
+        // System types qualify too ("Basic Wall: Exterior" vs "Curtain Wall: Exterior"), so the
+        // form the ambiguity error suggests always resolves.
+        if (element is not ElementType type || string.IsNullOrEmpty(type.FamilyName)) return false;
+        return string.Equals($"{type.FamilyName}: {type.Name}", requested, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals($"{type.FamilyName}:{type.Name}", requested, StringComparison.OrdinalIgnoreCase);
+    }
+    private static string Display(Element element) =>
+        element is ElementType type && !string.IsNullOrEmpty(type.FamilyName) ? $"{type.FamilyName}: {type.Name}" : element.Name;
 
     // A ready-made exception for call sites that already did their own lookup.
     public static ToolInputException Missing(string? name, string kind, IEnumerable<string?> available) =>

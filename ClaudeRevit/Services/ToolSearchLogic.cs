@@ -13,7 +13,38 @@ public static class ToolSearchLogic
     // A tool reduced to what the search needs — decoupled from IRevitTool.
     public readonly record struct ToolInfo(string Name, string Description, string Category, bool IsCore);
 
-    public sealed record SearchResult(List<string> Categories, string Message);
+    public sealed record SearchResult(List<string> Categories, string Message)
+    {
+        public List<string> ToolNames { get; init; } = new();
+    }
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    { "create", "creates", "make", "the", "and", "with", "for", "tool", "tools", "сделай", "создай", "нужна", "добавь", "пожалуйста" };
+    private static readonly char[] Separators =
+        { ' ', ',', '.', ':', ';', '-', '_', '"', '\'', '«', '»', '(', ')', '[', ']', '/', '\\', '?', '!', '\n', '\r', '\t' };
+    // Russian builds verbs with prefixes ("образмерь", "замаркируй", "сгруппируй", "заармируй"),
+    // so a stem may follow one of them; it still has to sit at the start of the word, which keeps
+    // "по сетке осей" from reading as a rebar mesh.
+    private static readonly string[] RussianPrefixes =
+        { "пере", "разо", "раз", "рас", "обо", "об", "под", "при", "про", "от", "за", "вы", "до", "на", "о", "с", "у" };
+    private static bool WordMatches(string word, string key)
+    {
+        if (word.StartsWith(key, StringComparison.Ordinal)) return true;
+        if (key.Length < 3 || key[0] < 'а' || key[0] > 'я') return false;
+        foreach (var prefix in RussianPrefixes)
+            if (word.StartsWith(prefix, StringComparison.Ordinal) && word.AsSpan(prefix.Length).StartsWith(key, StringComparison.Ordinal))
+                return true;
+        return false;
+    }
+    private static bool Matches(string text, string keyword)
+    {
+        var words = text.ToLowerInvariant().Split(Separators, StringSplitOptions.RemoveEmptyEntries);
+        // Split the key the same way, so "технико-эконом" and "сп 1.13130" can match at all.
+        var keys = keyword.ToLowerInvariant().Split(Separators, StringSplitOptions.RemoveEmptyEntries);
+        if (keys.Length == 0) return false;
+        for (var i = 0; i + keys.Length <= words.Length; i++)
+            if (keys.Select((k, j) => WordMatches(words[i + j], k)).All(x => x)) return true;
+        return false;
+    }
 
     // Core = the tools reached in almost every session. Curated by NAME so it stays tight; a tool
     // omitted here isn't lost, it just costs one find_tools round the first time it's needed.
@@ -44,7 +75,7 @@ public static class ToolSearchLogic
     private static readonly (string Category, string[] Keys)[] GroupKeywords =
     {
         ("ModPlus", new[] { "modplus", "mod plus", "модплюс", "мод плюс", "mprsumparameters", "сумма параметров" }),
-        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "сетк", "fabric", "mesh", "ведомость детал", "bending" }),
+        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "арматурная сет", "сетка армат", "fabric reinforcement", "reinforcement mesh", "welded mesh", "wire mesh", "fabric sheet", "fabric area", "сварн сетк", "ведомость детал", "bending" }),
         ("MEP", new[] { "duct", "pipe", "hvac", "воздуховод", "труб", "инженерн" }),
         ("Schedules", new[] { "schedule", "quantit", "специфик", "ведомост", "расписан", "таблиц" }),
         ("Sheets", new[] { "sheet", "titleblock", "viewport", "лист", "штамп", "титул" }),
@@ -61,7 +92,7 @@ public static class ToolSearchLogic
             "view template", "crop", "view range", "разрез", "фасад", "камер", "видовой",
             "шаблон вид", "секущ" }),
         ("Family editor", new[] { "family editor", "family parameter", "reference plane",
-            "семейств", "опорн плоск", "формул", "parametric profile", "параметрическ", "сечени" }),
+            "семейств", "опорн плоск", "формул", "parametric profile", "параметрическ" }),
         ("Visibility", new[] { "isolate", "override", "hide categ", "graphic", "изолир",
             "переопредел", "фильтр вид" }),
     };
@@ -75,7 +106,7 @@ public static class ToolSearchLogic
         if (string.IsNullOrWhiteSpace(prompt)) return result;
         var p = prompt.ToLowerInvariant();
         foreach (var (cat, keys) in GroupKeywords)
-            if (keys.Any(k => p.Contains(k))) result.Add(cat);
+            if (keys.Any(k => Matches(p, k))) result.Add(cat);
         return result;
     }
 
@@ -87,11 +118,15 @@ public static class ToolSearchLogic
             .Split(new[] { ' ', ',', '.', '"', '\'', '(', ')', '/', '-', ':', ';', '\n', '\t' },
                    StringSplitOptions.RemoveEmptyEntries)
             .Select(t => t.ToLowerInvariant())
-            .Where(t => t.Length >= 3)
+            .Where(t => t.Length >= 3 && !StopWords.Contains(t))
             .Distinct()
             .ToList();
 
         var deferred = tools.Where(t => !t.IsCore).ToList();
+        var exact = deferred.FirstOrDefault(t => string.Equals(t.Name, query?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(exact.Name))
+            return new SearchResult(new() { exact.Category }, $"Loaded 1 tool: {exact.Name} — {FirstSentence(exact.Description, 90)}")
+            { ToolNames = new() { exact.Name } };
 
         // Tool names and descriptions are English, so a Russian query used to score zero on every
         // tool and "арматура в плите" answered "nothing found" — the same words that the prewarm
@@ -100,11 +135,11 @@ public static class ToolSearchLogic
         var keyedCategories = terms.Count == 0
             ? new List<string>()
             : GroupKeywords
-                .Where(g => g.Keys.Any(k => terms.Any(term => term.Contains(k) || k.Contains(term))))
+                .Where(g => g.Keys.Any(k => Matches(query ?? "", k)))
                 .Select(g => g.Category)
                 .ToList();
 
-        int Score(ToolInfo t)
+        int TermScore(ToolInfo t)
         {
             var name = t.Name.ToLowerInvariant();
             var desc = (t.Description ?? "").ToLowerInvariant();
@@ -116,13 +151,13 @@ public static class ToolSearchLogic
                 if (cat.Contains(term)) s += 2;
                 if (desc.Contains(term)) s += 1;
             }
-            // A keyword hit names the group directly, so it outranks an incidental word match in
-            // some unrelated tool's description.
-            if (keyedCategories.Contains(t.Category)) s += 4;
             return s;
         }
+        // A keyword hit names the group directly, so it outranks an incidental word match in
+        // some unrelated tool's description.
+        int Score(ToolInfo t) => TermScore(t) + (keyedCategories.Contains(t.Category) ? 4 : 0);
 
-        var scored = deferred.Select(t => (Tool: t, S: Score(t)))
+        var scored = deferred.Select(t => (Tool: t, S: Score(t), Terms: TermScore(t)))
             .Where(x => x.S > 0).OrderByDescending(x => x.S).ToList();
 
         if (scored.Count == 0)
@@ -138,22 +173,39 @@ public static class ToolSearchLogic
         // groups of schemas on every later request. Only groups that actually match well get in:
         // the best one always, the others if they are at least half as good.
         var best = scored[0].S;
-        var cats = scored.Take(12)
-            .GroupBy(x => x.Tool.Category)
-            .Select(g => (Category: g.Key, S: g.Max(x => x.S)))
-            .OrderByDescending(x => x.S)
-            .Where((x, i) => i == 0 || x.S * 2 >= best)
+        var cats = keyedCategories
+            .Where(c => scored.Any(x => x.Tool.Category == c))
+            .Concat(scored.Take(12)
+                .GroupBy(x => x.Tool.Category)
+                .Select(g => (Category: g.Key, S: g.Max(x => x.S)))
+                .OrderByDescending(x => x.S)
+                .Where((x, i) => i == 0 || x.S * 2 >= best)
+                .Select(x => x.Category))
+            .Distinct()
             .Take(3)
-            .Select(x => x.Category)
             .ToList();
-        var revealed = deferred.Where(t => cats.Contains(t.Category))
-            .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+        // A group is a search hint, not permission to append every schema in it: tools that the
+        // query's own words pick out are loaded, best first, at most 12. A group named only by a
+        // keyword gives no word to rank its tools by (tool descriptions are English, so a Russian
+        // request scores them all alike), and the first 12 in registration order would hide the
+        // rest of it for good. That group is loaded whole, as it was before ranking existed.
+        var keywordOnly = cats
+            .Where(c => keyedCategories.Contains(c) && !scored.Any(x => x.Tool.Category == c && x.Terms > 0))
+            .ToHashSet();
+        var ranked = scored.Where(x => cats.Contains(x.Tool.Category) && !keywordOnly.Contains(x.Tool.Category)).ToList();
+        var revealed = ranked.Take(12).Select(x => x.Tool)
+            .Concat(deferred.Where(t => keywordOnly.Contains(t.Category)).OrderBy(t => t.Name, StringComparer.Ordinal))
+            .ToList();
+        var omitted = ranked.Skip(12).Select(x => x.Tool.Name).ToList();
 
         var sb = new StringBuilder();
         sb.Append("Loaded ").Append(revealed.Count).Append(" tool(s) — now callable directly:\n");
         foreach (var t in revealed)
             sb.Append("• ").Append(t.Name).Append(" — ").Append(FirstSentence(t.Description, 90)).Append('\n');
-        return new SearchResult(cats, sb.ToString().TrimEnd());
+        if (omitted.Count > 0)
+            sb.Append("Also matched but not loaded (find_tools with the exact name loads one): ")
+              .Append(string.Join(", ", omitted)).Append('\n');
+        return new SearchResult(cats, sb.ToString().TrimEnd()) { ToolNames = revealed.Select(t => t.Name).ToList() };
     }
 
     private static string FirstSentence(string? text, int max)

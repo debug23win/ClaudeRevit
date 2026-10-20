@@ -12,6 +12,8 @@ namespace ClaudeRevit.Tools;
 internal sealed class LiveSpdsRecord
 {
     public string Key {get;set;}="";
+    public string? LastRefreshError {get;set;}
+    public string? LastRefreshUtc {get;set;}
     public string Profile {get;set;}="";
     public long CategoryId {get;set;}
     public long[] CategoryIds {get;set;}=[];
@@ -69,19 +71,39 @@ internal sealed class LiveSpdsUpdater:IUpdater
         try
         {
             var doc=data.GetDocument();if(doc.IsFamilyDocument)return;
-            var records=LiveSpds.All(doc).Select(x=>x.Record).ToList();
+            var records=LiveSpds.All(doc).ToList();
             if(records.Count==0)return;
             var changed=data.GetModifiedElementIds().Concat(data.GetAddedElementIds()).Select(doc.GetElement).Where(e=>e?.Category!=null).Select(e=>e!.Category.Id.Value).ToHashSet();
             bool deleted=data.GetDeletedElementIds().Count>0;
             bool materialsChanged=data.GetModifiedElementIds().Select(doc.GetElement).Any(e=>e is Material or PropertySetElement);
-            foreach(var record in records)
+            foreach(var (storage,record) in records)
             {
                 if(!(deleted||materialsChanged||record.Categories.Any(changed.Contains)))continue;
-                try{LiveSpds.Refresh(doc,record,false);}
-                catch(Exception ex){Services.Log.Error($"Live SPDS table '{record.Key}' could not refresh; its quantities are stale until the table is refreshed (create_spds_table)",ex);}
+                // The record is stored on a DataStorage element. Writing it on every edit would make
+                // that element part of every user transaction, and in a workshared model whoever
+                // edited last would own it, so a collaborator's next edit would fail on ownership.
+                // It is written only when the refresh state changes.
+                try
+                {
+                    var refresh = LiveSpds.Refresh(doc,record,false);
+                    RecordState(storage,record,refresh.Errors.Count == 0 ? null : $"{refresh.Errors.Count} sources have incomplete data.");
+                }
+                catch(Exception ex)
+                {
+                    try{RecordState(storage,record,ex.Message);}catch(Exception saveEx){Services.Log.Error($"Live SPDS table '{record.Key}' could not store its refresh state",saveEx);}
+                    Services.Log.Error($"Live SPDS table '{record.Key}' could not refresh; audit_spds_schedule reports its stale state",ex);
+                }
             }
         }
         catch(Exception ex){Services.Log.Error("Live SPDS updater failed; the user's edit was kept",ex);}
+    }
+    // LastRefreshUtc is when the refresh state was last recorded, not the time of every refresh.
+    private static void RecordState(DataStorage storage,LiveSpdsRecord record,string? error)
+    {
+        if(record.LastRefreshUtc!=null&&record.LastRefreshError==error)return;
+        record.LastRefreshError=error;
+        record.LastRefreshUtc=DateTime.UtcNow.ToString("o");
+        LiveSpds.Save(storage,record);
     }
 }
 

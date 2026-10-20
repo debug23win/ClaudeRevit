@@ -7,6 +7,35 @@ namespace ClaudeRevit.Services;
 // Preserve existing payload fields for older clients. Every response remains ONE JSON value.
 public static class ToolResult
 {
+    // Shared by dispatcher, journals and chat transports. Python uses succeeded.
+    public static bool LooksSuccessful(string raw)
+    {
+        try
+        {
+            var obj = JsonNode.Parse(raw) as JsonObject;
+            if (obj == null) return true;
+            if (IsFalse(obj["ok"]) || IsFalse(obj["succeeded"])) return false;
+            if (obj["status"] is JsonValue status && status.TryGetValue<string>(out var label) && label is "failed" or "error") return false;
+            if (obj["ok"] is JsonValue count && count.TryGetValue<int>(out var n) && n == 0 &&
+                (HasFailures(obj["failed"]) || HasFailures(obj["failures"]))) return false;
+            if (!obj.ContainsKey("ok") && obj["error"] is { } error && error.ToJsonString() is not ("null" or "\"\"")) return false;
+            return true;
+        }
+        // Legacy text results; the chat loop reports an exception as "Error: …" text.
+        catch (JsonException) { return !raw.TrimStart().StartsWith("Error", StringComparison.Ordinal); }
+    }
+    private static bool IsFalse(JsonNode? node) => node is JsonValue v && v.TryGetValue<bool>(out var b) && !b;
+    private static bool IsTrue(JsonNode? node) => node is JsonValue v && v.TryGetValue<bool>(out var b) && b;
+    public static string Execution(string raw, bool committed, bool rolledBack)
+    {
+        var obj = JsonNode.Parse(Complete(raw))!.AsObject();
+        var preview = IsTrue(obj["preview"]);
+        rolledBack |= preview || IsTrue(obj["rolledBack"]) || IsTrue(obj["rolled_back"]) || IsFalse(obj["committed"]);
+        obj["committed"] = committed && !rolledBack;
+        obj["rolled_back"] = rolledBack;
+        obj["execution_status"] = preview ? "preview" : rolledBack ? "rolled_back" : committed ? "committed" : "read_only";
+        return obj.ToJsonString(Options);
+    }
     public static string? ErrorMessage(string? raw)
     {
         if(raw==null)return null;
@@ -27,11 +56,16 @@ public static class ToolResult
         foreach (var warning in warnings ?? []) messages.Add(warning);
         result["warnings"] = messages;
         result["errors"] ??= new JsonArray();
+        if (!result.ContainsKey("ok")) result["ok"] = LooksSuccessful(raw);
+        if (IsFalse(result["succeeded"])) result["ok"] = false;
+        if (IsFalse(result["ok"]) && result["error"] == null && result["traceback"] is { } traceback)
+            result["error"] = traceback.DeepClone();
+        if (!result.ContainsKey("status"))
+            result["status"] = !LooksSuccessful(raw) ? "failed" : HasFailures(result["failed"]) || HasFailures(result["failures"]) ? "partial" : "success";
         if(result["ok"] is JsonValue state && state.TryGetValue<bool>(out var success) && !success &&
             result["errors"] is JsonArray errors && errors.Count==0 && result["error"] is { } error)
             errors.Add(new JsonObject { ["code"]="tool_error",["message"]=error.DeepClone() });
         // Some batch tools use an integer 'ok' count. Do not reinterpret that contract.
-        if (!result.ContainsKey("ok")) result["ok"] = true;
         RoundNumbers(result);
         return result.ToJsonString(Options);
     }
@@ -72,6 +106,29 @@ public static class ToolResult
         if (!v.TryGetValue<double>(out var d)) return null;
         var r = Round(d);
         return r == d ? null : JsonValue.Create(r);
+    }
+
+    private static bool HasFailures(JsonNode? node) => node switch
+    {
+        JsonArray a => a.Count > 0,
+        JsonValue v when v.TryGetValue<int>(out var n) => n > 0,
+        _ => false
+    };
+
+    // A note from the chat loop, kept inside the result so it stays one JSON value (text appended
+    // after the JSON would make it unparseable, and history aging would then lose its failure state).
+    public static string WithSystemNote(string raw, string note)
+    {
+        try
+        {
+            if (JsonNode.Parse(raw) is JsonObject obj)
+            {
+                obj["system_note"] = note;
+                return obj.ToJsonString(Options);
+            }
+        }
+        catch (JsonException) { }
+        return raw + "\n\n" + note;
     }
 
     public static string Failure(string code, string message) => new JsonObject

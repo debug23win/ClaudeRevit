@@ -9,6 +9,21 @@ using ClaudeRevit.UI;
 
 internal static class Program
 {
+    private static async Task CheckStreamingMarkdown()
+    {
+        var target = new TextBlock(); MarkdownProps.SetMarkdown(target, "first");
+        bool renderedWhileStreaming = false;
+        for (var i = 0; i < 40; i++)
+        {
+            MarkdownProps.SetMarkdown(target, "delta " + i);
+            await Task.Delay(15);
+            if (i > 10 && string.Concat(target.Inlines.OfType<System.Windows.Documents.Run>().Select(r => r.Text)).StartsWith("delta", StringComparison.Ordinal)) renderedWhileStreaming = true;
+        }
+        Check(renderedWhileStreaming, "Continuous deltas starved markdown rendering");
+        await Task.Delay(150);
+        Check(string.Concat(target.Inlines.OfType<System.Windows.Documents.Run>().Select(r => r.Text)) == "delta 39", "Final streaming delta was not rendered");
+    }
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -19,6 +34,7 @@ internal static class Program
             {
                 DocumentHarness.Change("a", false);
                 await CheckIndependentChat();
+                await CheckStreamingMarkdown();
                 var pane = new ChatPaneView();
                 CheckRepeatedDocumentWrappers(pane);
                 DocumentHarness.Change("a", false);
@@ -73,6 +89,8 @@ internal static class Program
                 var noisePath = Path.Combine(attachmentRoot, "noise.png");
                 using (var output = File.Create(noisePath)) noisyEncoder.Save(output);
                 Check(new FileInfo(noisePath).Length > 5_000_000, "Dense image fixture did not exercise the image size cap");
+                var encoded = AttachmentImage.EncodePng(noisePath);
+                Check(Convert.ToBase64String(encoded).Length <= ChatBlockOrder.MaxInlineImageBase64, "Encoded image exceeds actual chat transport budget");
                 var smallNoise = await Task.Run(() => AttachmentImage.EncodePng(noisePath));
                 Check(smallNoise.Length <= 5_000_000, "Dense attachment PNG exceeded the native image content cap");
                 var attach = typeof(ChatPaneView).GetMethod("AttachFilesAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;

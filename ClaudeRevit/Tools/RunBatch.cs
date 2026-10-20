@@ -106,10 +106,12 @@ public class RunBatch : IRevitTool
             {
                 sub.Start();
                 var raw = inner.Execute(args, app);
-                sub.Commit();
-                results.Add(new { index, ok = true, result = AsJson(raw) });
-                ok++;
+                var succeeded = Services.ToolResult.LooksSuccessful(raw);
+                if (succeeded) { sub.Commit(); ok++; } else sub.RollBack();
+                results.Add(new { index, ok = succeeded, rolled_back = !succeeded, result = AsJson(raw) });
             }
+            catch (OperationCanceledException) { throw; }
+            catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
             catch (Exception ex)
             {
                 try { if (sub.HasStarted() && !sub.HasEnded()) sub.RollBack(); } catch { }

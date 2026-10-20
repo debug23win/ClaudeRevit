@@ -418,6 +418,7 @@ public static class ClaudeCodeBackend
         var key = AuthFingerprint.For(exe, Path.Combine(home, ".credentials.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json"));
         if (SignedIn.TryGetValue(key, out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(30)) return;
+        using var authPhase = TaskJournal.MeasurePhase("authorization_process");
         try { await VerifySubscriptionCoreAsync(exe, workDir, ct); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

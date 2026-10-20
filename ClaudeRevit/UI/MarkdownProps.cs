@@ -59,8 +59,8 @@ public static class MarkdownProps
                 return;
             }
 
-            timer.Stop();
-            timer.Start();
+            // Throttle rather than debounce: continuous streaming must still render.
+            if (!timer.IsEnabled) timer.Start();
         }
         catch (Exception ex)
         {
