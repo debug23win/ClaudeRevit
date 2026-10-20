@@ -107,7 +107,14 @@ public class CreateWallType : IRevitTool
             var idx = cs.GetFirstCoreLayerIndex();
             if (thicknessMm.HasValue)
             {
-                try { cs.SetLayerWidth(idx, thicknessMm.Value * MmToFeet); }
+                try
+                {
+                    if (idx < 0) throw new ToolInputException("Base type has no editable core layer.");
+                    var target = thicknessMm.Value * MmToFeet;
+                    var core = target - (cs.GetWidth() - cs.GetLayerWidth(idx));
+                    if (!double.IsFinite(core) || core <= 0) throw new ToolInputException("Requested total thickness does not leave a positive core layer.");
+                    cs.SetLayerWidth(idx, core);
+                }
                 catch (Exception ex)
                 {
                     throw new InvalidOperationException(
@@ -130,7 +137,7 @@ public class CreateWallType : IRevitTool
             id = newType.Id.Value,
             name,
             based_on = baseType.Name,
-            thickness_mm = thicknessMm,
+            thickness_mm = newType.GetCompoundStructure()?.GetWidth() * Units.MmPerFoot,
             material = appliedMaterial
         });
     }

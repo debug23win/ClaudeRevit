@@ -27,7 +27,7 @@ public sealed class AuditSpdsSchedule : IRevitTool
         var sources=record==null?[]:LiveSpds.Sources(doc,record);
         return Services.Json.Serialize(new {id=s.Id.Value,live=s.Definition.GetFieldCount()>0,include_linked_files=s.Definition.CanIncludeLinkedFiles()&&s.Definition.IncludeLinkedFiles,
             fields=s.Definition.GetFieldOrder().Select(id=>s.Definition.GetField(id)).Select(f=>new {name=f.GetName(),heading=f.ColumnHeading,parameter_id=f.ParameterId.Value,spec=f.GetSpecTypeId().TypeId,total=f.DisplayType.ToString(),hidden=f.IsHidden,width_mm=f.SheetColumnWidth*Units.MmPerFoot}).ToArray(),
-            nesting_policy=record?.NestingPolicy,nested_sources=sources.OfType<FamilyInstance>().Where(f=>f.SuperComponent!=null).Select(f=>new {id=f.Id.Value,parent_id=f.SuperComponent.Id.Value}).ToArray(),placements=layout,
+            refresh_error=record?.LastRefreshError,refresh_utc=record?.LastRefreshUtc,quantities_status=record==null?"unmanaged":record.LastRefreshError!=null?"stale_or_incomplete":record.LastRefreshUtc==null?"not_audited":"refreshed",nesting_policy=record?.NestingPolicy,nested_sources=sources.OfType<FamilyInstance>().Where(f=>f.SuperComponent!=null).Select(f=>new {id=f.Id.Value,parent_id=f.SuperComponent.Id.Value}).ToArray(),placements=layout,
             linked_documents=new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance)).Cast<RevitLinkInstance>().Select(l=>new {id=l.Id.Value,loaded=l.GetLinkDocument()!=null,name=l.Name}).Take(100).ToArray(),
             visual_review="Uniform margins and rectangular overlaps only. Check title-block zones, split schedule headers, border style and text wrapping in an exported view before issuing drawings."});
     }

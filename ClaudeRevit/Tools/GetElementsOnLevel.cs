@@ -53,7 +53,7 @@ public class GetElementsOnLevel : IRevitTool
 
         var raw = collector
             .WhereElementIsNotElementType()
-            .Where(e => e.LevelId == levelId)
+            .WherePasses(new ElementLevelFilter(levelId))
             .Take(limit + 1)
             .ToList();
         var truncated = raw.Count > limit;

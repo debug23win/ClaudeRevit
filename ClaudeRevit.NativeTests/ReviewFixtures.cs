@@ -24,7 +24,85 @@ internal static class ReviewFixtures
         Check("change_element_type_actually_changes_type", () => WithProject(app, ChangeTypeSticks));
         Check("execute_csharp_result_serialization_never_throws", () => WithProject(app, ScriptResultsSerialize));
         Check("set_parameter_reaches_material_named_like_a_type", () => WithProject(app, MaterialBeatsSameNamedType));
+        Check("audit_total_wall_thickness", () => WithProject(app, TotalThickness));
+        Check("audit_derived_length_internal_units", () => WithProject(app, DerivedLength));
+        Check("audit_material_density_7850", () => WithProject(app, MaterialDensity));
+        Check("audit_placed_unbounded_room_survives_cleanup", () => WithProject(app, PlacedRoom));
         return new { passed = checks.Count(c => (bool)c.GetType().GetProperty("ok")!.GetValue(c)!), total = checks.Count, checks };
+    }
+
+    private static object TotalThickness(UIApplication app, Document doc)
+    {
+        using var tx = new Transaction(doc, "QA total width"); tx.Start();
+        var original = new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>().First(t => t.Kind == WallKind.Basic);
+        var basis = (WallType)original.Duplicate("QA_Multilayer_Base");
+        var structure = CompoundStructure.CreateSimpleCompoundStructure(new List<CompoundStructureLayer>
+        {
+            new(20 / 304.8, MaterialFunctionAssignment.Finish1, ElementId.InvalidElementId),
+            new(200 / 304.8, MaterialFunctionAssignment.Structure, ElementId.InvalidElementId),
+            new(30 / 304.8, MaterialFunctionAssignment.Finish2, ElementId.InvalidElementId)
+        });
+        structure.SetNumberOfShellLayers(ShellLayerType.Exterior, 1);
+        structure.SetNumberOfShellLayers(ShellLayerType.Interior, 1);
+        basis.SetCompoundStructure(structure);
+        using var result = JsonDocument.Parse(new CreateWallType().Execute(SyntheticFixtures.Args(new { name = "QA_Total_300", based_on = basis.Name, thickness_mm = 300 }), app));
+        var created = (WallType)doc.GetElement(new ElementId(result.RootElement.GetProperty("id").GetInt64()));
+        doc.Regenerate();
+        var actual = created.Width * 304.8;
+        if (Math.Abs(actual - 300) > .001) throw new InvalidOperationException($"Expected total 300 mm, got {actual}.");
+        tx.RollBack(); return new { expected_mm = 300, actual_mm = actual };
+    }
+
+    private static object DerivedLength(UIApplication app, Document doc)
+    {
+        using var tx = new Transaction(doc, "QA derive length"); tx.Start();
+        var (wall, _, _) = WallWithTwoTypes(doc, "QA_Derive_Type");
+        doc.Regenerate();
+        var parameter = wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET);
+        var expectedFeet = ((LocationCurve)wall.Location).Curve.Length;
+        using var result = JsonDocument.Parse(new DeriveParameters().Execute(SyntheticFixtures.Args(new
+        {
+            element_ids = new[] { wall.Id.Value }, parameter_name = parameter.Definition.Name, source = "length_mm", round = 6
+        }), app));
+        doc.Regenerate();
+        var actualFeet = parameter.AsDouble();
+        if (Math.Abs(actualFeet - expectedFeet) > 1e-7) throw new InvalidOperationException($"Expected {expectedFeet} ft, got {actualFeet} ft.");
+        tx.RollBack(); return new { expected_feet = expectedFeet, actual_feet = actualFeet };
+    }
+
+    private static object MaterialDensity(UIApplication app, Document doc)
+    {
+        using var tx = new Transaction(doc, "QA density"); tx.Start();
+        var materialId = Material.Create(doc, "QA_Steel_7850");
+        var material = (Material)doc.GetElement(materialId);
+        var asset = new StructuralAsset("QA_Steel_Asset", StructuralAssetClass.Metal) { Density = 7850 * Math.Pow(.3048, 3) };
+        material.SetMaterialAspectByPropertySet(MaterialAspect.Structural, PropertySetElement.Create(doc, asset).Id);
+        var side = 1 / .3048;
+        var loop = CurveLoop.Create(new List<Curve>
+        {
+            Line.CreateBound(XYZ.Zero, new XYZ(side, 0, 0)), Line.CreateBound(new XYZ(side, 0, 0), new XYZ(side, side, 0)),
+            Line.CreateBound(new XYZ(side, side, 0), new XYZ(0, side, 0)), Line.CreateBound(new XYZ(0, side, 0), XYZ.Zero)
+        });
+        var solid = GeometryCreationUtilities.CreateExtrusionGeometry(new List<CurveLoop> { loop }, XYZ.BasisZ, side,
+            new SolidOptions(materialId, ElementId.InvalidElementId));
+        var shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel)); shape.SetShape(new GeometryObject[] { solid });
+        doc.Regenerate();
+        using var result = JsonDocument.Parse(new CalculateWeight().Execute(SyntheticFixtures.Args(new { element_ids = new[] { shape.Id.Value } }), app));
+        var mass = result.RootElement.GetProperty("total_kg").GetDouble();
+        if (Math.Abs(mass - 7850) > .02) throw new InvalidOperationException($"A 1 m3 steel solid must weigh 7850 kg, got {mass}.");
+        tx.RollBack(); return new { volume_m3 = 1, expected_kg = 7850, actual_kg = mass };
+    }
+
+    private static object PlacedRoom(UIApplication app, Document doc)
+    {
+        using var tx = new Transaction(doc, "QA unbounded room"); tx.Start();
+        var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().First();
+        var room = doc.Create.NewRoom(level, new UV(1, 1)); doc.Regenerate();
+        if (room.Location == null || room.Area > 0) throw new InvalidOperationException("Fixture must be placed and unbounded.");
+        var id = room.Id;
+        var result = new CleanModel().Execute(SyntheticFixtures.Args(new { targets = new[] { "unplaced_rooms" }, apply = true }), app);
+        if (doc.GetElement(id) == null) throw new InvalidOperationException("Cleanup deleted a placed room.");
+        tx.RollBack(); return new { preserved = true, result };
     }
 
     private static object WithProject(UIApplication app, Func<UIApplication, Document, object> body)

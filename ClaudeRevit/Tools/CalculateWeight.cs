@@ -201,14 +201,11 @@ public class CalculateWeight : IRevitTool
         return null;
     }
 
-    // Revit's internal structural density unit is pounds-mass per cubic foot in the API's
-    // unit-less double; convert to kg/m3. Guarded so an unexpected magnitude never silently
-    // produces a nonsense tonnage.
+    // Revit's internal density is kg/ft³, including light insulation materials.
     private static double? DensityToKgM3(double revitDensity)
     {
-        const double LbPerFt3ToKgPerM3 = 16.0184634;
-        var kg = revitDensity * LbPerFt3ToKgPerM3;
-        return kg > 100 && kg < 25000 ? kg : (double?)null;
+        var kg = Units.DensityToKgM3(revitDensity);
+        return double.IsFinite(kg) && kg > 0 ? kg : (double?)null;
     }
 
     private static double DefaultDensity(Element el)

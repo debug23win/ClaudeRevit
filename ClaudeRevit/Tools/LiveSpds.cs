@@ -12,6 +12,8 @@ namespace ClaudeRevit.Tools;
 internal sealed class LiveSpdsRecord
 {
     public string Key {get;set;}="";
+    public string? LastRefreshError {get;set;}
+    public string? LastRefreshUtc {get;set;}
     public string Profile {get;set;}="";
     public long CategoryId {get;set;}
     public long[] CategoryIds {get;set;}=[];
@@ -69,16 +71,27 @@ internal sealed class LiveSpdsUpdater:IUpdater
         try
         {
             var doc=data.GetDocument();if(doc.IsFamilyDocument)return;
-            var records=LiveSpds.All(doc).Select(x=>x.Record).ToList();
+            var records=LiveSpds.All(doc).ToList();
             if(records.Count==0)return;
             var changed=data.GetModifiedElementIds().Concat(data.GetAddedElementIds()).Select(doc.GetElement).Where(e=>e?.Category!=null).Select(e=>e!.Category.Id.Value).ToHashSet();
             bool deleted=data.GetDeletedElementIds().Count>0;
             bool materialsChanged=data.GetModifiedElementIds().Select(doc.GetElement).Any(e=>e is Material or PropertySetElement);
-            foreach(var record in records)
+            foreach(var (storage,record) in records)
             {
                 if(!(deleted||materialsChanged||record.Categories.Any(changed.Contains)))continue;
-                try{LiveSpds.Refresh(doc,record,false);}
-                catch(Exception ex){Services.Log.Error($"Live SPDS table '{record.Key}' could not refresh; its quantities are stale until the table is refreshed (create_spds_table)",ex);}
+                try
+                {
+                    var refresh = LiveSpds.Refresh(doc,record,false);
+                    record.LastRefreshError = refresh.Errors.Count == 0 ? null : $"{refresh.Errors.Count} sources have incomplete data.";
+                    record.LastRefreshUtc = DateTime.UtcNow.ToString("o");
+                    LiveSpds.Save(storage,record);
+                }
+                catch(Exception ex)
+                {
+                    record.LastRefreshError = ex.Message;
+                    LiveSpds.Save(storage,record);
+                    Services.Log.Error($"Live SPDS table '{record.Key}' could not refresh; audit_spds_schedule reports its stale state",ex);
+                }
             }
         }
         catch(Exception ex){Services.Log.Error("Live SPDS updater failed; the user's edit was kept",ex);}

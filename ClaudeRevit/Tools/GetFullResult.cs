@@ -15,7 +15,7 @@ public class GetFullResult : IRevitTool
     public string Name => "get_full_result";
 
     public string Description =>
-        "Returns the archived FULL text of an aged tool result. Older tool outputs are " +
+        "Returns a bounded page of archived text. Follow next_offset until has_more=false. Older tool outputs are " +
         "truncated in the conversation to save tokens; the truncation marker contains the " +
         "id to pass here. Use it only when the preview is insufficient AND the data cannot " +
         "have changed — when elements may have been modified since, re-query the live model " +
@@ -25,6 +25,8 @@ public class GetFullResult : IRevitTool
     {
         Properties = new Dictionary<string, JsonElement>
         {
+            ["offset"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 0, description = "Character offset, default 0. Use next_offset from the previous page." }),
+            ["limit"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 1, maximum = 30000, description = "Maximum characters, default 12000; JSON escaping may shorten a page." }),
             ["id"] = JsonSerializer.SerializeToElement(new
             {
                 type = "string",
@@ -50,6 +52,8 @@ public class GetFullResult : IRevitTool
                 "large results — re-run the original query instead.");
 
         // The model asked for the full text explicitly, but still bound the response.
-        return TextUtil.Truncate(content, 50_000);
+        return ToolResultCap.Page(id!, content,
+            input.TryGetValue("offset", out var offset) ? ToolInput.NonnegativeInteger(offset, "offset") : 0,
+            input.TryGetValue("limit", out var limit) ? ToolInput.NonnegativeInteger(limit, "limit") : 12_000);
     }
 }

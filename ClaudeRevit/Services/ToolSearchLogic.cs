@@ -13,7 +13,20 @@ public static class ToolSearchLogic
     // A tool reduced to what the search needs — decoupled from IRevitTool.
     public readonly record struct ToolInfo(string Name, string Description, string Category, bool IsCore);
 
-    public sealed record SearchResult(List<string> Categories, string Message);
+    public sealed record SearchResult(List<string> Categories, string Message)
+    {
+        public List<string> ToolNames { get; init; } = new();
+    }
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    { "create", "creates", "make", "the", "and", "with", "for", "tool", "tools", "сделай", "создай", "нужна", "добавь", "пожалуйста" };
+    private static bool Matches(string text, string keyword)
+    {
+        var words = text.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-', '\n', '\t', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var keys = keyword.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i + keys.Length <= words.Length; i++)
+            if (keys.Select((k, j) => words[i + j].StartsWith(k, StringComparison.Ordinal)).All(x => x)) return true;
+        return false;
+    }
 
     // Core = the tools reached in almost every session. Curated by NAME so it stays tight; a tool
     // omitted here isn't lost, it just costs one find_tools round the first time it's needed.
@@ -44,7 +57,7 @@ public static class ToolSearchLogic
     private static readonly (string Category, string[] Keys)[] GroupKeywords =
     {
         ("ModPlus", new[] { "modplus", "mod plus", "модплюс", "мод плюс", "mprsumparameters", "сумма параметров" }),
-        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "сетк", "fabric", "mesh", "ведомость детал", "bending" }),
+        ("Rebar", new[] { "rebar", "reinforc", "stirrup", "арматур", "армир", "хомут", "стержн", "арматурная сет", "сетка армат", "fabric reinforcement", "reinforcement mesh", "ведомость детал", "bending" }),
         ("MEP", new[] { "duct", "pipe", "hvac", "воздуховод", "труб", "инженерн" }),
         ("Schedules", new[] { "schedule", "quantit", "специфик", "ведомост", "расписан", "таблиц" }),
         ("Sheets", new[] { "sheet", "titleblock", "viewport", "лист", "штамп", "титул" }),
@@ -61,7 +74,7 @@ public static class ToolSearchLogic
             "view template", "crop", "view range", "разрез", "фасад", "камер", "видовой",
             "шаблон вид", "секущ" }),
         ("Family editor", new[] { "family editor", "family parameter", "reference plane",
-            "семейств", "опорн плоск", "формул", "parametric profile", "параметрическ", "сечени" }),
+            "семейств", "опорн плоск", "формул", "parametric profile", "параметрическ" }),
         ("Visibility", new[] { "isolate", "override", "hide categ", "graphic", "изолир",
             "переопредел", "фильтр вид" }),
     };
@@ -75,7 +88,7 @@ public static class ToolSearchLogic
         if (string.IsNullOrWhiteSpace(prompt)) return result;
         var p = prompt.ToLowerInvariant();
         foreach (var (cat, keys) in GroupKeywords)
-            if (keys.Any(k => p.Contains(k))) result.Add(cat);
+            if (keys.Any(k => Matches(p, k))) result.Add(cat);
         return result;
     }
 
@@ -87,11 +100,15 @@ public static class ToolSearchLogic
             .Split(new[] { ' ', ',', '.', '"', '\'', '(', ')', '/', '-', ':', ';', '\n', '\t' },
                    StringSplitOptions.RemoveEmptyEntries)
             .Select(t => t.ToLowerInvariant())
-            .Where(t => t.Length >= 3)
+            .Where(t => t.Length >= 3 && !StopWords.Contains(t))
             .Distinct()
             .ToList();
 
         var deferred = tools.Where(t => !t.IsCore).ToList();
+        var exact = deferred.FirstOrDefault(t => string.Equals(t.Name, query?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(exact.Name))
+            return new SearchResult(new() { exact.Category }, $"Loaded 1 tool: {exact.Name} — {FirstSentence(exact.Description, 90)}")
+            { ToolNames = new() { exact.Name } };
 
         // Tool names and descriptions are English, so a Russian query used to score zero on every
         // tool and "арматура в плите" answered "nothing found" — the same words that the prewarm
@@ -100,7 +117,7 @@ public static class ToolSearchLogic
         var keyedCategories = terms.Count == 0
             ? new List<string>()
             : GroupKeywords
-                .Where(g => g.Keys.Any(k => terms.Any(term => term.Contains(k) || k.Contains(term))))
+                .Where(g => g.Keys.Any(k => Matches(query ?? "", k)))
                 .Select(g => g.Category)
                 .ToList();
 
@@ -146,14 +163,15 @@ public static class ToolSearchLogic
             .Take(3)
             .Select(x => x.Category)
             .ToList();
-        var revealed = deferred.Where(t => cats.Contains(t.Category))
-            .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+        // A group is a search hint, not permission to append every schema in it.
+        var revealed = scored.Where(x => cats.Contains(x.Tool.Category)).Take(12)
+            .Select(x => x.Tool).ToList();
 
         var sb = new StringBuilder();
         sb.Append("Loaded ").Append(revealed.Count).Append(" tool(s) — now callable directly:\n");
         foreach (var t in revealed)
             sb.Append("• ").Append(t.Name).Append(" — ").Append(FirstSentence(t.Description, 90)).Append('\n');
-        return new SearchResult(cats, sb.ToString().TrimEnd());
+        return new SearchResult(cats, sb.ToString().TrimEnd()) { ToolNames = revealed.Select(t => t.Name).ToList() };
     }
 
     private static string FirstSentence(string? text, int max)

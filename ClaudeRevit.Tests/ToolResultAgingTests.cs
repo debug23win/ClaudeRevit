@@ -26,7 +26,7 @@ public class ToolResultAgingTests
     };
 
     private static bool IsAged(ApiTurn t) =>
-        t.Blocks.OfType<ChatToolResultBlock>().Any(b => b.Content.Contains("[aged"));
+        t.Blocks.OfType<ChatToolResultBlock>().Any(b => b.Content.Contains("\"aged\":true"));
 
     [Fact]
     public void AgeOlderTurns_keeps_the_last_two_result_turns_full()

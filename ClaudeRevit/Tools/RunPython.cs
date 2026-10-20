@@ -150,14 +150,16 @@ public class RunPython : IRevitTool
             return Services.Json.Serialize(new
             {
                 engine = _engineSource,
+                ok = traceback == null,
                 succeeded = traceback == null,
+                error = traceback == null ? null : Trim(traceback, 4000),
                 output = Describe(outValue),
                 printed = string.IsNullOrEmpty(printed) ? null : Trim(printed, 8000),
                 traceback = traceback == null ? null : Trim(traceback, 4000),
                 document = doc?.Title,
                 note = traceback == null
                     ? "Ran in-process (no Dynamo). Changes are in this call's transaction — one Ctrl+Z undoes this script."
-                    : "The script raised. Model changes made before the error may have been applied — " +
+                    : "The script raised. The dispatcher rolls back this call's model transaction; external file/network effects cannot be rolled back. " +
                       "the traceback is reported verbatim rather than re-running the snippet."
             });
         }

@@ -47,6 +47,7 @@ public class FindTools : IRevitTool
         var query = input.TryGetValue("query", out var q) && q.ValueKind == JsonValueKind.String
             ? q.GetString() ?? "" : "";
         // No reveal here (the manual Run-tool window has no session): just report matches.
-        return ToolCatalog.Search(ToolRegistry.Instance.All, query).Message;
+        var search = ToolCatalog.Search(ToolRegistry.Instance.All.Where(t => ToolPolicy.IsEnabled(t) && !ToolCatalog.IsModPlusAlias(t)), query);
+        return Services.Json.Serialize(new { tools = search.ToolNames, message = search.Message });
     }
 }

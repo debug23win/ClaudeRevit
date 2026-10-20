@@ -17,7 +17,7 @@ public class CleanModel : IRevitTool
     public string Name => "clean_model";
 
     public string Description =>
-        "Remove model bloat: unused family types (no instances), unused materials, exploded CAD imports, " +
+        "Remove model bloat: native Purge Unused family types, unused materials, explicitly selected non-linked CAD imports, " +
         "unplaced rooms, and empty groups. DRY RUN BY DEFAULT — returns what would be deleted with counts and " +
         "names; pass apply=true to actually delete. Choose what to touch with `targets`. " +
         "Pair with diagnose_model, which explains what is wrong before you clean it.";
@@ -29,7 +29,7 @@ public class CleanModel : IRevitTool
             ["targets"] = JsonSerializer.SerializeToElement(new
             {
                 type = "array",
-                description = "What to clean. Default: all of them.",
+                description = "What to clean. Default excludes non-linked CAD imports; exploded_imports explicitly selects all non-linked imports.",
                 items = new
                 {
                     type = "string",
@@ -54,7 +54,7 @@ public class CleanModel : IRevitTool
 
         var apply = input.TryGetValue("apply", out var a) && a.ValueKind == JsonValueKind.True;
 
-        var all = new[] { "unused_family_types", "unused_materials", "exploded_imports", "unplaced_rooms", "empty_groups" };
+        var all = new[] { "unused_family_types", "unused_materials", "unplaced_rooms", "empty_groups" };
         var targets = input.TryGetValue("targets", out var t) && t.ValueKind == JsonValueKind.Array
             ? t.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToHashSet()
             : all.ToHashSet();
@@ -70,92 +70,77 @@ public class CleanModel : IRevitTool
 
         var deleted = 0;
         var failures = new List<object>();
-        if (apply && toDelete.Count > 0)
+        var cascades = new List<object>();
+        var candidates = toDelete.Distinct().ToHashSet();
+        // Rehearse actual Revit deletion in a subtransaction even for dry runs.
+        // Never silently cascade outside the candidate set, including on apply.
+        foreach (var id in candidates)
         {
-            // Delete one at a time: Revit cascades dependent deletions, so a single bad id in a
-            // bulk call would abort the whole clean-up.
-            foreach (var id in toDelete.Distinct())
+            ToolContext.ThrowIfCancelled();
+            if (doc.GetElement(id) == null) continue;
+            using var sub = new SubTransaction(doc);
+            sub.Start();
+            try
             {
-                try
-                {
-                    if (doc.GetElement(id) == null) continue;   // already cascaded away
-                    var removed = doc.Delete(id);
-                    deleted += removed?.Count ?? 1;
-                }
-                catch (Exception ex)
-                {
-                    if (failures.Count < 25) failures.Add(new { id = id.Value, reason = Short(ex.Message) });
-                }
+                var removed = doc.Delete(id).ToArray();
+                var unexpected = removed.Where(x => !candidates.Contains(x)).ToArray();
+                cascades.Add(new { id = id.Value, deleted_ids = removed.Select(x => x.Value).ToArray(),
+                    unexpected_ids = unexpected.Select(x => x.Value).ToArray() });
+                if (!apply || unexpected.Length > 0) sub.RollBack();
+                else { sub.Commit(); deleted += removed.Length; }
+                if (unexpected.Length > 0) failures.Add(new { id = id.Value, reason = "Dependent elements outside the candidate set: deletion refused." });
+            }
+            catch (Autodesk.Revit.Exceptions.RegenerationFailedException) { throw; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                if (sub.GetStatus() == TransactionStatus.Started) sub.RollBack();
+                failures.Add(new { id = id.Value, reason = Short(ex.Message) });
             }
         }
 
         return Services.Json.Serialize(new
         {
+            preview = !apply,
             mode = apply ? "applied" : "dry_run",
             candidates = toDelete.Distinct().Count(),
             deleted_elements = apply ? deleted : 0,
             failures,
+            cascades,
             details = report,
             note = apply
-                ? "Deleted. The whole clean-up is one undo step (Ctrl+Z)."
+                ? "Applied safe candidates only; inspect failures and cascades. Each tool call is one undo step."
                 : "DRY RUN — nothing was deleted. Show this to the user, then call again with apply=true to proceed."
         });
     }
 
-    // A family symbol is unused when no instance of it exists. Skip in-place and system-critical
-    // families, and never leave a family with zero types behind.
+    // Native Purge Unused understands references in parameters, nested types,
+    // painted faces and other model data that instance counting misses.
     private static object UnusedFamilyTypes(Document doc, List<ElementId> sink)
     {
-        var usedTypeIds = new HashSet<ElementId>(
-            new FilteredElementCollector(doc).WhereElementIsNotElementType()
-                .Select(e => e.GetTypeId())
-                .Where(id => id != ElementId.InvalidElementId));
-
-        var names = new List<string>();
-        var count = 0;
-
-        foreach (var sym in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol))
-                     .Cast<FamilySymbol>())
+        var purgeable = doc.GetUnusedElements(new HashSet<ElementId>());
+        var candidates = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
+            .Where(s => purgeable.Contains(s.Id) && s.Family?.IsInPlace != true).ToList();
+        // Retain at least one type in every loaded family.
+        var selected = new List<FamilySymbol>();
+        foreach (var group in candidates.GroupBy(s => s.Family.Id))
         {
-            try
-            {
-                if (usedTypeIds.Contains(sym.Id)) continue;
-                if (sym.Family?.IsInPlace == true) continue;   // in-place has no reusable type
-                sink.Add(sym.Id);
-                count++;
-                if (names.Count < 50) names.Add($"{sym.Family?.Name}: {sym.Name}");
-            }
-            catch { }
+            var family = group.First().Family;
+            var ordered = group.OrderBy(s => s.Id.Value).ToList();
+            var remove = ordered.Take(Math.Min(ordered.Count, Math.Max(0, family.GetFamilySymbolIds().Count - 1)));
+            selected.AddRange(remove);
         }
-        return new { target = "unused_family_types", count, sample = names };
+        sink.AddRange(selected.Select(s => s.Id));
+        return new { target = "unused_family_types", count = selected.Count, sample = selected.Take(50).Select(s => $"{s.Family.Name}: {s.Name}") };
     }
 
-    // A material is unused when nothing references it. Checking every element's material ids is the
-    // only reliable test — appearance/structural assets alone don't prove usage.
     private static object UnusedMaterials(Document doc, List<ElementId> sink)
     {
-        var used = new HashSet<ElementId>();
-        foreach (var e in new FilteredElementCollector(doc).WhereElementIsNotElementType())
-        {
-            ToolContext.ThrowIfCancelled();
-
-            try { foreach (var m in e.GetMaterialIds(false)) used.Add(m); } catch { }
-        }
-        foreach (var e in new FilteredElementCollector(doc).WhereElementIsElementType())
-        {
-            try { foreach (var m in e.GetMaterialIds(false)) used.Add(m); } catch { }
-        }
-
-        var names = new List<string>();
-        var count = 0;
-        foreach (var mat in new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>())
-        {
-            if (used.Contains(mat.Id)) continue;
-            sink.Add(mat.Id);
-            count++;
-            if (names.Count < 50) names.Add(mat.Name);
-        }
-        return new { target = "unused_materials", count, sample = names };
+        var purgeable = doc.GetUnusedElements(new HashSet<ElementId>());
+        var materials = new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>()
+            .Where(m => purgeable.Contains(m.Id)).ToList();
+        sink.AddRange(materials.Select(m => m.Id));
+        return new { target = "unused_materials", count = materials.Count, sample = materials.Take(50).Select(m => m.Name) };
     }
 
     // Exploded (non-linked) CAD imports drag every line style and text type of the source DWG into
@@ -188,8 +173,7 @@ public class CleanModel : IRevitTool
         {
             try
             {
-                var area = r.get_Parameter(BuiltInParameter.ROOM_AREA);
-                if (area != null && area.HasValue && area.AsDouble() > 0) continue;
+                if (r.Location != null) continue; // placed but unbounded/redundant rooms are NOT unplaced
                 sink.Add(r.Id);
                 count++;
                 if (names.Count < 50) names.Add(r.Name);

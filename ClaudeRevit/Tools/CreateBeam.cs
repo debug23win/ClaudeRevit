@@ -67,12 +67,8 @@ public class CreateBeam : IRevitTool
         if (input.TryGetValue("type_name", out var tn) && tn.ValueKind == JsonValueKind.String)
         {
             var name = tn.GetString();
-            symbol = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_StructuralFraming)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Name == name)
-                ?? throw NameResolve.MissingType(doc, name, "Beam type", BuiltInCategory.OST_StructuralFraming);
+            symbol = NameResolve.ByName<FamilySymbol>(doc, name, "Beam type",
+                c => c.OfCategory(BuiltInCategory.OST_StructuralFraming).Cast<FamilySymbol>());
         }
         else
         {

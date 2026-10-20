@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../ClaudeRevit/Services/CatalogPage.cs" Link="src/CatalogPage.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkObjective.cs" Link="src\BenchmarkObjective.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkStatistics.cs" Link="src\BenchmarkStatistics.cs" />
     <Compile Include="../ClaudeRevit/Services/BenchmarkCalibration.cs" Link="src/BenchmarkCalibration.cs" />

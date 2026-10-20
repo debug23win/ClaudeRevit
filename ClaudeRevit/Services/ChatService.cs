@@ -208,16 +208,15 @@ public class ChatService
     private int _execCsharpOk;
     private bool _promoteNudged;
 
-    // Progressive tool loading: only the core toolset is sent every request; a specialised group
-    // is added here (in reveal order) once the user's message points at it or the model calls
-    // find_tools. Session-scoped — cleared on ClearHistory. See ToolCatalog for the mechanism.
-    private readonly List<string> _revealedCategories = new();
+    // Core schemas plus explicitly selected tool names, in stable append order.
+    // Search reveals at most 12 names; clearing history resets discovery.
+    public int? MaxToolRoundsOverride { get; set; }
+    private readonly List<string> _revealedTools = new();
 
-    private bool Reveal(string category)
+    private static IEnumerable<IRevitTool> SearchableTools()
     {
-        if (_revealedCategories.Contains(category)) return false;
-        _revealedCategories.Add(category);
-        return true;
+        var disabled = new HashSet<string>(SettingsStore.DisabledToolGroups, StringComparer.OrdinalIgnoreCase);
+        return ToolRegistry.Instance.All.Where(t => !ToolCatalog.IsModPlusAlias(t) && ToolPolicy.IsEnabled(t, disabled));
     }
 
     public ChatService() : this(false) { }
@@ -329,7 +328,7 @@ public class ChatService
         })) / 4;
         _execCsharpOk = 0;
         _promoteNudged = false;
-        _revealedCategories.Clear();
+        _revealedTools.Clear();
     }
     private static string? ReadSession(string path)
     { try { return File.Exists(path) ? File.ReadAllText(path).Trim() : null; } catch { return null; } }
@@ -385,7 +384,7 @@ public class ChatService
         _lastPromptTokens = 0;
         _execCsharpOk = 0;
         _promoteNudged = false;
-        _revealedCategories.Clear();
+        _revealedTools.Clear();
         _claudeCodeSessionId = null;
         PersistClaudeCodeSession();
         _codexSessionId = null;
@@ -541,7 +540,7 @@ public class ChatService
             }
             OnStatus?.Invoke("running model · waiting for first tool/result…");
             res = await CodexBackend.RunAsync(
-                McpServer.DrivingRules + "\n\n" + contextedPrompt,
+                (string.IsNullOrEmpty(_codexSessionId) ? McpServer.DrivingRules + "\n\n" : "") + contextedPrompt,
                 ClientDirectory, channel.Url(McpServer.Url), SettingsStore.McpToken, _codexSessionId,
                 onText: Append,
                 onTool: _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); },
@@ -750,7 +749,7 @@ public class ChatService
                 TaskJournal.Append(new { kind="task_completed",utc=DateTime.UtcNow,task_id=taskId,document_key=documentKey,wall_seconds=watch.Elapsed.TotalSeconds,
                     model=LastTask?.Model,rounds=LastTask?.Rounds,input_tokens=LastTask?.InputTokens,output_tokens=LastTask?.OutputTokens,
                     usage_scope=LastTask?.UsageScope,cached_input_tokens=LastTask?.CachedInputTokens,reasoning_tokens=LastTask?.ReasoningTokens,worker_seconds=TaskJournal.ReadWorker(taskId),
-                    timings=Timings,cancelled=ct.IsCancellationRequested,error=LastRunError });
+                    timings=Timings,phase_metrics=TaskJournal.ReadPhases(taskId),timing_scope="Phase sums can overlap; provider request includes network/server/streaming, not pure model reasoning.",journal_write_error=TaskJournal.LastWriteError,cancelled=ct.IsCancellationRequested,error=LastRunError });
             }
         });
     }
@@ -818,7 +817,9 @@ public class ChatService
         // ("add rebar", "make a section") so those tools are present on the first round and the
         // model doesn't have to spend a find_tools round first. It can still find_tools for the
         // rest. Purely additive to what's already revealed this session.
-        foreach (var cat in ToolCatalog.PrewarmCategories(lastUser)) Reveal(cat);
+        if (ToolCatalog.PrewarmCategories(lastUser).Count > 0)
+            foreach (var name in ToolCatalog.Search(SearchableTools(), lastUser).ToolNames)
+                if (!_revealedTools.Contains(name)) _revealedTools.Add(name);
 
         var appendOnly = !alt && ClaudeModels.AppendOnlyHistory(model);
         if (!appendOnly) await CompactIfNeededAsync(conversation, ui, alt, ct);
@@ -903,7 +904,7 @@ public class ChatService
         var turnLabel = "Claude: " + Truncate(lastUser, 60);
 
         // Read once per prompt so a mid-turn Settings change doesn't shift the cap.
-        var maxIterations = SettingsStore.MaxToolRounds;
+        var maxIterations = MaxToolRoundsOverride ?? SettingsStore.MaxToolRounds;
 
         // Auto-escalation to a stronger model: keep a cheap/fast model for routine work, switch
         // to a stronger one when the task looks hard up front, or once the fast model starts
@@ -995,6 +996,7 @@ public class ChatService
                 BackendTurn turn;
                 try
                 {
+                    using var providerPhase = TaskJournal.MeasurePhase("provider_request");
                     turn = alt
                         ? await StreamAltTurnAsync(altSystem!, altTools!, dynamicContext, conversation, ui, ct, altModelForTurn)
                         : await StreamAnthropicTurnAsync(claudeModelForTurn, systemBlocks!, toolDefs!, dynamicContext, conversation, ui, ct, advisorMode);
@@ -1175,9 +1177,10 @@ public class ChatService
                     {
                         var query = inp.TryGetValue("query", out var qEl) && qEl.ValueKind == JsonValueKind.String
                             ? qEl.GetString() ?? "" : "";
-                        var search = ToolCatalog.Search(ToolRegistry.Instance.All.Where(t => !ToolCatalog.IsModPlusAlias(t)), query);
+                        var search = ToolCatalog.Search(SearchableTools(), query);
                         var revealedAny = false;
-                        foreach (var c in search.Categories) revealedAny |= Reveal(c);
+                        foreach (var toolName in search.ToolNames)
+                            if (!_revealedTools.Contains(toolName)) { _revealedTools.Add(toolName); revealedAny = true; }
                         if (revealedAny) toolSetChanged = true;
 
                         await ui.InvokeAsync(() => conversation.Add(new ChatMessage
@@ -1186,7 +1189,7 @@ public class ChatService
                             ToolName = name,
                             Text = FormatInput(inp) + "\n→ " + Truncate(search.Message, 400)
                         }));
-                        resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, search.Message, false));
+                        resultTurn.Blocks.Add(new ChatToolResultBlock(use.Id, ToolResult.Complete(Services.Json.Serialize(new { tools = search.ToolNames, message = search.Message })), false));
                         continue;
                     }
 
@@ -1231,8 +1234,9 @@ public class ChatService
                             ? await pending
                             : await ToolDispatcher.Instance.ExecuteAsync(name, inp, ct, documentKey);
                         if(name is "open_family_editor" or "reload_family_into_document") documentKey=DocumentSessions.CurrentDocumentKey;
+                        isError = !ToolResult.LooksSuccessful(content);
                         var display = FormatInput(inp) + "\n→ " + Truncate(FormatResult(content), 400);
-                        await ui.InvokeAsync(() => toolMsg.Text = display);
+                        await ui.InvokeAsync(() => { toolMsg.Text = display; toolMsg.IsError = isError; });
                     }
                     catch (OperationCanceledException)
                     {
@@ -1263,13 +1267,9 @@ public class ChatService
                         _execCsharpOk++;
                         if (!_promoteNudged && _execCsharpOk >= 2)
                         {
-                            content += "\n\n[SYSTEM: you have run execute_csharp successfully " +
-                                _execCsharpOk + " times this session. If any of these is essentially " +
-                                "the SAME kind of operation as one you already did (a repeatable " +
-                                "pattern, not a genuine one-off), generalize it now — turn the specific " +
-                                "ids/sizes/names into input parameters — and call save_tool ONCE to " +
-                                "compile it into a persistent, 0-token tool the user can rerun from the " +
-                                "▶ Run tool window. Skip this only if it was truly one-off.]";
+                            var guided = System.Text.Json.Nodes.JsonNode.Parse(content)!.AsObject();
+                            guided["tool_guidance"] = "If this repeats a proven pattern, consider saving a parameterized tool. Verification is still required; choose a better approach freely.";
+                            content = ToolResultCap.Apply(guided.ToJsonString(ToolResult.Options), name);
                             _promoteNudged = true;
                         }
                     }
@@ -1476,6 +1476,8 @@ public class ChatService
         // continue, would go and do something the user never asked for.
         if (tail.Contains("let me know") || tail.Contains("дайте знать") || tail.Contains("дай знать"))
             return false;
+        if (tail.Contains("можно") || tail.Contains("могу") || tail.Contains("если хотите") ||
+            tail.Contains("could ") || tail.Contains("can also") || tail.Contains("if you want")) return false;
         return ContinueCues.Any(c => StartsAtWordBoundary(tail, c));
     }
 
@@ -1801,10 +1803,8 @@ public class ChatService
             .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
 
         var revealed = new List<IRevitTool>();
-        foreach (var cat in _revealedCategories) // reveal order → append-only growth
-            revealed.AddRange(all
-                .Where(t => !ToolCatalog.IsCore(t) && ToolCatalog.CategoryOf(t) == cat)
-                .OrderBy(t => t.Name, StringComparer.Ordinal));
+        foreach (var name in _revealedTools) // stable append order, bounded discovery
+            if (all.FirstOrDefault(t => t.Name == name && !ToolCatalog.IsCore(t)) is { } found) revealed.Add(found);
 
         var custom = all.Where(ToolCatalog.IsCustom)
             .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();

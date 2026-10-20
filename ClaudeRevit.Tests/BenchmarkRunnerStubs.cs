@@ -15,6 +15,7 @@ namespace ClaudeRevit.Services
     {
         public ChatService(bool ephemeral) { }
         public bool SubscriptionMode { get; set; }
+        public int? MaxToolRoundsOverride { get; set; }
         public Action<int, int>? OnRound { get; set; }
         public Action<string>? OnStatus { get; set; }
         public TurnTimings Timings { get; } = new() { ModelAndToolsSeconds = 0.01, ToolWaitSeconds = 0.004, QueueSeconds = 0.002, RevitExecutionSeconds = 0.001 };

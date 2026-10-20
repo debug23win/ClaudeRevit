@@ -24,7 +24,8 @@ internal static class TypeChangePreservation
     // deliberately stay on the selected type. Throw to roll back if a requested value is lost.
     public static (Element Element, List<object> Changes) Change(Element source, ElementId target, bool preserve, string[]? names = null)
     {
-        var before=source.Parameters.Cast<Parameter>().Where(p=>p.HasValue && p.StorageType!=StorageType.None && !IsTypeIdentity(p))
+        var before=source.Parameters.Cast<Parameter>().Where(p=>p.HasValue && !p.IsReadOnly && p.StorageType!=StorageType.None && !IsTypeIdentity(p) &&
+            (names != null || p.Definition is not InternalDefinition d || d.BuiltInParameter != BuiltInParameter.INSTANCE_HEAD_HEIGHT_PARAM))
             .Select(p=>new Value(p.Id.Value,p.IsShared?p.GUID.ToString():null,p.Definition.Name,p.Definition.GetDataType().TypeId,p.StorageType,Raw(p))).ToArray();
         if(names!=null && names.Any(name=>!before.Any(p=>p.Name==name)))throw new ToolInputException("A preserve_parameters name is missing from the instance.");
         var doc=source.Document;var oldId=source.Id;var newId=source.ChangeTypeId(target);

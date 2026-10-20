@@ -22,7 +22,7 @@ public class GetProjectCatalog : IRevitTool
         "kind/discipline), loadable family types grouped by category, system types (walls, " +
         "floors, roofs), materials, and the full reinforcement catalog (bar types with " +
         "diameters, rebar shapes, hook types, cover types, area/path reinforcement types). " +
-        "Call this ONCE when starting work on a project instead of many separate list_* calls. " +
+        "Request sections and a family_category/query for the current task; use paging offsets for additional entries. " +
         "The result is cached for the session; pass refresh=true after loading new families or " +
         "creating new types.";
 
@@ -30,6 +30,11 @@ public class GetProjectCatalog : IRevitTool
     {
         Properties = new Dictionary<string, JsonElement>
         {
+            ["sections"] = JsonSerializer.SerializeToElement(new { type = "array", items = new { type = "string", @enum = new[] { "document", "levels", "view_templates", "family_types_by_category", "system_types", "materials", "reinforcement" } }, description = "Optional sections; request only assets needed for the current task." }),
+            ["family_category"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional category substring for family_types_by_category, e.g. Structural Framing." }),
+            ["query"] = JsonSerializer.SerializeToElement(new { type = "string", description = "Optional substring filter within catalog lists." }),
+            ["offset"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 0, description = "Default 0; list continuation offsets are in paging." }),
+            ["limit"] = JsonSerializer.SerializeToElement(new { type = "integer", minimum = 1, maximum = 300, description = "Default 40 per list." }),
             ["refresh"] = JsonSerializer.SerializeToElement(new
             {
                 type = "boolean",
@@ -50,6 +55,7 @@ public class GetProjectCatalog : IRevitTool
     // not outlive type/family changes made by the assistant itself. (User edits and Ctrl+Z
     // are still invisible; the refresh flag remains the manual escape hatch.)
     public static void Invalidate() => Cache.Clear();
+    public static void Invalidate(Document doc) => Cache.TryRemove(DocKey.For(doc), out _);
 
     public string Execute(IReadOnlyDictionary<string, JsonElement> input, UIApplication app)
     {
@@ -68,23 +74,12 @@ public class GetProjectCatalog : IRevitTool
         }
 
         // One serialization site so the cached and fresh response shapes can't diverge.
-        return Services.Json.Serialize(new
-        {
-            cached,
-            note = cached
-                ? "Served from the session cache — pass refresh=true if families/types changed " +
-                  "outside this assistant (its own tool calls invalidate the cache automatically)."
-                : null,
-            catalog
-        });
+        var response = Services.CatalogPage.Select(catalog,
+            input.TryGetValue("sections", out var sections) ? sections.EnumerateArray().Select(s => s.GetString()!).ToArray() : null,
+            NativeToolUtil.Text(input, "query"), ToolInput.OptionalInt(input, "offset") ?? 0, ToolInput.OptionalInt(input, "limit") ?? 40, NativeToolUtil.Text(input, "family_category"));
+        response["cached"] = cached;
+        return response.ToJsonString(Services.ToolResult.Options);
     }
-
-    // Lists are capped so a big production model can't blow up the response (and the
-    // conversation context) — the dedicated list_* tools return full data when needed.
-    private static List<string> Cap(List<string> items, int max) =>
-        items.Count <= max
-            ? items
-            : items.Take(max).Append($"… +{items.Count - max} more (use the dedicated list tool for the full set)").ToList();
 
     private static JsonElement BuildCatalog(Document doc)
     {
@@ -102,7 +97,7 @@ public class GetProjectCatalog : IRevitTool
             .OrderBy(g => g.Key)
             .ToDictionary(
                 g => g.Key,
-                g => Cap(g.Select(s => $"{s.FamilyName}: {s.Name}").OrderBy(n => n).ToList(), 60));
+                g => g.Select(s => $"{s.FamilyName}: {s.Name}").OrderBy(n => n).ToList());
 
         var wallTypes = new FilteredElementCollector(doc).OfClass(typeof(WallType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
@@ -111,8 +106,8 @@ public class GetProjectCatalog : IRevitTool
         var roofTypes = new FilteredElementCollector(doc).OfClass(typeof(RoofType))
             .Select(t => t.Name).OrderBy(n => n).ToList();
 
-        var materials = Cap(new FilteredElementCollector(doc).OfClass(typeof(Material))
-            .Select(m => m.Name).OrderBy(n => n).ToList(), 150);
+        var materials = new FilteredElementCollector(doc).OfClass(typeof(Material))
+            .Select(m => m.Name).OrderBy(n => n).ToList();
 
         var barTypes = new FilteredElementCollector(doc).OfClass(typeof(RebarBarType)).Cast<RebarBarType>()
             .Select(t => new { name = t.Name, diameter_mm = Math.Round(t.BarNominalDiameter * Units.MmPerFoot, 1) })

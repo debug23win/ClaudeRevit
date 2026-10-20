@@ -464,10 +464,19 @@ public class ToolDispatcher : IExternalEventHandler
         {
             var target = Services.DocumentSessions.Find(job.DocumentKey);
             if (target == null) { job.Tcs.TrySetResult(Services.ToolResult.Failure("validation", "No bound document. Nothing was undone.")); job.Operation.Dispose(); return; }
-            int? steps = job.Input.TryGetValue("steps", out var st) && st.ValueKind == JsonValueKind.Number ? Math.Max(1, st.GetInt32()) : null;
-            Services.Log.Info($"tool → undo_last steps={steps?.ToString() ?? "action"}");
-            job.Tcs.Task.ContinueWith(_ => job.Operation.Dispose(), TaskScheduler.Default);
-            UndoSequencer.Start(app, target, job.DocumentKey, steps, job.Tcs);
+            try
+            {
+                int? steps = job.Input.ContainsKey("steps") ? ToolInput.RequiredInt(job.Input, "steps") : null;
+                if (steps is <= 0) throw new ToolInputException("steps must be a positive integer.");
+                Services.Log.Info($"tool → undo_last steps={steps?.ToString() ?? "action"}");
+                job.Tcs.Task.ContinueWith(_ => job.Operation.Dispose(), TaskScheduler.Default);
+                UndoSequencer.Start(app, target, job.DocumentKey, steps, job.Tcs);
+            }
+            catch (Exception ex)
+            {
+                job.Tcs.TrySetResult(Services.ToolResult.Failure("validation", ex.Message));
+                job.Operation.Dispose();
+            }
             return;
         }
         if (UndoSequencer.Active)
@@ -494,6 +503,7 @@ public class ToolDispatcher : IExternalEventHandler
         string? completedResult = null;
         Exception? completedError = null;
         bool cancelled = false;
+        bool executionRolledBack = false;
         try
         {
             if (boundDocument == null) throw new InvalidOperationException(job.DocumentKey == "none"
@@ -554,11 +564,16 @@ public class ToolDispatcher : IExternalEventHandler
                 {
                     result = job.PreparedScript != null ? job.PreparedScript.ExecutePrepared(job.Input, app, job.PreparedBytes!) : tool.Execute(job.Input, app);
                     job.Ct.ThrowIfCancellationRequested();
-                    var status = tx.Commit();
+                    // Logical failure is not an exception (notably Python traceback).
+                    // Roll back BEFORE reporting it; changing only the JSON would leave
+                    // partial edits behind and make retries unsafe.
+                    var succeeded = Services.ToolResult.LooksSuccessful(result);
+                    var status = succeeded ? tx.Commit() : tx.RollBack();
+                    executionRolledBack = !succeeded;
 
                     // An unresolved error rolls the transaction back WITHOUT throwing — surface
                     // it as a tool error so the model knows this step did NOT take effect.
-                    if (status != TransactionStatus.Committed)
+                    if (succeeded && status != TransactionStatus.Committed)
                         throw new InvalidOperationException(
                             "Revit rolled this operation back — it did NOT take effect" +
                             (failures.Messages.Count > 0
@@ -569,6 +584,7 @@ public class ToolDispatcher : IExternalEventHandler
                     // can verify the result rather than assume it was clean.
                     if (failures.Messages.Count > 0)
                         warnings.AddRange(failures.Messages);
+                    result = Services.ToolResult.Execution(result, !executionRolledBack, executionRolledBack);
                 }
                 catch
                 {
@@ -587,7 +603,12 @@ public class ToolDispatcher : IExternalEventHandler
                 {
                     result = tool.Execute(job.Input, app);
                     job.Ct.ThrowIfCancellationRequested();
-                    group?.Assimilate();
+                    if (group != null)
+                    {
+                        if (Services.ToolResult.LooksSuccessful(result)) group.Assimilate();
+                        else { group.RollBack(); executionRolledBack = true; }
+                        result = Services.ToolResult.Execution(result, !executionRolledBack, executionRolledBack);
+                    }
                 }
                 catch { if (group?.GetStatus() == TransactionStatus.Started) group.RollBack(); throw; }
             }
@@ -640,13 +661,14 @@ public class ToolDispatcher : IExternalEventHandler
             catch (Exception ex) { Services.Log.Error("Document context update failed", ex); }
             finally { ToolContext.Clear(); }
             job.Channel?.RecordExecution(queueTime, executionWatch.Elapsed);
-            var rolledBack=cancelled || completedError != null || completedResult == null;
+            var rolledBack=executionRolledBack || cancelled || completedError != null || completedResult == null;
             if (completedResult != null)
             {
                 try
                 {
                     using var json=JsonDocument.Parse(completedResult);
                     if(json.RootElement.TryGetProperty("preview",out var preview)&&preview.ValueKind==JsonValueKind.True)rolledBack=true;
+                    if(json.RootElement.TryGetProperty("rolled_back",out var rb)&&rb.ValueKind==JsonValueKind.True)rolledBack=true;
                     if(job.Name.StartsWith("modplus_mpr",StringComparison.Ordinal)||job.Name=="run_modplus_headless")
                     {
                         if((json.RootElement.TryGetProperty("committed",out var committed)&&committed.ValueKind==JsonValueKind.False)||
@@ -657,13 +679,22 @@ public class ToolDispatcher : IExternalEventHandler
             }
             try
             {
+            object? delta;
+            using (Services.TaskJournal.MeasurePhase("post_write_readback")) delta = changes?.Complete(rolledBack);
+            if (completedResult != null && changes?.Receipt is { } receipt &&
+                (changes.AddedCount + changes.ModifiedCount + changes.DeletedCount > 0 || executionRolledBack))
+            {
+                var obj = System.Text.Json.Nodes.JsonNode.Parse(completedResult)!.AsObject();
+                obj["receipt"] = System.Text.Json.JsonSerializer.SerializeToNode(receipt, Services.ToolResult.Options);
+                completedResult = Services.ToolResultCap.Apply(obj.ToJsonString(Services.ToolResult.Options), job.Name);
+            }
             Services.TaskJournal.RecordTiming(job.TaskId, queueTime.TotalSeconds, executionWatch.Elapsed.TotalSeconds);
             Services.TaskJournal.Append(new { kind="tool",utc=DateTime.UtcNow,task_id=job.TaskId,channel_id=job.Session?.ChannelId,
                 document_key=job.DocumentKey,tool=job.Name,queue_seconds=queueTime.TotalSeconds,revit_seconds=executionWatch.Elapsed.TotalSeconds,
                 // What the result costs the model: the one number that shows which tools overload the conversation.
                 result_chars=completedResult?.Length??0,
                 ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message??Services.ToolResult.ErrorMessage(completedResult),
-                changes=changes?.Complete(rolledBack) });
+                changes=delta });
             if (changes != null && !rolledBack) ActionHistory.Record(job.DocumentKey, job.TaskId, job.Name, changes);
             }
             catch (Exception ex) { Services.Log.Error("Tool diagnostics failed",ex); }
@@ -683,15 +714,7 @@ public class ToolDispatcher : IExternalEventHandler
     // Script tool results are our own JSON with a top-level "ok"; absence means success.
     private static bool ResultLooksOk(string result)
     {
-        try
-        {
-            using var d = JsonDocument.Parse(result);
-            return !(d.RootElement.TryGetProperty("ok", out var o) && o.ValueKind == JsonValueKind.False);
-        }
-        catch
-        {
-            return true;
-        }
+        return Services.ToolResult.LooksSuccessful(result);
     }
 
     private void HandleGetContext(UIApplication app, GetContextJob job)

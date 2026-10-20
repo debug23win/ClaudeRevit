@@ -14,7 +14,7 @@ public class UnloadFamily : IRevitTool
 
     public string Description =>
         "Removes a loaded family from the document. All instances of this family must already be deleted, " +
-        "or the deletion will fail. Use list_loaded_families to find the family_id.";
+        "otherwise the operation is refused before deletion. Use list_loaded_families to find the family_id.";
 
     public InputSchema InputSchema => new()
     {
@@ -36,7 +36,20 @@ public class UnloadFamily : IRevitTool
         var family = doc.GetElement(id) as Family
             ?? throw new InvalidOperationException($"Element {id.Value} is not a Family.");
 
-        var familyName = family.Name;
+        var symbols = family.GetFamilySymbolIds().ToHashSet();
+        var instances = new FilteredElementCollector(doc).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>()
+            .Where(i => symbols.Contains(i.GetTypeId())).Select(i => i.Id.Value).ToArray();
+        if (instances.Length > 0) throw new ToolInputException($"Family has {instances.Length} placed instances; nothing was deleted.");
+        var allowed = symbols.Append(id).ToHashSet();
+        using (var preview = new SubTransaction(doc))
+        {
+            preview.Start();
+            var cascade = doc.Delete(id).ToArray();
+            preview.RollBack();
+            if (cascade.Any(x => !allowed.Contains(x)))
+                throw new ToolInputException("Family deletion would remove other dependent elements; nothing was deleted.");
+        }
+        var familyName = ((Family)doc.GetElement(id)).Name;
         var deleted = doc.Delete(id);
 
         return Services.Json.Serialize(new

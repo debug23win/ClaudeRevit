@@ -23,7 +23,9 @@ internal static class AttachmentImage
         {
             var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(source));
             using var output = new MemoryStream(); encoder.Save(output);
-            if (output.Length <= 5_000_000) return output.ToArray();
+            // Base64 adds 4/3 overhead. Match the actual chat transport budget.
+            if (4 * ((output.Length + 2) / 3) <= ChatBlockOrder.MaxInlineImageBase64) return output.ToArray();
+            if (source.PixelWidth <= 1 || source.PixelHeight <= 1) throw new InvalidDataException("Cannot fit image into the chat transport budget.");
             source = new TransformedBitmap(source, new ScaleTransform(0.75, 0.75)); source.Freeze();
         }
     }

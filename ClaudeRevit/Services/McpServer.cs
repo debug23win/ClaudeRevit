@@ -541,7 +541,7 @@ public static class McpServer
             using var json=JsonDocument.Parse(text);
             if(json.RootElement.TryGetProperty("image_id",out var id) && ViewImageStore.Find(id.GetString()??"",ExecutingChannel?.DocumentKey??DocumentSessions.CurrentDocumentKey,ExecutingChannel?.Id) is { } image)
                 content.Add(new JsonObject { ["type"]="image",["mimeType"]="image/png",["data"]=image.Base64 });
-            if(json.RootElement.TryGetProperty("ok",out var ok)&&ok.ValueKind==JsonValueKind.False)isError=true;
+            if(!Services.ToolResult.LooksSuccessful(text))isError=true;
         }
         catch(JsonException) { }
         return new JsonObject { ["content"]=content,["isError"]=isError };

@@ -25,7 +25,7 @@ internal static class ActionHistory
         var list = ByDocument.GetOrAdd(documentKey, _ => new());
         lock (list)
         {
-            list.Add(new(actionId, tool, DateTime.UtcNow, changes.AddedCount, changes.ModifiedCount, changes.DeletedCount, changes.AddedSample));
+            list.Add(new(actionId ?? Guid.NewGuid().ToString("N"), tool, DateTime.UtcNow, changes.AddedCount, changes.ModifiedCount, changes.DeletedCount, changes.AddedSample));
             if (list.Count > Limit) list.RemoveRange(0, list.Count - Limit);
         }
     }
@@ -35,6 +35,8 @@ internal static class ActionHistory
         if (!ByDocument.TryGetValue(documentKey, out var list)) return new();
         lock (list) return list.ToList();
     }
+
+    public static void Invalidate(string documentKey) => ByDocument.TryRemove(documentKey, out _);
 
     public static void Pop(string documentKey, int count)
     {
@@ -100,7 +102,7 @@ internal sealed class UndoSequencer
     private readonly UIApplication _app; private readonly Document _doc; private readonly string _key;
     private readonly List<ActionHistory.Entry> _entries; private readonly TaskCompletionSource<string> _tcs;
     private readonly List<string> _undone = new();
-    private int _done; private bool _waiting; private string? _foreign; private bool _redoPosted; private DateTime _deadline;
+    private int _done; private bool _waiting; private string? _foreign; private bool _redoPosted; private bool _redoConfirmed; private DateTime _deadline;
 
     private UndoSequencer(UIApplication app, Document doc, string key, List<ActionHistory.Entry> entries, TaskCompletionSource<string> tcs)
     { _app = app; _doc = doc; _key = key; _entries = entries; _tcs = tcs; }
@@ -115,11 +117,13 @@ internal sealed class UndoSequencer
         var s = new UndoSequencer(app, doc, key, entries, tcs);
         _active = s;
         app.Idling += s.OnIdling;
-        s.PostUndo();
+        try { s.PostUndo(); } catch (Exception ex) { s.Finish("Cannot post Undo: " + ex.Message); }
     }
 
     private void PostUndo()
     {
+        if (!Services.DocumentSessions.Same(_doc, _app.ActiveUIDocument?.Document))
+            throw new InvalidOperationException("The active document changed; no further Undo was posted.");
         _waiting = true; _deadline = DateTime.UtcNow.AddSeconds(20);
         _app.PostCommand(RevitCommandId.LookupPostableCommandId(PostableCommand.Undo));
     }
@@ -129,9 +133,11 @@ internal sealed class UndoSequencer
     {
         var s = _active;
         if (s == null || !s._waiting || !Services.DocumentSessions.Same(s._doc, e.GetDocument())) return;
+        if (s._redoPosted && e.Operation == UndoOperation.TransactionRedone)
+        { s._redoConfirmed = true; s._waiting = false; return; }
         if (e.Operation != UndoOperation.TransactionUndone) return;
         var names = e.GetTransactionNames();
-        var theirs = names.FirstOrDefault(n => !n.StartsWith("Claude", StringComparison.Ordinal));
+        var theirs = names.Count == 0 ? "(unnamed transaction)" : names.FirstOrDefault(n => !n.StartsWith("Claude", StringComparison.Ordinal));
         if (theirs != null) s._foreign = theirs;
         else { s._done++; s._undone.AddRange(names); }
         s._waiting = false;
@@ -141,6 +147,8 @@ internal sealed class UndoSequencer
     {
         try
         {
+            if (!Services.DocumentSessions.Same(_doc, _app.ActiveUIDocument?.Document))
+            { Finish("Active document changed; the sequence stopped. Inspect the original document's Undo/Redo state."); return; }
             if (_waiting)
             {
                 if (DateTime.UtcNow > _deadline) Finish("Revit did not perform Undo (a dialog may be open, or the document is not active).");
@@ -148,8 +156,12 @@ internal sealed class UndoSequencer
             }
             if (_foreign != null)
             {
-                if (!_redoPosted) { _redoPosted = true; _app.PostCommand(RevitCommandId.LookupPostableCommandId(PostableCommand.Redo)); return; }
-                Finish($"Stopped: the next undo step was not the agent's ('{_foreign}') — it was restored with Redo.");
+                if (!_redoPosted)
+                {
+                    _redoPosted = true; _waiting = true; _deadline = DateTime.UtcNow.AddSeconds(20);
+                    _app.PostCommand(RevitCommandId.LookupPostableCommandId(PostableCommand.Redo)); return;
+                }
+                Finish($"Stopped at a foreign undo step ('{_foreign}'); Redo confirmed: {_redoConfirmed}.");
                 return;
             }
             if (_done < _entries.Count) { PostUndo(); return; }

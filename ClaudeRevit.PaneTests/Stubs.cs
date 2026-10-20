@@ -131,10 +131,5 @@ namespace ClaudeRevit.UI
         public static void SetText(DependencyObject target, string value) => target.SetValue(TextProperty, value);
         public static string GetText(DependencyObject target) => (string)target.GetValue(TextProperty);
     }
-    public static class MarkdownProps
-    {
-        public static readonly DependencyProperty MarkdownProperty = DependencyProperty.RegisterAttached("Markdown", typeof(string), typeof(MarkdownProps));
-        public static void SetMarkdown(DependencyObject target, string value) => target.SetValue(MarkdownProperty, value);
-        public static string GetMarkdown(DependencyObject target) => (string)target.GetValue(MarkdownProperty);
-    }
+
 }

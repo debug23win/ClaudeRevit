@@ -18,4 +18,7 @@ public static class Units
 
     public static double CuFeetToCuM(double cuFeet) => cuFeet * CuMPerCuFoot;
     public static double CuMToCuFeet(double cuM) => cuM / CuMPerCuFoot;
+
+    // Revit mass is kg and length is feet: internal density is kg/ft³.
+    public static double DensityToKgM3(double kgPerCuFoot) => kgPerCuFoot / CuMPerCuFoot;
 }

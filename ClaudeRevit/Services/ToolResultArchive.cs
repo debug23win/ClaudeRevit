@@ -12,7 +12,7 @@ namespace ClaudeRevit.Services;
 // restart. Bounded like the script journal so it can't grow without limit.
 public static class ToolResultArchive
 {
-    private const int MaxContentChars = 100_000;
+    public const int MaxContentChars = 2_000_000;
     private const long MaxFileBytes = 20_000_000;
     private const int KeptEntriesOnTrim = 300;
 
@@ -33,6 +33,7 @@ public static class ToolResultArchive
             lock (Gate)
             {
                 Memory[id] = content;
+                TrimMemory();
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 File.AppendAllText(FilePath,
                     JsonSerializer.Serialize(new { id, content }) + "\n");
@@ -66,7 +67,7 @@ public static class ToolResultArchive
                             doc.RootElement.TryGetProperty("content", out var c))
                         {
                             var content = c.GetString();
-                            if (content != null) Memory[id] = content;
+                            if (content != null) { Memory[id] = content; TrimMemory(); }
                             return content;
                         }
                     }
@@ -81,13 +82,27 @@ public static class ToolResultArchive
         }
     }
 
+    private static void TrimMemory()
+    {
+        // Bound the hot cache as well as the disk archive (UTF-16 character budget).
+        while (Memory.Count > KeptEntriesOnTrim || Memory.Values.Sum(x => (long)x.Length) > MaxFileBytes / 2)
+            Memory.Remove(Memory.Keys.First());
+    }
+
     private static void TrimIfOversized()
     {
         try
         {
             if (new FileInfo(FilePath).Length <= MaxFileBytes) return;
             var lines = File.ReadAllLines(FilePath);
-            File.WriteAllLines(FilePath, lines.TakeLast(KeptEntriesOnTrim));
+            var keep = new List<string>(); long bytes = 0;
+            foreach (var line in Enumerable.Reverse(lines).Take(KeptEntriesOnTrim))
+            {
+                var size = System.Text.Encoding.UTF8.GetByteCount(line) + 2;
+                if (bytes + size > MaxFileBytes) break;
+                keep.Add(line); bytes += size;
+            }
+            keep.Reverse(); File.WriteAllLines(FilePath, keep);
         }
         catch { /* best-effort */ }
     }
