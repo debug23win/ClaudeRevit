@@ -1,5 +1,7 @@
 # Claude Revit
 
+**v3.11.0:** Claude model lists come from Anthropic's Models API (current Fable 5.2 / Opus 5.5 / Sonnet 5.5 / Haiku 5.5 without a key), Auto runs Sonnet 5.5 with an Opus 5.5 advisor, benchmark **Open log** / **Log folder** buttons, and a new drawing's chat keeps your agent and model. [Release notes](docs/releases/v3.11.0.md).
+
 **v3.10.0:** detailed per-run benchmark JSONL logs, agent access to plugin preferences and benchmark start/stop/status/log controls. [Release notes](docs/releases/v3.10.0.md).
 
 **v3.9.4:** Claude API fixes: Fable 5.1 no longer fails on the second tool round
