@@ -73,9 +73,17 @@
         </Border>
 
         <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
-            <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,90,0" TextWrapping="Wrap" />
-            <Button x:Name="CloseButton" Content="Close" Width="80" Height="26" HorizontalAlignment="Right"
-                    Click="CloseButton_Click" />
+            <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,290,0" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button x:Name="OpenLogButton" Content="Open log" Width="90" Height="26" Margin="0,0,6,0"
+                        Click="OpenLog_Click"
+                        ToolTip="Open the detailed JSONL log of the current or latest benchmark run (works during a run too)." />
+                <Button x:Name="LogFolderButton" Content="Log folder" Width="90" Height="26" Margin="0,0,6,0"
+                        Click="LogFolder_Click"
+                        ToolTip="Open the folder with all benchmark logs and benchmark_results.jsonl." />
+                <Button x:Name="CloseButton" Content="Close" Width="80" Height="26"
+                        Click="CloseButton_Click" />
+            </StackPanel>
         </Grid>
 
         <DataGrid x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True"

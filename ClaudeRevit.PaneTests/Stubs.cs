@@ -46,6 +46,12 @@ namespace ClaudeRevit.Services
         public void RecreateClient() { }
         public void Activate() { }
     }
+    public static class ClaudeModelCatalog
+    {
+        public static bool LastWasLive { get; private set; }
+        public static Task<IReadOnlyList<ClaudeModelInfo>> ReadAsync(CancellationToken ct, bool forceRefresh = false) =>
+            Task.FromResult(ClaudeModels.Current);
+    }
     public static class CodexModelCatalog
     {
         public static Task<IReadOnlyList<CodexModel>> ReadAsync(string exe, string workDir, CancellationToken ct, bool forceRefresh = false) =>

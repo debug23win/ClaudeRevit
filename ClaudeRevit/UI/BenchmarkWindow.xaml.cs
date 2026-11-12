@@ -72,6 +72,14 @@ public partial class BenchmarkWindow : Window
             System.Collections.Generic.IReadOnlyList<CodexModel> codex = System.Array.Empty<CodexModel>();
             if (Backend(BackendBox) == "codex" || Backend(JudgeBackendBox) == "codex")
                 codex = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), _lifetime.Token, forceRefresh: true);
+            // Claude models from the Models API (or the built-in current list without a key).
+            System.Collections.Generic.IReadOnlyList<ClaudeModelInfo> claude = ClaudeModels.Current;
+            string? claudeError = null;
+            if (Backend(BackendBox) != "codex" || Backend(JudgeBackendBox) != "codex")
+            {
+                try { claude = await ClaudeModelCatalog.ReadAsync(_lifetime.Token); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { claudeError = "Claude models (showing current ones): " + ex.Message; }
+            }
             if (version != _loading || _lifetime.IsCancellationRequested) return;
             void Fill(ComboBox backend, ComboBox box)
             {
@@ -79,17 +87,20 @@ public partial class BenchmarkWindow : Window
                 var options = Backend(backend) switch
                 {
                     "codex" => codex.Select(m => new ModelOption(m.Id, m.Name, m.Efforts, m.DefaultEffort)).ToList(),
-                    "claudecode" => new[] { "", "opus", "sonnet", "haiku" }.Select(id => new ModelOption(id, id == "" ? "CLI default" : id,
-                        new[] { "low", "medium", "high" }, "high")).ToList(),
-                    _ => new[] { "auto", "sonnet-5", "sonnet-5-5", "opus-5-5", "opus-4-8", "opus-5", "haiku-5-5", "haiku-4-5", "alt" }
-                        .Select(id => new ModelOption(id, id, System.Array.Empty<string>(), "")).ToList()
+                    "claudecode" => new[] { new ModelOption("", "CLI default", new[] { "low", "medium", "high" }, "high") }
+                        .Concat(claude.Select(m => new ModelOption(ClaudeModels.ApiId(m.Tag), m.Name, new[] { "low", "medium", "high" }, "high"))).ToList(),
+                    _ => new[] { new ModelOption("auto", "auto", System.Array.Empty<string>(), "") }
+                        .Concat(claude.Select(m => new ModelOption(m.Tag, m.Name, System.Array.Empty<string>(), "")))
+                        .Append(new ModelOption("alt", "alt", System.Array.Empty<string>(), "")).ToList()
                 };
                 box.ItemsSource = options;
                 box.SelectedItem = options.FirstOrDefault(m => m.Id == old) ??
                     options.FirstOrDefault(m => codex.Any(c => c.IsDefault && c.Id == m.Id)) ?? options.FirstOrDefault();
             }
             Fill(BackendBox, ModelBox); Fill(JudgeBackendBox, JudgeBox);
+            // ModelStatusText gates Codex runs, so a Claude catalog problem goes to the summary.
             ModelStatusText.Text = "";
+            if (claudeError != null) SummaryText.Text = claudeError;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { if (version == _loading) ModelStatusText.Text = ex.Message; }
@@ -215,6 +226,52 @@ public partial class BenchmarkWindow : Window
         catch(Exception ex) { SummaryText.Text=ex.Message; }
     }
     private void CancelButton_Click(object sender, RoutedEventArgs e) => _cts?.Cancel();
+
+    // Per-run JSONL logs live in %AppData%\ClaudeRevit\benchmarks; the cumulative results file
+    // sits one level up. Same folder BenchmarkLog writes to by default.
+    private static string LogsFolder => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeRevit", "benchmarks");
+
+    // The run in progress or the last one of this session; otherwise the newest log on disk,
+    // so a log from an earlier Revit session can still be opened.
+    private static string? LatestLogPath()
+    {
+        if (BenchmarkRunner.LastLogPath is { } current && System.IO.File.Exists(current)) return current;
+        try
+        {
+            var dir = new System.IO.DirectoryInfo(LogsFolder);
+            return dir.Exists ? dir.GetFiles("*.jsonl").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault()?.FullName : null;
+        }
+        catch { return null; }
+    }
+
+    private void OpenLog_Click(object sender, RoutedEventArgs e)
+    {
+        var path = LatestLogPath();
+        if (path == null) { SummaryText.Text = "No benchmark log yet — run a benchmark first. Logs folder: " + LogsFolder; return; }
+        // .jsonl usually has no file association; fall back to Notepad, which reads a log that
+        // is still being written (the runner opens it with FileShare.ReadWrite).
+        try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+        catch
+        {
+            try { Process.Start(new ProcessStartInfo("notepad.exe") { ArgumentList = { path }, UseShellExecute = false }); }
+            catch (Exception ex) { SummaryText.Text = "Cannot open the log (" + ex.Message + "): " + path; return; }
+        }
+        SummaryText.ToolTip = "Log: " + path;
+    }
+
+    private void LogFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(LogsFolder);
+            var latest = LatestLogPath();
+            var start = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+            if (latest != null) start.ArgumentList.Add("/select," + latest); else start.ArgumentList.Add(LogsFolder);
+            Process.Start(start);
+        }
+        catch (Exception ex) { SummaryText.Text = "Cannot open " + LogsFolder + ": " + ex.Message; }
+    }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {

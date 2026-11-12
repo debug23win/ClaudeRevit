@@ -45,6 +45,10 @@ public partial class ChatPaneView : UserControl, IDisposable
     private bool _choicesReady;
     private bool _refreshingModels;
     private IReadOnlyList<CodexModel> _codexModels = Array.Empty<CodexModel>();
+    // Claude models for the API and Claude Code pickers: the built-in current generation until
+    // the Models API answers (or when there is no API key), like Codex's catalog for Codex.
+    private IReadOnlyList<ClaudeModelInfo> _claudeModels = ClaudeModels.Current;
+    private bool _claudeModelsLoaded;
     private sealed record Choice(string Id, string Label);
     private static string L(string english, string russian) =>
         (SettingsStore.UiLanguage == "ru" || (SettingsStore.UiLanguage.Length == 0 && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru"))
@@ -61,13 +65,14 @@ public partial class ChatPaneView : UserControl, IDisposable
         _selectedAgent = SettingsStore.ChatAgent;
         AgentPicker.SelectedItem = AgentPicker.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == _selectedAgent);
         _settingChoices = false;
+        PopulateApiModels();
         ApplyAgentChoices();
         Loaded += async (_, _) =>
         {
             // A tab may have changed while this independent dispatcher built XAML,
             // before it subscribed to document events. Reconcile on first display.
             SwitchDocumentHistory();
-            if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync();
+            if (NeedsModelRefresh()) await RefreshModelsAsync();
         };
         DataContext = this;
         Messages.CollectionChanged += OnMessagesChanged;
@@ -267,7 +272,7 @@ public partial class ChatPaneView : UserControl, IDisposable
         foreach(var selected in session.Choices.Values) SettingsStore.SaveAgentSelection(selected);
         _settingChoices = true;
         AgentPicker.SelectedItem = AgentPicker.Items.Cast<ComboBoxItem>().First(i=>(string)i.Tag == _selectedAgent);
-        ModelPicker.SelectedItem = ModelPicker.Items.Cast<ComboBoxItem>().First(i=>(string)i.Tag == _selectedModel);
+        PopulateApiModels();
         _settingChoices = false; ApplyAgentChoices(); UpdateAssistantLabel();
         MessagesList.ItemsSource = Messages;
         InputBox.Text = session.Draft; StatusText.Text = session.Status;
@@ -434,9 +439,12 @@ public partial class ChatPaneView : UserControl, IDisposable
             UpdateAltModelLabel();
             UpdateAssistantLabel();
             _codexModels = Array.Empty<CodexModel>();
+            // The API key may have changed, and with it the models the account can use.
+            _claudeModelsLoaded = false;
             ApplyAgentChoices();
 
             StatusText.Text = "Settings saved.";
+            if (NeedsModelRefresh()) _ = RefreshModelsAsync();
         }
     }
 
@@ -448,6 +456,7 @@ public partial class ChatPaneView : UserControl, IDisposable
 
     private void ModelPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_settingChoices) return;
         if (ModelPicker.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
             _selectedModel = tag;
@@ -462,7 +471,26 @@ public partial class ChatPaneView : UserControl, IDisposable
         SettingsStore.ChatAgent = _selectedAgent;
         ApplyAgentChoices();
         UpdateAssistantLabel();
-        if (_selectedAgent == "codex" && _codexModels.Count == 0) await RefreshModelsAsync();
+        if (NeedsModelRefresh()) await RefreshModelsAsync();
+    }
+
+    private bool NeedsModelRefresh() => _selectedAgent == "codex" ? _codexModels.Count == 0 : !_claudeModelsLoaded;
+
+    // Rebuild the API model list between the fixed "Auto" and "Alt" entries, and keep the
+    // session's model selected even when the catalog no longer lists it (an older saved tag).
+    private void PopulateApiModels()
+    {
+        var wasSetting = _settingChoices;
+        _settingChoices = true;
+        var autoItem = ModelPicker.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == "auto");
+        ModelPicker.Items.Clear();
+        ModelPicker.Items.Add(autoItem);
+        foreach (var m in _claudeModels) ModelPicker.Items.Add(new ComboBoxItem { Tag = m.Tag, Content = m.Name });
+        if (_selectedModel is not ("auto" or "alt") && _claudeModels.All(m => m.Tag != _selectedModel))
+            ModelPicker.Items.Add(new ComboBoxItem { Tag = _selectedModel, Content = ClaudeModels.DisplayName(_selectedModel) });
+        ModelPicker.Items.Add(AltModelItem);
+        ModelPicker.SelectedItem = ModelPicker.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == _selectedModel);
+        _settingChoices = wasSetting;
     }
 
     private void SavePaneSelection(McpAgentSelection selected)
@@ -477,7 +505,11 @@ public partial class ChatPaneView : UserControl, IDisposable
         _settingChoices = true;
         ModelPicker.Visibility = _selectedAgent == "api" ? Visibility.Visible : Visibility.Collapsed;
         McpChoices.Visibility = _selectedAgent == "api" ? Visibility.Collapsed : Visibility.Visible;
-        RefreshModelsButton.Visibility = _selectedAgent == "codex" ? Visibility.Visible : Visibility.Collapsed;
+        RefreshModelsButton.Visibility = Visibility.Visible;
+        RefreshModelsButton.ToolTip = _selectedAgent == "codex"
+            ? L("Ask the Codex CLI for the models this account can use.", "Запросить у Codex CLI модели, доступные этой учётной записи.")
+            : L("Read the models this API key can use from Anthropic (GET /v1/models). Without a key the current built-in list is shown.",
+                "Получить от Anthropic модели, доступные этому API-ключу (GET /v1/models). Без ключа показывается встроенный список актуальных моделей.");
         RefreshModelsButton.Content = L("Refresh models", "Обновить модели");
         McpModelPicker.ToolTip = L("Choose a model or type its full ID. Automatic uses the agent default.", "Выберите модель или введите её полный ID. «Автоматически» использует модель агента по умолчанию.");
         McpEffortPicker.ToolTip = L("Reasoning effort for this model.", "Глубина рассуждений для выбранной модели.");
@@ -486,7 +518,7 @@ public partial class ChatPaneView : UserControl, IDisposable
             var selection = SettingsStore.GetAgentSelection(_selectedAgent);
             var choices = new List<Choice> { new("", L("Automatic", "Автоматически")) };
             if (_selectedAgent == "codex") choices.AddRange(_codexModels.Select(m => new Choice(m.Id, m.Name)));
-            else choices.AddRange(new[] { new Choice("sonnet", "Claude Sonnet"), new Choice("opus", "Claude Opus"), new Choice("haiku", "Claude Haiku") });
+            else choices.AddRange(_claudeModels.Select(m => new Choice(ClaudeModels.ApiId(m.Tag), m.Name)));
             if (!string.IsNullOrEmpty(selection.Model) && !choices.Any(c => c.Id == selection.Model))
                 choices.Add(new(selection.Model, selection.Model));
             McpModelPicker.ItemsSource = choices;
@@ -559,6 +591,29 @@ public partial class ChatPaneView : UserControl, IDisposable
         SetAgentControlsEnabled(false);
         SendButton.IsEnabled = false;
         StatusText.Text = L("Loading models…", "Загрузка моделей…");
+        if (_selectedAgent != "codex")
+        {
+            try
+            {
+                _claudeModels = await ClaudeModelCatalog.ReadAsync(CancellationToken.None, forceRefresh: true);
+                StatusText.Text = ClaudeModelCatalog.LastWasLive
+                    ? L($"Claude: {_claudeModels.Count} models", $"Claude: {_claudeModels.Count} моделей")
+                    : L("Claude: current models (no API key to ask Anthropic)", "Claude: актуальные модели (нет API-ключа для запроса к Anthropic)");
+            }
+            catch (Exception ex)
+            {
+                _claudeModels = ClaudeModels.Current;
+                StatusText.Text = L("Claude: could not load models, showing current ones — ", "Claude: не удалось загрузить модели, показаны актуальные — ") + ex.Message;
+            }
+            finally
+            {
+                _claudeModelsLoaded = true;
+                PopulateApiModels();
+                ApplyAgentChoices();
+                _refreshingModels = false; SetAgentControlsEnabled(true); RefreshSendControls();
+            }
+            return;
+        }
         try
         {
             _codexModels = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), CancellationToken.None, forceRefresh: true);

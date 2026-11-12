@@ -863,8 +863,8 @@ public class ChatService
         // invalidate the 1h prompt-cache prefix for the rest of the turn, and rebuilding
         // the tool list would let a Settings change yank tools out from under the model
         // mid-plan (plus ~130 tool schemas re-serialized per round for nothing).
-        // "Auto" model mode. DEFAULT (advisorMode): Sonnet 5 runs every round and consults Opus
-        // 4.8 via the advisor tool only when it needs a plan — Sonnet's prompt cache stays warm
+        // "Auto" model mode. DEFAULT (advisorMode): Sonnet 5.5 runs every round and consults Opus
+        // 5.5 via the advisor tool only when it needs a plan — Sonnet's prompt cache stays warm
         // all session, Opus is billed only for the short advice sub-inference. The legacy
         // alternative (Settings → AutoUseAdvisor off) switches the whole turn to Opus on a hard
         // task/error/deep-loop; see the escalation vars below.
@@ -926,7 +926,7 @@ public class ChatService
         // to a stronger one when the task looks hard up front, or once the fast model starts
         // erroring / the task turns into a deep multi-step loop. Two paths share this machinery:
         //   • Alt path — fast alt model → the configured "reasoning" alt model.
-        //   • Claude "Auto" — Sonnet 5 (cheap) → Opus 4.8 (strong). This is the big cost lever:
+        //   • Claude "Auto" — Sonnet 5.5 (cheap) → Opus 5.5 (strong). This is the big cost lever:
         //     Sonnet is $3/$15 vs Opus $5/$25 per 1M, so routine turns run at ~60% of the price
         //     and Opus is reserved for the turns that actually need it.
         // Legacy model-switch path (alt reasoning model, or Auto with the advisor turned off).
@@ -1005,11 +1005,11 @@ public class ChatService
                 // the reasoning model still takes precedence, since that is a deliberate switch.
                 var altModelForTurn = escalate ? reasoningModel : AltModelOverride(model);
                 // Claude Auto: in advisor mode the executor is the configured cheap/fast model
-                // (Sonnet 5 default, or Haiku 4.5 for the cheapest tier); the advisor is reached
+                // (Sonnet 5.5 default, or Haiku 5.5 for the cheapest tier); the advisor is reached
                 // via the tool, not by switching. In legacy mode: Sonnet until escalated to Opus.
                 var claudeModelForTurn = advisorMode
                     ? SettingsStore.AutoExecutorModel
-                    : (claudeAuto ? (escalate ? "opus-4-8" : "sonnet-5") : model);
+                    : (claudeAuto ? (escalate ? ClaudeModels.DefaultAdvisor : ClaudeModels.DefaultExecutor) : model);
                 BackendTurn turn;
                 try
                 {
@@ -1741,7 +1741,7 @@ public class ChatService
     // The advisor tool definition for Auto mode: the executor consults the advisor model at most
     // once per request (a per-turn total cap is enforced by the caller), with the advisor's own
     // transcript cached for an hour so repeated consults in a session don't re-bill the whole
-    // prefix. Advisor model is user-configurable (Opus 4.8 default, or Fable 5 for hardest tasks).
+    // prefix. Advisor model is user-configurable (Opus 5.5 default, or Fable 5.2 for hardest tasks).
     private static BetaToolUnion AdvisorTool(string advisorModelId) => new BetaAdvisorTool20260301
     {
         Model = advisorModelId,

@@ -46,7 +46,7 @@ internal static class Program
                 effort.SelectedValue = "high";
                 Check(SettingsStore.GetAgentSelection("codex").Effort == "high", "Codex effort was not saved");
                 agent.SelectedIndex = 1;
-                model.SelectedValue = "opus";
+                model.SelectedValue = "claude-opus-5-5";
                 effort.SelectedValue = "medium";
                 agent.SelectedIndex = 2;
                 Check((string)model.SelectedValue == "gpt-test" && (string)effort.SelectedValue == "high", "Codex choices were not restored");
@@ -58,7 +58,7 @@ internal static class Program
                 await (Task)send.Invoke(pane, null)!;
                 Check(ChatService.SentSelection?.Model == "custom-model-id", "Typed model was ignored on send");
                 Check(ChatService.SentSelection?.Agent == "codex", "Wrong agent on send");
-                Check(SettingsStore.GetAgentSelection("claudecode").Model == "opus", "Claude model was overwritten by Codex");
+                Check(SettingsStore.GetAgentSelection("claudecode").Model == "claude-opus-5-5", "Claude model was overwritten by Codex");
                 model.SelectedValue = "gpt-test";
                 effort.SelectedValue = "high";
                 ChatService.Pending = new();
@@ -117,7 +117,7 @@ internal static class Program
                 Check(((ItemsControl)pane.FindName("AttachmentList")).Items.Count == 0, "A's attachments leaked into B");
                 Check(pane.Messages.Count == 0, "Another project's transcript was shown in B");
                 agent.SelectedIndex=1;
-                model.SelectedValue="sonnet";
+                model.SelectedValue="claude-sonnet-5-5";
                 effort.SelectedValue="low";
                 pane.Messages.Add(new ChatMessage { Role = "user", Text = "Project B" });
                 DocumentHarness.Change("a", false);
@@ -125,7 +125,7 @@ internal static class Program
                 Check(pane.Messages.Single().Text == "Project A", "Returning to A lost its transcript");
                 Check((string)model.SelectedValue=="gpt-test" && (string)effort.SelectedValue=="high","A's selected model/effort leaked from B");
                 agent.SelectedIndex=1;
-                Check((string)model.SelectedValue=="opus" && (string)effort.SelectedValue=="medium","A's other provider choices leaked from B");
+                Check((string)model.SelectedValue=="claude-opus-5-5" && (string)effort.SelectedValue=="medium","A's other provider choices leaked from B");
                 agent.SelectedIndex=2;
                 ChatService.Pending = new();
                 ((TextBox)pane.FindName("InputBox")).Text = "Pending A turn";
