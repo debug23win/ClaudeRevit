@@ -75,4 +75,29 @@ public class BenchmarkRunnerTests : IDisposable
         Assert.Single(_dispatcher.Tools, t => t == "flex_family");
         Assert.Equal("?", rows[0].Verdict); Assert.Null(rows[0].Score); Assert.Equal(1, _dispatcher.Ends);
     }
+    [Fact]
+    public async Task DetailedLogCorrelatesResultsAndContainsJudgeAndProbeEvidence()
+    {
+        var rows = new List<BenchmarkResult>();
+        await Run(new[] { BenchmarkTasks.All[0] }, rows);
+        var events = File.ReadAllLines(BenchmarkRunner.LastLogPath!).Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToList();
+        var kinds = events.Select(e => e.GetProperty("kind").GetString()).ToList();
+        Assert.Contains("run_started", kinds); Assert.Contains("before_probe", kinds);
+        Assert.Contains("after_probe", kinds); Assert.Contains("judge_request", kinds); Assert.Contains("judge_response", kinds);
+        Assert.Contains("objective_checks", kinds); Assert.Contains("task_result", kinds);
+        Assert.Equal("run_completed", kinds.Last());
+        Assert.All(events, e => Assert.Equal(BenchmarkRunner.LastRunId, e.GetProperty("run_id").GetString()));
+        using var result = JsonDocument.Parse(File.ReadAllLines(Path.Combine(_root, "results.jsonl"))[0]);
+        Assert.Equal(BenchmarkRunner.LastRunId, result.RootElement.GetProperty("run_id").GetString());
+    }
+    [Fact]
+    public async Task AgentStopCancelsRunningTaskAndRecordsCancellationAfterCleanup()
+    {
+        ChatService.Send = async ct => { BenchmarkRunner.RequestStop(); await Task.Delay(1000, ct); };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Run(new[] { BenchmarkTasks.All[0] }, new()));
+        Assert.False(BenchmarkRunner.IsRunning); Assert.Equal("cancelled", BenchmarkRunner.Status);
+        Assert.Equal(1, _dispatcher.Ends); Assert.False(_dispatcher.ScopeActive);
+        Assert.Contains("run_cancelled", File.ReadAllText(BenchmarkRunner.LastLogPath!));
+    }
+
 }

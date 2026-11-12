@@ -6,6 +6,12 @@ namespace ClaudeRevit.Services;
 
 public static class TaskJournal
 {
+    private static readonly AsyncLocal<Action<string>?> Observer = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Action<string>> Observers = new();
+    public static bool IsCaptured(string? id) => id != null && Observers.ContainsKey(id);
+    public static IDisposable Capture(Action<string> observer)
+    { var old = Observer.Value; Observer.Value = observer; return new CaptureScope(old); }
+    private sealed class CaptureScope(Action<string>? old) : IDisposable { public void Dispose() => Observer.Value = old; }
     private static readonly object Gate=new();
     private static Task _pending=Task.CompletedTask;
     public static string PathName => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"ClaudeRevit","task_journal.jsonl");
@@ -34,8 +40,8 @@ public static class TaskJournal
     public static IReadOnlyDictionary<string, PhaseMetric> ReadPhases(string? id) =>
         id != null && Phases.TryGetValue(id, out var phases) ? new Dictionary<string, PhaseMetric>(phases) : new Dictionary<string, PhaseMetric>();
     public static IDisposable Start(string documentKey)
-    { var old=Current.Value;Current.Value=Guid.NewGuid().ToString("N");Timings[Current.Value]=default;Workers[Current.Value]=0;Phases[Current.Value]=new();Append(new { kind="task_started",task_id=Current.Value,document_key=documentKey,utc=DateTime.UtcNow });return new Scope(old,Current.Value); }
-    private sealed class Scope(string? old,string id):IDisposable { public void Dispose(){ Timings.TryRemove(id,out _);Workers.TryRemove(id,out _);Phases.TryRemove(id,out _);Current.Value=old; } }
+    { var old=Current.Value;Current.Value=Guid.NewGuid().ToString("N");Timings[Current.Value]=default;Workers[Current.Value]=0;Phases[Current.Value]=new();if(Observer.Value is { } observer) Observers[Current.Value]=observer;Append(new { kind="task_started",task_id=Current.Value,document_key=documentKey,utc=DateTime.UtcNow });return new Scope(old,Current.Value); }
+    private sealed class Scope(string? old,string id):IDisposable { public void Dispose(){ Observers.TryRemove(id,out _);Timings.TryRemove(id,out _);Workers.TryRemove(id,out _);Phases.TryRemove(id,out _);Current.Value=old; } }
     public static void RecordWorker(string? id,double seconds) {if(id!=null&&Workers.ContainsKey(id))Workers.AddOrUpdate(id,seconds,(_,sum)=>sum+seconds);}
     public static double ReadWorker(string? id)=>id!=null&&Workers.TryGetValue(id,out var seconds)?seconds:0;
     public static void RecordTiming(string? id,double queue,double execution)
@@ -44,6 +50,13 @@ public static class TaskJournal
     public static void Append(object entry)
     {
         var line=JsonSerializer.Serialize(entry);
+        try
+        {
+            using var parsed = JsonDocument.Parse(line);
+            if (parsed.RootElement.TryGetProperty("task_id", out var id) && id.ValueKind == JsonValueKind.String &&
+                Observers.TryGetValue(id.GetString()!, out var observer)) observer(line);
+        }
+        catch (Exception ex) { Volatile.Write(ref _lastWriteError, ex.Message); }
         lock(Gate)_pending=_pending.ContinueWith(_=>
         {
             try

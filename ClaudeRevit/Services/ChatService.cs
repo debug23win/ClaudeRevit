@@ -40,6 +40,9 @@ public class ChatService
         "Ask the missing questions together, wait for answers, and retain agreed requirements in project memory. " +
         "Do not invent structural sizing or undocumented fabrication details. Do not repeat questions already answered. " +
         "Read-only inspection may continue while requirements are unresolved. Routine authorized operations need no permission prompt.\n\n" +
+        "Plugin controls: discover plugin_settings to read/update non-secret preferences and agent model selections; " +
+        "discover benchmark_control to list tasks, start/stop runs, poll status and read detailed file logs. " +
+        "Use these controls only for a user-requested settings or benchmark task; benchmark modelling must not change global settings or control its own run. " +
         "TOOLSET IS LAZY-LOADED: to save tokens you start with a CORE toolset only — model inspection, the " +
         "common modelling verbs (walls, floors, roofs, levels, grids, columns, beams, rooms, family " +
         "placement, materials, direct-shape/mesh, set_parameter, transforms, delete), and the code/learning " +

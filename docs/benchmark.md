@@ -183,3 +183,62 @@ document. Compilation and isolated tests do not establish live native success.
 The judge receives actual DirectShape mesh triangle counts and sampled surface points, solid face/volume evidence, rebar centerlines/layout/hosts, native joint member IDs and source annotations. Metadata alone does not prove geometry. R1/R3 skip without points if the seed has neither a concrete column type nor a valid column rebar host. An empty bar catalog can be populated by `create_rebar_type`; R2 uses native structural floors and native area/path reinforcement. A generic structural connection is a logical link, not a detailed plate/bolt joint.
 
 `usage_scope` distinguishes Codex per-turn accounting from cumulative fallback. Cached input and reasoning are subsets, so they must not be added again to input/output totals. Delegated Codex usage is marked parent-only; child-agent consumption is not included in that counter. Comparisons must use the same task set, seed, judge and effort. This release changes evidence and prerequisites, not the quality/speed formula.
+
+## Detailed file diagnostics and agent controls
+
+Each run now creates `%APPDATA%\ClaudeRevit\benchmarks\<run_id>.jsonl`.
+The benchmark window shows the path after completion, cancellation or failure.
+Existing `benchmark_results.jsonl` rows include `run_id` and `log_path` so scores
+can be traced to the exact run. Each JSONL event is flushed immediately and has
+`schema_version`, `run_id`, `sequence`, UTC timestamp, task ID, kind and data.
+Files are retained per run, without the rolling task journal's truncation.
+
+The log records requested modeller/judge selections, prompts and criteria,
+limits, status transitions, before/after probes, objective checks, modeller
+messages, budget stops, judge request/raw response, verdicts and final results.
+Task-journal events correlate chat task IDs with Revit tool starts, inputs,
+results, queue/execution timings, changes and errors. Exceptions include stack
+traces; cancellation and scratch-copy cleanup are recorded. A crash may leave
+no terminal event: inspect the last status or `tool_started` event without a
+matching completed tool event. Compare `before_probe`/`after_probe`,
+`objective_checks`, and `judge_response` to distinguish modelling failures from
+unavailable evidence or grading failures. Logs contain model data, paths and
+agent-generated content; review them before sharing. API-key/token stores are
+not dumped. Delete old run files manually when no longer needed.
+
+Authenticated agents can discover two new native tools using `find_tools` or
+`discover_revit_tools`:
+
+* `plugin_settings`: `get` returns supported non-secret preferences; `update`
+  accepts a `changes` object and validates the complete request before applying
+  it. `get_agent`/`set_agent` read/save independent `agent`, `model`, `effort`
+  selections (`codex` or `claudecode`). Credentials, MCP tokens, executable paths
+  and endpoint URLs are excluded. Updates are rejected during a benchmark;
+  changing `ChatUiMode` requires a Revit restart. Open settings windows should
+  be reopened to display the latest values.
+* `benchmark_control`: `tasks` lists IDs and criteria; `start` requires explicit
+  `task_ids` and optionally `backend`, `model`, `effort`, `judge_backend`,
+  `judge_model`, `judge_effort`, `max_rounds` and `max_seconds`. Runs start
+  asynchronously; poll `status` for progress, completion, errors and log paths.
+  `stop` requests cancellation and cleanup, including runs started in the UI.
+  Agent starts always use fresh copies of a saved, unmodified local scratch
+  RVT/RFA. Defaults are Codex, 24 rounds and 300 seconds per task. No API keys
+  are needed for subscription runs, but the relevant local CLI must be signed in.
+  The benchmark modeller cannot start/stop its own run.
+
+Examples of tool arguments:
+
+```json
+{"action":"update","changes":{"ShowTaskDiagnostics":true,"MaxToolRounds":48}}
+```
+
+```json
+{"action":"start","task_ids":["B0","B1"],"backend":"codex","judge_backend":"codex","max_rounds":24,"max_seconds":300}
+```
+
+Use `benchmark_control` with `{"action":"logs"}` to list the 100 most recent
+files, then `{"action":"read_log","run_id":"<id>","offset":0,"limit":20}`.
+Continue at `next_offset` while `has_more` is true. Limits are 1–100 events per
+page; responses also stop after about 200 KB, retaining at least one complete
+event. A large single event may use the normal tool-result archival mechanism.
+Run IDs resolve only inside the benchmark log directory.

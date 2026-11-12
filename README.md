@@ -1,5 +1,7 @@
 # Claude Revit
 
+**v3.10.0:** detailed per-run benchmark JSONL logs, agent access to plugin preferences and benchmark start/stop/status/log controls. [Release notes](docs/releases/v3.10.0.md).
+
 **v3.9.4:** Claude API fixes: Fable 5.1 no longer fails on the second tool round
 for new accounts, refusals and cut-off replies are reported, Opus 5.5 / Sonnet 5.5 /
 Haiku 5.5 are available, and the cost display follows current prices. ModPlus

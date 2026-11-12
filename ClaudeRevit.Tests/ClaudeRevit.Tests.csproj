@@ -94,6 +94,7 @@
     <Compile Include="..\ClaudeRevit\Services\BenchmarkScoring.cs" Link="src\BenchmarkScoring.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkTasks.cs" Link="src\BenchmarkTasks.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkEligibility.cs" Link="src\BenchmarkEligibility.cs" />
+    <Compile Include="../ClaudeRevit/Services/BenchmarkLog.cs" Link="src/BenchmarkLog.cs" />
     <Compile Include="..\ClaudeRevit\Services\BenchmarkRunner.cs" Link="src\BenchmarkRunner.cs" />
     <Compile Include="..\ClaudeRevit\Services\BimStarterKnowledge.cs" Link="src\BimStarterKnowledge.cs" />
     <Compile Include="..\ClaudeRevit\Services\StandardWorkflows.cs" Link="src\StandardWorkflows.cs" />

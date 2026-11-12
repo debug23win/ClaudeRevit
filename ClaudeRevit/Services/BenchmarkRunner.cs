@@ -50,6 +50,14 @@ public static class BenchmarkRunner
         File.WriteAllText(path,JsonSerializer.Serialize(BenchmarkStatistics.Group(rows).Select(g=>new {key=g.Key,statistics=g.Distribution})));
     }
     private static int _running;
+    private static readonly object ControlGate = new();
+    private static CancellationTokenSource? _runCancellation;
+    public static void RequestStop() { lock (ControlGate) _runCancellation?.Cancel(); }
+    public static string Status { get; private set; } = "idle";
+    public static string? LastError { get; private set; }
+    public static bool IsRunning => Volatile.Read(ref _running) != 0;
+    public static string? LastRunId { get; private set; }
+    public static string? LastLogPath { get; private set; }
 
     private static string ResultsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -63,19 +71,36 @@ public static class BenchmarkRunner
     {
         _ = execution.Tag; _ = judge.Tag; // validate before suppression or any model changes
         if (Interlocked.CompareExchange(ref _running, 1, 0) != 0) throw new InvalidOperationException("A benchmark is already running.");
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        lock (ControlGate) _runCancellation = runCancellation;
+        ct = runCancellation.Token;
+        Status = "starting"; LastError = null; LastRunId = null; LastLogPath = null;
+        BenchmarkLog? log = null;
         var oldSuppression = ToolDispatcher.ForceSuppress;
         ToolDispatcher.ForceSuppress = true;
         try
         {
+            log = new BenchmarkLog(resultsPath == null ? null : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(resultsPath))!, "benchmarks"));
+            LastRunId = log.RunId; LastLogPath = log.PathName;
+            using var capture = TaskJournal.Capture(log.Journal);
+            log.Write("run_started", new { runStamp, execution, judge, tasks, resetBetweenTasks, maxRoundsPerTask, maxSecondsPerTask,
+                plugin_version = typeof(BenchmarkRunner).Assembly.GetName().Version?.ToString(), os = Environment.OSVersion.ToString() });
+            var statusCallback = onStatus;
+            onStatus = message => { Status = message; log.Write("status", new { message }); statusCallback(message); };
+            var resultCallback = onResult;
+            onResult = result => { log.Write("task_result", result); resultCallback(result); };
             var judgeChat = new ChatService(ephemeral: true);
             foreach (var task in tasks)
             {
+                log.TaskId = task.Id;
+                log.Write("task_started", task);
                 ct.ThrowIfCancellationRequested();
                 var documentKey = DocumentSessions.CurrentDocumentKey;
                 if (string.IsNullOrWhiteSpace(documentKey) || documentKey == "none") throw new InvalidOperationException("Open a disposable test model before running the benchmark.");
                 onStatus($"{task.Id} · {task.Title} · checking seed document…");
                 using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var before = await StatsAsync(task, false, documentKey, ct, eligibilityOnly: resetBetweenTasks);
+                var before = await StatsAsync(task, false, documentKey, ct, eligibilityOnly: resetBetweenTasks, log: log);
+                log.Write("seed_probe", new { documentKey, probe = JsonSerializer.Deserialize<JsonElement>(before) });
                 var skip = BenchmarkEligibility.SkipReason(task, before);
                 if (skip != null)
                 {
@@ -92,7 +117,8 @@ public static class BenchmarkRunner
                     documentKey = await ToolDispatcher.Instance.BenchmarkScopeAsync(true, documentKey, ct);
                     scopeStarted = true;
                     onStatus($"{task.Id} · {task.Title} · capturing initial evidence…");
-                    before = await StatsAsync(task, false, documentKey, ct);
+                    before = await StatsAsync(task, false, documentKey, ct, log: log);
+                    log.Write("before_probe", new { documentKey, probe = JsonSerializer.Deserialize<JsonElement>(before) });
                 }
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed before the benchmark task.");
                 var chat = new ChatService(ephemeral: true) { SubscriptionMode = false, MaxToolRoundsOverride = maxRoundsPerTask > 0 ? maxRoundsPerTask : int.MaxValue };
@@ -120,20 +146,30 @@ public static class BenchmarkRunner
                     budgetStopped = chat.StoppedAtRoundLimit;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested) { budgetStopped = true; }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex) { error = ex.Message; Log.Error($"Benchmark task {task.Id}", ex); }
+                catch (OperationCanceledException ex)
+                {
+                    log.Write("modeller_cancelled", new { exception = ex.ToString(), seconds = stopwatch.Elapsed.TotalSeconds,
+                        messages = conversation.Select(m => new { m.Role, m.Text }) });
+                    throw;
+                }
+                catch (Exception ex) { log.Write("modeller_error", new { exception = ex.ToString() }); error = ex.Message; Log.Error($"Benchmark task {task.Id}", ex); }
                 var seconds = stopwatch.Elapsed.TotalSeconds;
+                log.Write("modeller_completed", new { error, budgetStopped, seconds, chat.Timings,
+                    messages = conversation.Select(m => new { m.Role, m.Text }) });
                 var finalText = conversation.LastOrDefault(m => m.Role == "assistant")?.Text ?? "";
                 if (DocumentSessions.CurrentDocumentKey != documentKey) throw new InvalidOperationException("Active document changed during the benchmark. Grading stopped; only the owned scratch copy is closed without saving.");
                 onStatus($"{task.Id} · {task.Title} · capturing final evidence…");
-                var after = await StatsAsync(task, true, documentKey, ct);
+                var after = await StatsAsync(task, true, documentKey, ct, log: log);
+                log.Write("after_probe", JsonSerializer.Deserialize<JsonElement>(after));
                 var objective = BenchmarkObjective.Evaluate(task.Id, before, after);
+                log.Write("objective_checks", objective);
                 var evidence=JsonSerializer.Deserialize<Dictionary<string,object?>>(after)!;
                 evidence["modelling_revit_execution_seconds"]=chat.Timings.RevitExecutionSeconds;
                 after=JsonSerializer.Serialize(evidence);
                 onStatus($"{task.Id} · {task.Title} · grading…");
                 var verdict = error != null ? new BenchmarkVerdict(false, 0, "Run error: " + Truncate(error, 200), true)
-                    : await JudgeAsync(judgeChat, judge, task, before, after, finalText, ct);
+                    : await JudgeAsync(judgeChat, judge, task, before, after, finalText, ct, log);
+                log.Write("judge_verdict", verdict);
                 verdict = BenchmarkObjective.Apply(verdict, objective);
                 if (budgetStopped) verdict = verdict with { Reason = "[task budget reached] " + verdict.Reason };
                 if (scopeStarted)
@@ -167,15 +203,30 @@ public static class BenchmarkRunner
                     if (scopeStarted)
                     {
                         using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                        await ToolDispatcher.Instance.BenchmarkScopeAsync(false, documentKey, cleanup.Token);
+                        log.Write("cleanup_started", new { documentKey });
+                        try
+                        {
+                            await ToolDispatcher.Instance.BenchmarkScopeAsync(false, documentKey, cleanup.Token);
+                            log.Write("cleanup_completed", new { documentKey });
+                        }
+                        catch (Exception ex) { log.Write("cleanup_failed", new { documentKey, exception = ex.ToString() }); throw; }
                     }
                 }
             }
+            log.TaskId = null;
+            log.Write("run_completed", new { });
+            Status = "completed";
         }
-        finally { ToolDispatcher.ForceSuppress = oldSuppression; Interlocked.Exchange(ref _running, 0); }
+        catch (OperationCanceledException ex) { Status = "cancelled"; log?.Write("run_cancelled", new { exception = ex.ToString() }); throw; }
+        catch (Exception ex) { Status = "failed"; LastError = ex.ToString(); log?.Write("run_failed", new { exception = ex.ToString() }); throw; }
+        finally
+        {
+            try { log?.Dispose(); }
+            finally { lock (ControlGate) _runCancellation = null; ToolDispatcher.ForceSuppress = oldSuppression; Interlocked.Exchange(ref _running, 0); }
+        }
     }
 
-    private static async Task<string> StatsAsync(BenchmarkTask task, bool completed, string documentKey, CancellationToken ct, bool eligibilityOnly = false)
+    private static async Task<string> StatsAsync(BenchmarkTask task, bool completed, string documentKey, CancellationToken ct, bool eligibilityOnly = false, BenchmarkLog? log = null)
     {
         // Precise benchmark probe (counts rebar, DirectShapes, connections, wall lengths, level
         // elevations, floor areas…) — not the coarse get_model_statistics, which can't see those.
@@ -209,13 +260,13 @@ public static class BenchmarkRunner
             return JsonSerializer.Serialize(values);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return JsonSerializer.Serialize(new { probe_error = ex.Message }); }
+        catch (Exception ex) { log?.Write("probe_error", new { exception = ex.ToString() }); return JsonSerializer.Serialize(new { probe_error = ex.Message }); }
     }
 
     private static async Task<BenchmarkVerdict> JudgeAsync(
         ChatService chat, BenchmarkExecution judge, BenchmarkTask task,
         string before, string after, string finalText,
-        CancellationToken ct)
+        CancellationToken ct, BenchmarkLog log)
     {
         const string sys =
             "You are an impartial QA grader for a Revit modelling agent. Grade ONLY from the objective " +
@@ -235,7 +286,7 @@ public static class BenchmarkRunner
         {
             (before, after) = BenchmarkGrading.SummarizePair(before, after);
         }
-        catch (Exception ex) { return new(false, 0, ex.Message, false); }
+        catch (Exception ex) { log.Write("judge_evidence_error", new { exception = ex.ToString() }); return new(false, 0, ex.Message, false); }
         var user =
             $"TASK:\n{task.Prompt}\n\nPASS CRITERIA:\n{task.Criteria}\n\n" +
             $"OBJECTIVE PROBE BEFORE:\n{before}\n\n" +
@@ -248,6 +299,7 @@ public static class BenchmarkRunner
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromMinutes(2));
             var prompt = sys + "\n\n" + user;
+            log.Write("judge_request", new { system = sys, user });
             var raw = judge.Backend switch
             {
                 "claudecode" => await ClaudeCodeBackend.CompleteAsync(SettingsStore.ClaudeCodeExe, prompt,
@@ -257,11 +309,13 @@ public static class BenchmarkRunner
                 "api" => await chat.RawCompleteAsync(judge.Tag, sys, user, timeout.Token),
                 _ => throw new InvalidOperationException("Unknown judge backend.")
             };
+            log.Write("judge_response", new { raw });
             return BenchmarkGrading.Parse(raw);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
+            log.Write("judge_error", new { exception = ex.ToString() });
             return new BenchmarkVerdict(false, 0, "Judge unavailable: " + Truncate(ex.Message, 160), false);
         }
     }
@@ -276,6 +330,7 @@ public static class BenchmarkRunner
             var record = new
             {
                 ts = runStamp,
+                run_id = LastRunId, log_path = LastLogPath,
                 task = r.TaskId,
                 title = r.Title,
                 model = execution.Tag,

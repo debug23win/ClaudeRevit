@@ -16,6 +16,8 @@ public class App : IExternalApplication
         try
         {
             ToolRegistry.Instance.Register(new FindTools());
+            ToolRegistry.Instance.Register(new PluginSettings());
+            ToolRegistry.Instance.Register(new BenchmarkControl());
             ToolRegistry.Instance.Register(new TestRevitConnection());
             ToolRegistry.Instance.Register(new RunBatch());
             ToolRegistry.Instance.Register(new GetActiveViewInfo());

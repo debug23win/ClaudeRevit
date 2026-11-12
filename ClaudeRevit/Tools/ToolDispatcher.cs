@@ -112,6 +112,7 @@ public class ToolDispatcher : IExternalEventHandler
     {
         var channel=Services.McpSession.Executing?.ChannelId is { } cid?Services.McpTurnChannel.Find(cid):null;
         var id=channel?.TaskId??Services.TaskJournal.CurrentId;var watch=System.Diagnostics.Stopwatch.StartNew();string? result=null;Exception? error=null;
+        if (Services.TaskJournal.IsCaptured(id)) Services.TaskJournal.Append(new { kind="worker_started", task_id=id, tool="validate_csharp", input, utc=DateTime.UtcNow });
         try { result=await Task.Run(()=>ValidateCSharp.Validate(input,ct),ct).ConfigureAwait(false);return result; }
         catch(Exception ex){error=ex;throw;}
         finally
@@ -128,6 +129,9 @@ public class ToolDispatcher : IExternalEventHandler
         ReportProgress(documentKey, "compiling C# on a worker…", channel);
         var watch = System.Diagnostics.Stopwatch.StartNew();
         byte[] bytes;Exception? compileError=null;
+        var captureChannel = Services.McpSession.Executing?.ChannelId is { } captureId ? Services.McpTurnChannel.Find(captureId) : null;
+        var capturedTaskId = captureChannel?.TaskId ?? Services.TaskJournal.CurrentId;
+        if (Services.TaskJournal.IsCaptured(capturedTaskId)) Services.TaskJournal.Append(new { kind="worker_started", task_id=capturedTaskId, tool=tool.Name, input, utc=DateTime.UtcNow });
         try { bytes=await Task.Run(() => ExecuteCSharp.Prepare(ToolInput.RequiredText(input, "code") ?? "", ct), ct).ConfigureAwait(false); }
         catch(Exception ex){compileError=ex;throw;}
         finally
@@ -494,6 +498,9 @@ public class ToolDispatcher : IExternalEventHandler
         // Log before running so, if a tool corrupts the model and Revit crashes on the
         // next redraw, the log's last line names the culprit tool and its arguments.
         Services.Log.Info($"tool → {job.Name} {SafeArgs(job.Input)}");
+        if (Services.TaskJournal.IsCaptured(job.TaskId))
+            Services.TaskJournal.Append(new { kind = "tool_started", utc = DateTime.UtcNow, task_id = job.TaskId,
+                document_key = job.DocumentKey, tool = job.Name, input = job.Input, queue_seconds = queueTime.TotalSeconds });
         using var operation = job.Operation;
         using var sessionContext = Services.McpSession.Enter(job.Session);
         using var attachmentScope = job.AttachmentScope == null ? null : Services.AttachmentStore.EnterScope(job.AttachmentScope);
@@ -695,6 +702,7 @@ public class ToolDispatcher : IExternalEventHandler
                 document_key=job.DocumentKey,tool=job.Name,queue_seconds=queueTime.TotalSeconds,revit_seconds=executionWatch.Elapsed.TotalSeconds,
                 // What the result costs the model: the one number that shows which tools overload the conversation.
                 result_chars=completedResult?.Length??0,
+                input=Services.TaskJournal.IsCaptured(job.TaskId) ? job.Input : null, result=Services.TaskJournal.IsCaptured(job.TaskId) ? completedResult : null, exception=completedError?.ToString(),
                 ok=!cancelled&&completedError==null&&completedResult!=null&&ResultLooksOk(completedResult),cancelled,error=completedError?.Message??Services.ToolResult.ErrorMessage(completedResult),
                 changes=delta });
             if (changes != null && !rolledBack) ActionHistory.Record(job.DocumentKey, job.TaskId, job.Name, changes);

@@ -191,6 +191,11 @@ public partial class BenchmarkWindow : Window
         catch (Exception ex) { SummaryText.Text = "Error: " + ex.Message; }
         finally
         {
+            if (BenchmarkRunner.LastLogPath is { } logPath)
+            {
+                SummaryText.Text += " · Log: " + logPath;
+                SummaryText.ToolTip = (SummaryText.ToolTip?.ToString() ?? "") + "\nDetailed JSONL log: " + logPath;
+            }
             _tick.Stop();
             NowPanel.Visibility = Visibility.Collapsed;
             _cts?.Dispose();

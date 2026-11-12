@@ -94,6 +94,7 @@ namespace ClaudeRevit.Services
     }
     public static class BenchmarkRunner
     {
+        public static string? LastLogPath => null;
         public static void WriteSummary(IEnumerable<BenchmarkResult> rows) { }
         public static BenchmarkExecution? Execution, Judge;
         public static TaskCompletionSource Pending = new();
