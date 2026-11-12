@@ -38,7 +38,7 @@ the user doesn't have to think about it. Premature now (we have dozens); impleme
 ## Other parked ideas (agreed, deferred)
 
 - ~~**"Auto-эконом" mode: Haiku executor + Opus advisor.**~~ SHIPPED (v1.70): Auto's executor
-  (Sonnet 5 / Haiku 4.5) and advisor (Opus 4.8 / Fable 5) are selectable in Settings. Per-task
+  (Sonnet 5.5 / Haiku 5.5) and advisor (Opus 5.5 / Fable 5.2) are selectable in Settings. Per-task
   diagnostics (time/tokens/rounds) added alongside. Benchmark mode (v1.71) compares models on
   graded tasks with an impartial Opus judge.
 - ~~**Subscription-backed use.**~~ SHIPPED and field-validated (v1.83 → v1.96). The MCP server lets

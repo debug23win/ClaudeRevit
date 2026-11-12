@@ -108,22 +108,35 @@ public static class SettingsStore
     }
 
     // "Auto" executor model: the cheap/fast model that runs every round.
-    //   "sonnet-5" (default) — best balance.  "haiku-4-5" — cheapest/fastest, pairs with an
-    // advisor for the hard moments (Haiku executor + Opus/Fable advisor is a valid pattern).
+    //   "sonnet-5-5" (default) — best balance.  "haiku-5-5" — cheapest, pairs with an advisor
+    // for the hard moments. Values saved by older versions (Sonnet 5, Haiku 4.5) move to the
+    // current generation of the same tier.
     public static string AutoExecutorModel
     {
-        get => string.IsNullOrWhiteSpace(Current.AutoExecutorModel) ? "sonnet-5" : Current.AutoExecutorModel;
+        get => CurrentExecutor(Current.AutoExecutorModel);
         set { Current.AutoExecutorModel = value; Save(); }
     }
 
     // "Auto" advisor model consulted mid-turn.
-    //   "opus-4-8" (default).  "fable-5" — Anthropic's most capable, for the hardest tasks
-    // (2x Opus's price, but only the short advice sub-inference is billed at that rate).
+    //   "opus-5-5" (default).  "fable-5-2" — Anthropic's most capable, for the hardest tasks
+    // (only the short advice sub-inference is billed at its rate). Both are accepted as advisors
+    // by both executors; Opus 4.8 and older are rejected by a Sonnet 5.5 executor, so older
+    // saved values move to the current model of the same tier.
     public static string AutoAdvisorModel
     {
-        get => string.IsNullOrWhiteSpace(Current.AutoAdvisorModel) ? "opus-4-8" : Current.AutoAdvisorModel;
+        get => CurrentAdvisor(Current.AutoAdvisorModel);
         set { Current.AutoAdvisorModel = value; Save(); }
     }
+
+    public static string CurrentExecutor(string? saved) =>
+        saved is "sonnet-5-5" or "haiku-5-5" ? saved
+        : saved != null && saved.StartsWith("haiku", StringComparison.Ordinal) ? "haiku-5-5"
+        : ClaudeModels.DefaultExecutor;
+
+    public static string CurrentAdvisor(string? saved) =>
+        saved is "opus-5-5" or "fable-5-2" ? saved
+        : saved != null && (saved.StartsWith("fable", StringComparison.Ordinal) || saved.StartsWith("mythos", StringComparison.Ordinal)) ? "fable-5-2"
+        : ClaudeModels.DefaultAdvisor;
 
     // Show a per-task diagnostics line (elapsed time, tokens, rounds) after each answer, to
     // compare how efficiently different models solve the same task. On by default.
@@ -337,8 +350,8 @@ public static class SettingsStore
         public int AltContextK { get; set; } = 0;
         public bool AltCompactTools { get; set; } = true;
         public bool AutoUseAdvisor { get; set; } = true;
-        public string AutoExecutorModel { get; set; } = "sonnet-5";
-        public string AutoAdvisorModel { get; set; } = "opus-4-8";
+        public string AutoExecutorModel { get; set; } = ClaudeModels.DefaultExecutor;
+        public string AutoAdvisorModel { get; set; } = ClaudeModels.DefaultAdvisor;
         public bool ShowTaskDiagnostics { get; set; } = true;
         public bool McpEnabled { get; set; }
         public int McpPort { get; set; } = 8788;

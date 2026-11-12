@@ -42,26 +42,17 @@ public static class ClaudeCodeBackend
         public string? Subtype;
     }
 
-    // Map our internal model tag to what Claude Code accepts for `--model`.
-    //
-    // The older tags use the coarse family aliases ("opus"/"sonnet"/"haiku"), which resolve to
-    // whatever the CLI currently considers that family's model. That is fine for them, but it can't
-    // express "Opus 5 specifically" — the family alias would just pick the CLI's current Opus and
-    // make two dropdown entries behave identically. So the newer models pass their FULL model id,
-    // which Claude Code also accepts, and the pane's choice actually decides.
+    // Map our internal model tag to what Claude Code accepts for `--model`: the full model id,
+    // so the pane's choice decides exactly which model runs (a family alias such as "opus"
+    // would silently pick whatever the CLI currently considers that family's model). Tags come
+    // from the Models API catalog, so any model the account can use maps without a table here.
     //
     // Returns null for "auto" — there we let the CLI pick, because the advisor-escalation that
-    // "auto" means on the API has no equivalent inside Claude Code's own loop. Fable 5 used to
-    // map to null too, which silently ran the CLI's default model instead of the one chosen.
-    // A tag the CLI doesn't recognise surfaces as a CLI error rather than a silent fallback.
-    public static string? ModelAlias(string? tag) => tag switch
-    {
-        "opus-5-5" or "sonnet-5-5" or "haiku-5-5" or "opus-5" or "fable-5" or "fable-5-1" => ClaudeModels.ApiId(tag),
-        "opus-4-8" or "opus-4-7" or "opus-4-6" => "opus",
-        "sonnet-5" or "sonnet-4-6" => "sonnet",
-        "haiku-4-5" => "haiku",
-        _ => null
-    };
+    // "auto" means on the API has no equivalent inside Claude Code's own loop. A tag the CLI
+    // doesn't recognise surfaces as a CLI error rather than a silent fallback.
+    public static string? ModelAlias(string? tag) =>
+        string.IsNullOrWhiteSpace(tag) || tag == "auto" || tag!.StartsWith("alt", StringComparison.Ordinal)
+            ? null : ClaudeModels.ApiId(tag);
 
     public static async Task<Result> RunAsync(
         string exe, string prompt, string workDir, string mcpConfigPath, string? resumeSessionId,

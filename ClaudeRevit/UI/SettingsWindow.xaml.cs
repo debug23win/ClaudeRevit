@@ -438,8 +438,8 @@ public partial class SettingsWindow : Window
         SettingsStore.ServerFallback = ServerFallbackBox.IsChecked == true;
         SettingsStore.ChatUiMode = TagOf(ChatUiModeBox, "window");
         SettingsStore.AutoUseAdvisor = AutoAdvisorBox.IsChecked == true;
-        SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, "sonnet-5");
-        SettingsStore.AutoAdvisorModel = TagOf(AutoAdvBox, "opus-4-8");
+        SettingsStore.AutoExecutorModel = TagOf(AutoExecBox, ClaudeModels.DefaultExecutor);
+        SettingsStore.AutoAdvisorModel = TagOf(AutoAdvBox, ClaudeModels.DefaultAdvisor);
         SettingsStore.ShowTaskDiagnostics = TaskDiagBox.IsChecked == true;
         if (int.TryParse(McpPortBox.Text, out var mcpPort) && mcpPort is > 0 and < 65536)
             SettingsStore.McpPort = mcpPort;
