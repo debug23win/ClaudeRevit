@@ -261,7 +261,18 @@ public partial class ChatPaneView : UserControl, IDisposable
         _service.SaveHistory(Messages);
         if (!_sessions.TryGetValue(key,out var session))
         {
-            session = new PaneSession(snapshot); _sessions[key] = session;
+            // A drawing seen for the first time gets its own chat, but keeps the agent, model and
+            // effort the user is working with instead of falling back to Auto. An unsent draft
+            // moves with the user (unless it is a supplement for a turn still running here);
+            // staged attachments stay with their drawing.
+            session = new PaneSession(snapshot)
+            {
+                Agent = _session.Agent, Model = _session.Model,
+                Choices = new Dictionary<string, McpAgentSelection>(_session.Choices)
+            };
+            if (_session.Cancellation == null && _session.Draft.Length > 0)
+            { session.Draft = _session.Draft; _session.Draft = ""; }
+            _sessions[key] = session;
             foreach (var m in session.Service.LoadUiMessages()) session.Messages.Add(m);
             session.Messages.CollectionChanged += OnMessagesChanged;
             session.Service.ConfirmToolAsync = ConfirmToolAsync;
