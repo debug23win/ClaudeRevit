@@ -19,6 +19,8 @@ public sealed class McpTurnChannel
     public string DocumentKey { get; set; }
     public CancellationToken Token { get; }
     public bool CompactTools { get; }
+    public bool RequireOperationIds { get; set; }
+    public McpOperationReplay OperationReplay { get; } = new();
     public Action<string>? Progress { get; set; }
     public string? AttachmentScope { get; set; }
     public Func<string?>? TakeUserUpdate { get; set; }

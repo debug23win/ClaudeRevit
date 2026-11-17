@@ -191,6 +191,18 @@ public static class SettingsStore
         set { Current.CodexExe = value; Save(); }
     }
 
+    public static string QwenExe
+    {
+        get => string.IsNullOrWhiteSpace(Current.QwenExe) ? "qwen" : Current.QwenExe;
+        set { lock (Gate) { Current.QwenExe = value; Save(); } }
+    }
+
+    public static string KimiExe
+    {
+        get => string.IsNullOrWhiteSpace(Current.KimiExe) ? "kimi" : Current.KimiExe;
+        set { lock (Gate) { Current.KimiExe = value; Save(); } }
+    }
+
     // Free-text model id for MCP-driven runs (Claude Code / Codex). The dropdowns only carry the
     // models shipped with a release; this lets a newly released id be used without an update. Empty
     // = use whatever the picker selected.
@@ -202,7 +214,7 @@ public static class SettingsStore
 
     public static string ChatAgent
     {
-        get => Current.ChatAgent is "codex" or "claudecode" ? Current.ChatAgent : "api";
+        get => McpAgentSelection.IsSubscriptionAgent(Current.ChatAgent) ? Current.ChatAgent : "api";
         set { lock (Gate) { Current.ChatAgent = value; Save(); } }
     }
 
@@ -216,9 +228,14 @@ public static class SettingsStore
     {
         lock (Gate)
         {
-            var codex = agent == "codex";
-            var model = codex ? Current.CodexModel : Current.ClaudeCodeModel;
-            var effort = codex ? Current.CodexEffort : Current.ClaudeCodeEffort;
+            var (model, effort) = agent switch
+            {
+                "codex" => (Current.CodexModel, Current.CodexEffort),
+                "claudecode" => (Current.ClaudeCodeModel, Current.ClaudeCodeEffort),
+                "qwen" => (Current.QwenModel, Current.QwenEffort),
+                "kimi" => (Current.KimiModel, Current.KimiEffort),
+                _ => throw new ArgumentException("Unknown MCP agent: " + agent)
+            };
             return new(agent, model ?? McpAgentSelection.MigrateOverride(agent, Current.McpModelOverride), effort);
         }
     }
@@ -227,8 +244,14 @@ public static class SettingsStore
     {
         lock (Gate)
         {
-            if (selection.Agent == "codex") { Current.CodexModel = selection.Model ?? ""; Current.CodexEffort = selection.Effort ?? ""; }
-            else { Current.ClaudeCodeModel = selection.Model ?? ""; Current.ClaudeCodeEffort = selection.Effort ?? ""; }
+            switch (selection.Agent)
+            {
+                case "codex": Current.CodexModel = selection.Model ?? ""; Current.CodexEffort = selection.Effort ?? ""; break;
+                case "claudecode": Current.ClaudeCodeModel = selection.Model ?? ""; Current.ClaudeCodeEffort = selection.Effort ?? ""; break;
+                case "qwen": Current.QwenModel = selection.Model ?? ""; Current.QwenEffort = selection.Effort ?? ""; break;
+                case "kimi": Current.KimiModel = selection.Model ?? ""; Current.KimiEffort = selection.Effort ?? ""; break;
+                default: throw new ArgumentException("Unknown MCP agent: " + selection.Agent);
+            }
             Save();
         }
     }
@@ -358,6 +381,8 @@ public static class SettingsStore
         public string McpToken { get; set; } = "";
         public string ClaudeCodeExe { get; set; } = "claude";
         public string CodexExe { get; set; } = "codex";
+        public string QwenExe { get; set; } = "qwen";
+        public string KimiExe { get; set; } = "kimi";
         public string McpModelOverride { get; set; } = "";
         public string ChatAgent { get; set; } = "api";
         public string ChatUiMode { get; set; } = "window";
@@ -365,6 +390,10 @@ public static class SettingsStore
         public string? CodexEffort { get; set; }
         public string? ClaudeCodeModel { get; set; }
         public string? ClaudeCodeEffort { get; set; }
+        public string? QwenModel { get; set; }
+        public string? QwenEffort { get; set; }
+        public string? KimiModel { get; set; }
+        public string? KimiEffort { get; set; }
         public int MaxToolRounds { get; set; } = 24;
         public List<string> DisabledToolGroups { get; set; } = new();
         public string UiLanguage { get; set; } = "";

@@ -29,6 +29,7 @@ internal static class Program
             Check(!bSchema.Contains("\"minimum\":1"), "Codex did not receive portable schemas");
             await CheckCompact(b, bSchema);
             await CheckAttachmentsAndUpdates(root, b);
+            await CheckSubscriptionReplay();
             McpSession.Select(b);
             var aProbe = await Rpc(a, 3, "tools/call", new { name = "probe", arguments = new { model = "claude-a" } });
             var bProbe = await Rpc(b, 3, "tools/call", new { name = "probe", arguments = new { model = "gpt-b" } });
@@ -58,12 +59,47 @@ internal static class Program
             if (OperatingSystem.IsWindows()) await CheckBridge(root);
             using (var deleted = await Send(a, null, method: HttpMethod.Delete)) Check(deleted.IsSuccessStatusCode, "Session DELETE failed");
             Check(McpSession.Find(a) == null && McpSession.Find(b) != null, "Deleting a session affected another client");
-            Console.WriteLine("MCP checks passed: two live HTTP clients, scoped attachment reading/live supplements, independent schemas/model reports/directives, cancellation, turn draining, late-call rejection, session DELETE and stdio bridge.");
+            Console.WriteLine("MCP checks passed: two live HTTP clients, subscription operation receipts across reconnects, scoped attachment reading/live supplements, independent schemas/model reports/directives, cancellation, turn draining, late-call rejection, session DELETE and stdio bridge.");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
         finally { McpServer.Stop(); Http.Dispose(); workspace.Dispose(); Directory.Delete(root, true); }
     }
+    private static async Task CheckSubscriptionReplay()
+    {
+        var channel = McpTurnChannel.Open(default, "subscription-document", compactTools: true);
+        channel.RequireOperationIds = true;
+        try
+        {
+            var first = await Initialize("Kimi Code CLI", channel.Id);
+            var second = await Initialize("Kimi Code CLI", channel.Id);
+            var tools = JsonNode.Parse(await Rpc(first, 80, "tools/list", channel: channel.Id))!["result"]!["tools"]!.AsArray();
+            Check(tools.All(t => t!["inputSchema"]!["required"]!.AsArray().Any(n => n!.GetValue<string>() == "operation_id")), "Subscription tool schemas lost operation IDs");
+            int before = ToolDispatcher.InvocationCount;
+            var missing = await Rpc(first, 81, "tools/call", new { name = "create_level", arguments = new { } }, channel.Id);
+            Check(missing.Contains("\"isError\":true") && ToolDispatcher.InvocationCount == before, "Missing operation ID admitted a tool");
+            ToolDispatcher.Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            ToolDispatcher.ReplayRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var request = new { name = "invoke_revit_tool", arguments = new { operation_id = "write-1", name = "gated_write", arguments = new { count = 3 } } };
+            var run = Rpc(first, 82, "tools/call", request, channel.Id);
+            await ToolDispatcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var replay = Rpc(second, 83, "tools/call", request, channel.Id);
+            ToolDispatcher.ReplayRelease.SetResult();
+            var results = await Task.WhenAll(run, replay);
+            Check(ToolDispatcher.InvocationCount == before + 1, "Reconnect replay executed a model operation twice");
+            Check(ToolText(results[0]).ToJsonString() == ToolText(results[1]).ToJsonString(), "Reconnect lost the original receipt");
+            Check(ToolText(results[0])["arguments"]!["operation_id"] == null, "Receipt ID leaked into native tool arguments");
+            var changed = await Rpc(second, 84, "tools/call", new { name = "invoke_revit_tool", arguments = new { operation_id = "write-1", name = "gated_write", arguments = new { count = 4 } } }, channel.Id);
+            Check(changed.Contains("\"isError\":true") && ToolDispatcher.InvocationCount == before + 1, "Changed arguments reused an admitted ID");
+            var discovery = ToolText(await Rpc(second, 85, "tools/call", new { name = "discover_revit_tools", arguments = new { operation_id = "read-1", query = "gated_write" } }, channel.Id));
+            Check(discovery["tools"]![0]!["inputSchema"]!["properties"]!["operation_id"] == null, "Native gateway schema incorrectly requires a nested operation ID");
+            await channel.CloseAsync();
+            using var late = await Send(null, RpcBody(86, "initialize", new { clientInfo = new { name = "Kimi Code CLI" } }), channel.Id);
+            Check(late.StatusCode == HttpStatusCode.NotFound, "A closed subscription turn was reinitialized");
+        }
+        finally { if (McpTurnChannel.Find(channel.Id) != null) await channel.CloseAsync(); }
+    }
+
     private static async Task CheckCompact(string external, string fullSchema)
     {
         var channel = McpTurnChannel.Open(default, "owned-document", compactTools: true);

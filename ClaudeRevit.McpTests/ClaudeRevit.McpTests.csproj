@@ -27,6 +27,7 @@
     <Compile Include="..\ClaudeRevit\Services\McpSession.cs" Link="McpSession.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpClientState.cs" Link="McpClientState.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpTurnChannel.cs" Link="McpTurnChannel.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpOperationReplay.cs" Link="McpOperationReplay.cs" />
     <Compile Include="..\ClaudeRevit\Services\ConversationWorkspace.cs" Link="ConversationWorkspace.cs" />
   </ItemGroup>
 </Project>

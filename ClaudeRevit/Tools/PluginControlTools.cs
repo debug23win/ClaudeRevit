@@ -8,12 +8,12 @@ namespace ClaudeRevit.Tools;
 public sealed class PluginSettings : IRevitTool
 {
     public string Name => "plugin_settings";
-    public string Description => "Read or update plugin settings (non-secret preferences only). action=get lists supported names and values; action=update takes a changes object; get_agent/set_agent read or save agent/model/effort independently for codex or claudecode. Never returns API keys or MCP tokens. Changes are blocked during a benchmark. ChatUiMode requires restarting Revit.";
+    public string Description => "Read or update plugin settings (non-secret preferences only). action=get lists supported names and values; action=update takes a changes object; get_agent/set_agent read or save agent/model/effort independently for codex, claudecode, qwen or kimi. Never returns API keys or MCP tokens. Changes are blocked during a benchmark. ChatUiMode requires restarting Revit.";
     public bool RequiresTransaction => false;
     public InputSchema InputSchema => new() { Properties = new Dictionary<string, JsonElement>
     {
         ["action"] = JsonSerializer.SerializeToElement(new { type = "string", @enum = new[] { "get", "update", "get_agent", "set_agent" } }),
-        ["agent"] = JsonSerializer.SerializeToElement(new { type = "string", @enum = new[] { "codex", "claudecode" } }),
+        ["agent"] = JsonSerializer.SerializeToElement(new { type = "string", @enum = new[] { "codex", "claudecode", "qwen", "kimi" } }),
         ["model"] = JsonSerializer.SerializeToElement(new { type = "string" }),
         ["effort"] = JsonSerializer.SerializeToElement(new { type = "string" }),
         ["changes"] = JsonSerializer.SerializeToElement(new { type = "object", description = "Setting name/value pairs. Call get first for supported names." })
@@ -25,7 +25,7 @@ public sealed class PluginSettings : IRevitTool
         if (action is "get_agent" or "set_agent")
         {
             var agent = ToolInput.RequiredString(input, "agent");
-            if (agent is not ("codex" or "claudecode")) throw new ArgumentException("Use codex or claudecode.");
+            if (!McpAgentSelection.IsSubscriptionAgent(agent)) throw new ArgumentException("Use codex, claudecode, qwen or kimi.");
             if (action == "get_agent") return JsonSerializer.Serialize(SettingsStore.GetAgentSelection(agent));
             if (BenchmarkRunner.IsRunning || BenchmarkControl.Pending) throw new InvalidOperationException("Wait until the benchmark stops before changing settings.");
             var model = input.ContainsKey("model") ? ToolInput.RequiredString(input, "model") : null;

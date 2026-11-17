@@ -77,6 +77,7 @@
        Works on dev machines AND on CI runners with no Revit install. -->
   <ItemGroup>
     <PackageReference Include="PdfPig" Version="0.1.16" />
+    <PackageReference Include="Tomlyn" Version="2.11.1" />
     <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).0.*" />
     <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitVersion).0.*" />
     <PackageReference Include="Anthropic" Version="12.53.0" />

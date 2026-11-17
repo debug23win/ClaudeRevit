@@ -195,6 +195,28 @@
             <TabItem x:Name="TabMcp" Header="Subscription (MCP)">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
                     <StackPanel>
+                        <TextBlock x:Name="SubscriptionHeader" FontWeight="SemiBold" Text="Qwen Code and Kimi Code subscriptions" />
+                        <TextBlock x:Name="SubscriptionNote" Margin="0,6,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <TextBlock x:Name="QwenExeLabel" Text="Qwen Code executable" Margin="0,12,0,0" FontWeight="SemiBold" />
+                        <TextBox x:Name="QwenExeBox" Tag="qwen" Height="26" Padding="4" Margin="0,4,0,0"
+                                 VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11" TextChanged="SubscriptionExe_TextChanged" />
+                        <TextBlock x:Name="QwenSubscriptionNote" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button x:Name="QwenLoginButton" Tag="qwen" Content="Sign in" Height="26" Padding="10,0" Click="SubscriptionLogin_Click" />
+                            <Button x:Name="QwenCheckButton" Tag="qwen" Content="Check subscription" Height="26" Padding="10,0" Margin="8,0,0,0" Click="SubscriptionCheck_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="QwenStatusText" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <TextBlock x:Name="KimiExeLabel" Text="Kimi Code executable" Margin="0,12,0,0" FontWeight="SemiBold" />
+                        <TextBox x:Name="KimiExeBox" Tag="kimi" Height="26" Padding="4" Margin="0,4,0,0"
+                                 VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11" TextChanged="SubscriptionExe_TextChanged" />
+                        <TextBlock x:Name="KimiSubscriptionNote" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button x:Name="KimiLoginButton" Tag="kimi" Content="Sign in" Height="26" Padding="10,0" Click="SubscriptionLogin_Click" />
+                            <Button x:Name="KimiCheckButton" Tag="kimi" Content="Check subscription" Height="26" Padding="10,0" Margin="8,0,0,0" Click="SubscriptionCheck_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="KimiStatusText" Margin="0,4,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <TextBlock x:Name="OtherSubscriptionsNote" Margin="0,14,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap" />
+                        <Separator Margin="0,16,0,12" />
                         <CheckBox x:Name="McpBox" FontWeight="SemiBold"
                                   Content="Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)" />
                         <TextBlock x:Name="McpNote" Margin="0,6,0,0" FontSize="11" Foreground="#B26A00" TextWrapping="Wrap"

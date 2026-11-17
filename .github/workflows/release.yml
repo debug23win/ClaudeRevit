@@ -49,6 +49,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "MCP transport checks failed" }
           dotnet run --project ClaudeRevit.CliTests -c Release
           if ($LASTEXITCODE -ne 0) { throw "Subscription CLI checks failed" }
+          dotnet run --project ClaudeRevit.SubscriptionTests -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw "Qwen/Kimi subscription checks failed" }
           dotnet run --project ClaudeRevit.ModPlusTests -c Release
           if ($LASTEXITCODE -ne 0) { throw "ModPlus adapter checks failed" }
 

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using ClaudeRevit.Services;
@@ -19,6 +21,8 @@ public partial class SettingsWindow : Window
     // itself); only a real user pick should.
     private bool _initializing = true;
     private bool _refreshingSessions;
+    private CancellationTokenSource? _subscriptionCheck;
+    private bool _closed;
 
     // Preset → (base URL, default model, typical context in K tokens; 0 = unknown).
     // The defaults are a starting point the user can overwrite — e.g. swap
@@ -67,12 +71,19 @@ public partial class SettingsWindow : Window
         McpPortBox.Text = SettingsStore.McpPort.ToString();
         ClaudeCodeExeBox.Text = SettingsStore.ClaudeCodeExe;
         CodexExeBox.Text = SettingsStore.CodexExe;
+        QwenExeBox.Text = SettingsStore.QwenExe;
+        KimiExeBox.Text = SettingsStore.KimiExe;
         CodexConfigBox.Text = CodexBackend.ConfigSnippet(McpServer.Url);
         McpModelOverrideBox.Text = SettingsStore.McpModelOverride;
         McpWhoText.Text = McpSession.Describe();
         RefreshMcpClients();
         McpSession.Changed += OnMcpClientsChanged;
-        Closed += (_, _) => McpSession.Changed -= OnMcpClientsChanged;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _subscriptionCheck?.Cancel();
+            McpSession.Changed -= OnMcpClientsChanged;
+        };
         UpdateMcpConfig();
         AltCompactToolsBox.IsChecked = SettingsStore.AltCompactTools;
 
@@ -196,7 +207,7 @@ public partial class SettingsWindow : Window
             "Optional. Enter your current credit balance from console.anthropic.com — the chat pane shows it minus the estimated local spend (the API has no balance endpoint). Re-entering a value resets the counter.",
             "Необязательно. Введите текущий баланс с console.anthropic.com — панель чата покажет его за вычетом оценки локального расхода (у API нет запроса баланса). Повторный ввод сбрасывает счётчик.");
 
-        AltHeader.Text = L("Alternative model (Gemini, ChatGPT, DeepSeek, Ollama…)", "Альтернативная модель (Gemini, ChatGPT, DeepSeek, Ollama…)");
+        AltHeader.Text = L("Alternative API / local model", "Альтернативный API / локальная модель");
         ProviderLabel.Text = L("Provider:", "Провайдер:");
         BaseUrlLabel.Text = L("Base URL:", "Base URL:");
         ModelLabel.Text = L("Model id:", "ID модели:");
@@ -215,12 +226,30 @@ public partial class SettingsWindow : Window
             "How many tool-call rounds Claude may take answering one message before it pauses and asks to continue. Default 24; raise it for long automated jobs. Range 1–200.",
             "Сколько раундов вызовов инструментов Claude может сделать на одно сообщение, прежде чем остановиться и спросить о продолжении. По умолчанию 24; поднимите для длинных автоматических задач. Диапазон 1–200.");
 
+        SubscriptionHeader.Text = L("Qwen Code and Kimi Code subscriptions", "Подписки Qwen Code и Kimi Code");
+        SubscriptionNote.Text = L(
+            "Install the official CLI, sign in below, then select the agent in the chat. Models are read from your signed-in account. Connection checks send no model prompt. No API key is required for these modes.",
+            "Установите официальный CLI, войдите кнопкой ниже и выберите агента в чате. Модели загружаются из вашей учётной записи. Проверка входа не отправляет запрос модели. API-ключ для этих режимов не требуется.");
+        QwenExeLabel.Text = L("Qwen Code executable", "Путь к Qwen Code");
+        QwenSubscriptionNote.Text = L(
+            "Install: npm install -g @qwen-code/qwen-code. In the login window use /auth → Qwen Account with Subscription (Plus/Pro). Only confirmed subscription models can run.",
+            "Установка: npm install -g @qwen-code/qwen-code. В окне входа: /auth → Qwen Account with Subscription (Plus/Pro). Доступны только модели с подтверждённой подписочной авторизацией.");
+        KimiExeLabel.Text = L("Kimi Code executable", "Путь к Kimi Code");
+        KimiSubscriptionNote.Text = L(
+            "Install: npm install -g @moonshot-ai/kimi-code. Sign in here with your Kimi membership. ClaudeRevit keeps a separate CLI profile; the older Python kimi-cli is not supported.",
+            "Установка: npm install -g @moonshot-ai/kimi-code. Войдите здесь с подпиской Kimi. ClaudeRevit использует отдельный профиль CLI; старый Python kimi-cli не поддерживается.");
+        QwenLoginButton.Content = KimiLoginButton.Content = L("Sign in", "Войти");
+        QwenCheckButton.Content = KimiCheckButton.Content = L("Check subscription", "Проверить подписку");
+        OtherSubscriptionsNote.Text = L(
+            "Perplexity: API usage is billed separately from Pro/Max; a subscription connector is not available here. DeepSeek: no supported subscription sign-in is available for this integration. These modes never fall back to paid APIs. The separate API settings are on the Models tab.",
+            "Perplexity: API оплачивается отдельно от Pro/Max; подключение по подписке здесь недоступно. DeepSeek: поддерживаемого подписочного входа для этой интеграции нет. Автоматического перехода на платные API нет. Отдельные настройки API находятся на вкладке «Модели».");
+
         McpBox.Content = L(
             "Experimental: MCP server (drive Revit from Claude Code / Desktop on your subscription)",
             "Эксперимент: MCP-сервер (рулить Revit из Claude Code / Desktop по подписке)");
         McpNote.Text = L(
-            "Exposes the Revit tools over a local MCP server so Claude Code / Claude Desktop — authenticated with your Claude Pro/Max subscription — can drive Revit, putting cost on the subscription instead of the pay-per-token API. In the pane, choose API, Claude Code · MCP or Codex · MCP. Security: the server listens only on 127.0.0.1 and requires the token below; anyone who has it can edit your model (and run C#). Paste the config below into Claude Code’s MCP settings. Non-Claude clients are supported too — the server detects them and emits a portable tool schema. For OpenAI models (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) note that MCP connections work only through the Responses API (v1/responses), not v1/chat/completions.",
-            "Выставляет инструменты Revit через локальный MCP-сервер, чтобы Claude Code / Claude Desktop (авторизованные вашей подпиской Pro/Max) могли рулить Revit — стоимость идёт на подписку, а не на потокенный API. В панели выбирайте API, Claude Code · MCP или Codex · MCP. Безопасность: сервер слушает только 127.0.0.1 и требует токен ниже; у кого он есть — тот может править вашу модель (и запускать C#, если включено выполнение кода). Вставьте конфиг ниже в настройки MCP в Claude Code. Клиенты не на Claude тоже поддерживаются — сервер их распознаёт и отдаёт переносимую схему инструментов. Для моделей OpenAI (GPT-5.6 Sol/Terra/Luna, GPT-6 Astra) учтите: MCP-подключения работают только через Responses API (v1/responses), а не через v1/chat/completions.");
+            "The pane configures a local MCP connection for Claude Code, Codex, Qwen Code or Kimi Code automatically. Select the agent in the chat after signing in. This server also accepts external MCP clients; the configuration below is for those clients. It listens only on 127.0.0.1 and requires the bearer token. Anyone with that token can use the enabled Revit tools.",
+            "Панель автоматически настраивает локальное MCP-подключение для Claude Code, Codex, Qwen Code и Kimi Code. После входа выберите агента в чате. Сервер также поддерживает внешние MCP-клиенты; конфигурация ниже предназначена для них. Сервер слушает только 127.0.0.1 и требует bearer-токен. Обладатель токена может использовать включённые инструменты Revit.");
         McpPortLabel.Text = L("Port:", "Порт:");
         McpWhoLabel.Text = L("Currently driving Revit", "Кто сейчас управляет Revit");
         McpWhoText.Text = McpSession.Describe(_lang == "ru");
@@ -340,19 +369,8 @@ public partial class SettingsWindow : Window
         var key = ApiKeyBox.Password.Trim();
         var altUrl = AltBaseUrlBox.Text.Trim();
         var altModel = AltModelBox.Text.Trim();
-        var altConfigured = altUrl.Length > 0 && altModel.Length > 0;
-
-        // The Anthropic key is not mandatory: an alternative provider alone is a valid
-        // setup (free/local models). But SOME backend must be usable.
-        if (key.Length == 0 && !altConfigured)
-        {
-            MessageBox.Show(this,
-                "Enter an Anthropic API key, or configure the alternative model " +
-                "(base URL + model id) below.",
-                "Claude Revit",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+        // A subscription-only user has no API key. Each selected backend validates its own
+        // credentials when used; saving UI/CLI preferences must not force API billing setup.
 
         if ((altUrl.Length > 0) != (altModel.Length > 0))
         {
@@ -415,8 +433,7 @@ public partial class SettingsWindow : Window
         }
 
         // The field is pre-filled with the stored key, so a blanked field is an explicit
-        // "remove my key from this machine" — honor it (validation above already
-        // guaranteed the alt provider covers the pane).
+        // "remove my key from this machine" — honor it. Subscription agents need no API key.
         if (key.Length > 0) ApiKeyStore.Save(key);
         else ApiKeyStore.Delete();
         ApiKeyStore.SaveAlt(AltKeyBox.Password.Trim());
@@ -446,6 +463,8 @@ public partial class SettingsWindow : Window
         SettingsStore.McpEnabled = McpBox.IsChecked == true;
         SettingsStore.ClaudeCodeExe = ClaudeCodeExeBox.Text?.Trim() ?? "";
         SettingsStore.CodexExe = CodexExeBox.Text?.Trim() ?? "";
+        SettingsStore.QwenExe = QwenExeBox.Text?.Trim() ?? "";
+        SettingsStore.KimiExe = KimiExeBox.Text?.Trim() ?? "";
         SettingsStore.McpModelOverride = McpModelOverrideBox.Text?.Trim() ?? "";
         try { McpServer.ApplyFromSettings(); } catch (Exception ex) { Log.Error("MCP apply failed", ex); }
         SettingsStore.AltCompactTools = AltCompactToolsBox.IsChecked == true;
@@ -460,6 +479,77 @@ public partial class SettingsWindow : Window
     private void HelpButton_Click(object sender, RoutedEventArgs e)
     {
         new HelpWindow { Owner = this }.ShowDialog();
+    }
+
+    private SubscriptionProviderOptions SubscriptionOptions(string agent)
+    {
+        var executable = (agent == "qwen" ? QwenExeBox.Text : KimiExeBox.Text).Trim();
+        return new(agent, executable.Length == 0 ? agent : executable, McpServer.ClientWorkDir());
+    }
+
+    private void SetSubscriptionControlsEnabled(bool enabled)
+    {
+        QwenLoginButton.IsEnabled = KimiLoginButton.IsEnabled = enabled;
+        QwenCheckButton.IsEnabled = KimiCheckButton.IsEnabled = enabled;
+    }
+
+    private void SubscriptionExe_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_initializing || _closed) return;
+        _subscriptionCheck?.Cancel();
+        _subscriptionCheck = null;
+        SetSubscriptionControlsEnabled(true);
+        if (sender is TextBox { Tag: "qwen" }) QwenStatusText.Text = "";
+        else KimiStatusText.Text = "";
+    }
+
+    private void SubscriptionLogin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string agent } || agent is not ("qwen" or "kimi")) return;
+        var status = agent == "qwen" ? QwenStatusText : KimiStatusText;
+        try
+        {
+            using var process = Process.Start(SubscriptionAcpBackend.CreateLoginStartInfo(SubscriptionOptions(agent)));
+            if (process == null) throw new InvalidOperationException("Could not start the official CLI.");
+            status.Text = agent == "qwen"
+                ? L("Complete /auth → Qwen Account with Subscription in the CLI, then click Check subscription.",
+                    "В CLI выполните /auth → Qwen Account with Subscription, затем нажмите «Проверить подписку».")
+                : L("Complete the Kimi login in the opened window, then click Check subscription.",
+                    "Завершите вход Kimi в открывшемся окне, затем нажмите «Проверить подписку».");
+        }
+        catch (Exception ex) { status.Text = ex.Message; }
+    }
+
+    private async void SubscriptionCheck_Click(object sender, RoutedEventArgs e)
+    {
+        if (_closed || _subscriptionCheck != null || sender is not Button { Tag: string agent } || agent is not ("qwen" or "kimi")) return;
+        using var check = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        _subscriptionCheck = check;
+        var status = agent == "qwen" ? QwenStatusText : KimiStatusText;
+        SetSubscriptionControlsEnabled(false);
+        status.Text = L("Checking subscription; no model request…", "Проверка подписки без запроса к модели…");
+        try
+        {
+            var result = await SubscriptionAcpBackend.CheckConnectionAsync(SubscriptionOptions(agent), check.Token);
+            if (!_closed && ReferenceEquals(_subscriptionCheck, check)) status.Text = result;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!_closed && ReferenceEquals(_subscriptionCheck, check))
+                status.Text = L("Check timed out. Finish signing in and try again.", "Время проверки истекло. Завершите вход и повторите.");
+        }
+        catch (Exception ex)
+        {
+            if (!_closed && ReferenceEquals(_subscriptionCheck, check)) status.Text = ex.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_subscriptionCheck, check))
+            {
+                _subscriptionCheck = null;
+                if (!_closed) SetSubscriptionControlsEnabled(true);
+            }
+        }
     }
 
     // Two halves of "change who is driving", and they work differently on purpose.

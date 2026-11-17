@@ -29,6 +29,18 @@ public class McpAgentSelectionTests
     public void CodexIsNotInterceptedByTheLegacySubscriptionToggle(string tag)
         => Assert.Equal("codex", McpAgentSelection.Resolve(tag, true, null)!.Agent);
 
+    [Theory]
+    [InlineData("qwen", "qwen")]
+    [InlineData("qwen:opaque-subscription-id", "qwen")]
+    [InlineData("kimi", "kimi")]
+    [InlineData("kimi:kimi-code/test", "kimi")]
+    public void NewAgentsAreNotInterceptedByTheLegacySubscriptionToggle(string tag, string agent)
+    {
+        Assert.Equal(agent, McpAgentSelection.Resolve(tag, true, null)!.Agent);
+        var explicitChoice = new McpAgentSelection(agent, "selected", "high");
+        Assert.Same(explicitChoice, McpAgentSelection.Resolve("auto", true, explicitChoice));
+    }
+
     [Fact]
     public void ExplicitPaneSelectionWinsOverLegacyModelAndSubscription()
     {
@@ -43,6 +55,10 @@ public class McpAgentSelectionTests
     [InlineData("claudecode", "gpt-test", null)]
     [InlineData("codex", "claude-opus-test", null)]
     [InlineData("claudecode", "claude-opus-test", "claude-opus-test")]
+    [InlineData("qwen", "gpt-test", null)]
+    [InlineData("qwen", "claude-opus-test", null)]
+    [InlineData("kimi", "gpt-test", null)]
+    [InlineData("kimi", "claude-opus-test", null)]
     public void OldSharedOverrideMigratesOnlyToItsAgent(string agent, string legacy, string? expected)
         => Assert.Equal(expected, McpAgentSelection.MigrateOverride(agent, legacy));
 

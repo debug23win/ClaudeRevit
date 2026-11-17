@@ -32,7 +32,10 @@ public partial class ChatPaneView : UserControl, IDisposable
         public int LoadingFiles;
         public readonly SemaphoreSlim FileGate = new(1, 1);
         public Dictionary<string,McpAgentSelection> Choices = new()
-        { ["codex"] = SettingsStore.GetAgentSelection("codex"), ["claudecode"] = SettingsStore.GetAgentSelection("claudecode") };
+        {
+            ["codex"] = SettingsStore.GetAgentSelection("codex"), ["claudecode"] = SettingsStore.GetAgentSelection("claudecode"),
+            ["qwen"] = SettingsStore.GetAgentSelection("qwen"), ["kimi"] = SettingsStore.GetAgentSelection("kimi")
+        };
     }
     private PaneSession _session = new();
     private readonly Dictionary<string,PaneSession> _sessions = new();
@@ -44,6 +47,8 @@ public partial class ChatPaneView : UserControl, IDisposable
     private bool _settingChoices;
     private bool _choicesReady;
     private bool _refreshingModels;
+    private CancellationTokenSource? _modelRefresh;
+    private readonly Dictionary<string, IReadOnlyList<SubscriptionModel>> _subscriptionModels = new();
     private IReadOnlyList<CodexModel> _codexModels = Array.Empty<CodexModel>();
     // Claude models for the API and Claude Code pickers: the built-in current generation until
     // the Models API answers (or when there is no API key), like Codex's catalog for Codex.
@@ -237,6 +242,7 @@ public partial class ChatPaneView : UserControl, IDisposable
     public void Dispose()
     {
         if (_disposed) return; _disposed = true;
+        CancelModelRefresh();
         DocumentSessions.Changed -= OnDocumentChanged; DocumentSessions.Closed -= OnDocumentClosed;
         UsageTracker.Updated -= UpdateUsageText; SelectionService.Changed -= OnSelectionChanged;
         Tools.ToolDispatcher.ProgressChanged -= OnToolProgress;
@@ -255,6 +261,7 @@ public partial class ChatPaneView : UserControl, IDisposable
             return;
         }
         CaptureTypedModel();
+        CancelModelRefresh();
         _session.Draft = InputBox.Text; _session.Status = StatusText.Text;
         _session.Agent = _selectedAgent; _session.Model = _selectedModel;
         if (_selectedAgent != "api") _session.Choices[_selectedAgent] = SettingsStore.GetAgentSelection(_selectedAgent);
@@ -289,6 +296,7 @@ public partial class ChatPaneView : UserControl, IDisposable
         InputBox.Text = session.Draft; StatusText.Text = session.Status;
         RefreshAttachments(); RefreshSendControls();
         SetAgentControlsEnabled(_cts == null);
+        if (NeedsModelRefresh()) _ = RefreshModelsAsync();
     }
 
     private void CopyLogButton_Click(object sender, RoutedEventArgs e)
@@ -450,6 +458,7 @@ public partial class ChatPaneView : UserControl, IDisposable
             UpdateAltModelLabel();
             UpdateAssistantLabel();
             _codexModels = Array.Empty<CodexModel>();
+            _subscriptionModels.Clear();
             // The API key may have changed, and with it the models the account can use.
             _claudeModelsLoaded = false;
             ApplyAgentChoices();
@@ -478,14 +487,29 @@ public partial class ChatPaneView : UserControl, IDisposable
     private async void AgentPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_choicesReady || _settingChoices || AgentPicker.SelectedItem is not ComboBoxItem item) return;
+        CancelModelRefresh();
         _selectedAgent = (string)item.Tag;
         SettingsStore.ChatAgent = _selectedAgent;
+        SetAgentControlsEnabled(_cts == null);
+        RefreshSendControls();
         ApplyAgentChoices();
         UpdateAssistantLabel();
         if (NeedsModelRefresh()) await RefreshModelsAsync();
     }
 
-    private bool NeedsModelRefresh() => _selectedAgent == "codex" ? _codexModels.Count == 0 : !_claudeModelsLoaded;
+    private bool NeedsModelRefresh() => _selectedAgent switch
+    {
+        "codex" => _codexModels.Count == 0,
+        "qwen" or "kimi" => !_subscriptionModels.ContainsKey(_selectedAgent),
+        _ => !_claudeModelsLoaded
+    };
+
+    private void CancelModelRefresh()
+    {
+        _modelRefresh?.Cancel();
+        _modelRefresh = null;
+        _refreshingModels = false;
+    }
 
     // Rebuild the API model list between the fixed "Auto" and "Alt" entries, and keep the
     // session's model selected even when the catalog no longer lists it (an older saved tag).
@@ -514,13 +538,19 @@ public partial class ChatPaneView : UserControl, IDisposable
     {
         if (!_choicesReady) return;
         _settingChoices = true;
+        QwenAgentItem.Content = L("Qwen Code · subscription", "Qwen Code · подписка");
+        KimiAgentItem.Content = L("Kimi Code · subscription", "Kimi Code · подписка");
         ModelPicker.Visibility = _selectedAgent == "api" ? Visibility.Visible : Visibility.Collapsed;
         McpChoices.Visibility = _selectedAgent == "api" ? Visibility.Collapsed : Visibility.Visible;
         RefreshModelsButton.Visibility = Visibility.Visible;
-        RefreshModelsButton.ToolTip = _selectedAgent == "codex"
-            ? L("Ask the Codex CLI for the models this account can use.", "Запросить у Codex CLI модели, доступные этой учётной записи.")
-            : L("Read the models this API key can use from Anthropic (GET /v1/models). Without a key the current built-in list is shown.",
-                "Получить от Anthropic модели, доступные этому API-ключу (GET /v1/models). Без ключа показывается встроенный список актуальных моделей.");
+        RefreshModelsButton.ToolTip = _selectedAgent switch
+        {
+            "qwen" or "kimi" => L("Read the signed-in account's subscription models. No model request is sent.",
+                "Получить модели подписки после входа в CLI. Запрос к модели не выполняется."),
+            "codex" => L("Ask the Codex CLI for the models this account can use.", "Запросить у Codex CLI модели, доступные этой учётной записи."),
+            _ => L("Read the models this API key can use from Anthropic (GET /v1/models). Without a key the current built-in list is shown.",
+                "Получить от Anthropic модели, доступные этому API-ключу (GET /v1/models). Без ключа показывается встроенный список актуальных моделей.")
+        };
         RefreshModelsButton.Content = L("Refresh models", "Обновить модели");
         McpModelPicker.ToolTip = L("Choose a model or type its full ID. Automatic uses the agent default.", "Выберите модель или введите её полный ID. «Автоматически» использует модель агента по умолчанию.");
         McpEffortPicker.ToolTip = L("Reasoning effort for this model.", "Глубина рассуждений для выбранной модели.");
@@ -529,9 +559,15 @@ public partial class ChatPaneView : UserControl, IDisposable
             var selection = SettingsStore.GetAgentSelection(_selectedAgent);
             var choices = new List<Choice> { new("", L("Automatic", "Автоматически")) };
             if (_selectedAgent == "codex") choices.AddRange(_codexModels.Select(m => new Choice(m.Id, m.Name)));
+            else if (_selectedAgent is "qwen" or "kimi")
+            {
+                if (_subscriptionModels.TryGetValue(_selectedAgent, out var models))
+                    choices.AddRange(models.Select(m => new Choice(m.Id, m.DisplayName)));
+            }
             else choices.AddRange(_claudeModels.Select(m => new Choice(ClaudeModels.ApiId(m.Tag), m.Name)));
             if (!string.IsNullOrEmpty(selection.Model) && !choices.Any(c => c.Id == selection.Model))
-                choices.Add(new(selection.Model, selection.Model));
+                choices.Add(new(selection.Model, selection.Model + (_selectedAgent is "qwen" or "kimi"
+                    ? L(" — verify subscription", " — проверить подписку") : "")));
             McpModelPicker.ItemsSource = choices;
             McpModelPicker.SelectedValue = selection.Model ?? "";
         }
@@ -548,7 +584,15 @@ public partial class ChatPaneView : UserControl, IDisposable
         var model = string.IsNullOrEmpty(selection.Model)
             ? _codexModels.FirstOrDefault(m => m.IsDefault) ?? _codexModels.FirstOrDefault()
             : _codexModels.FirstOrDefault(m => m.Id == selection.Model);
-        var levels = _selectedAgent == "codex" ? model?.Efforts ?? Array.Empty<string>()
+        IReadOnlyList<string> levels;
+        if (_selectedAgent is "qwen" or "kimi")
+        {
+            var models = _subscriptionModels.GetValueOrDefault(_selectedAgent) ?? Array.Empty<SubscriptionModel>();
+            var current = string.IsNullOrEmpty(selection.Model) ? models.FirstOrDefault(m => m.IsDefault)
+                : models.FirstOrDefault(m => m.Id == selection.Model);
+            levels = current?.Efforts ?? Array.Empty<string>();
+        }
+        else levels = _selectedAgent == "codex" ? model?.Efforts ?? Array.Empty<string>()
             : new[] { "low", "medium", "high", "xhigh", "max" };
         choices.AddRange(levels.Select(level => new Choice(level, level switch
         {
@@ -596,43 +640,73 @@ public partial class ChatPaneView : UserControl, IDisposable
 
     private async Task RefreshModelsAsync()
     {
-        if (_cts != null || _refreshingModels) return;
+        if (_disposed || _cts != null || _refreshingModels) return;
         CaptureTypedModel();
+        var agent = _selectedAgent;
+        var session = _session;
+        using var refresh = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        _modelRefresh = refresh;
+        bool Current() => !_disposed && ReferenceEquals(_modelRefresh, refresh) &&
+            ReferenceEquals(_session, session) && _selectedAgent == agent;
         _refreshingModels = true;
         SetAgentControlsEnabled(false);
         SendButton.IsEnabled = false;
         StatusText.Text = L("Loading models…", "Загрузка моделей…");
-        if (_selectedAgent != "codex")
+        try
         {
-            try
+            if (agent is "qwen" or "kimi")
             {
-                _claudeModels = await ClaudeModelCatalog.ReadAsync(CancellationToken.None, forceRefresh: true);
+                var options = new SubscriptionProviderOptions(agent,
+                    agent == "qwen" ? SettingsStore.QwenExe : SettingsStore.KimiExe, McpServer.ClientWorkDir());
+                var models = await SubscriptionAcpBackend.ReadModelsAsync(options, refresh.Token);
+                if (!Current()) return;
+                _subscriptionModels[agent] = models;
+                StatusText.Text = L($"{agent}: {models.Count} subscription models", $"{agent}: моделей по подписке — {models.Count}");
+            }
+            else if (agent == "codex")
+            {
+                var models = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), refresh.Token, forceRefresh: true);
+                if (!Current()) return;
+                _codexModels = models;
+                StatusText.Text = L($"Codex: {_codexModels.Count} models", $"Codex: {_codexModels.Count} моделей");
+            }
+            else
+            {
+                var models = await ClaudeModelCatalog.ReadAsync(refresh.Token, forceRefresh: true);
+                if (!Current()) return;
+                _claudeModels = models;
+                _claudeModelsLoaded = true;
+                PopulateApiModels();
                 StatusText.Text = ClaudeModelCatalog.LastWasLive
                     ? L($"Claude: {_claudeModels.Count} models", $"Claude: {_claudeModels.Count} моделей")
                     : L("Claude: current models (no API key to ask Anthropic)", "Claude: актуальные модели (нет API-ключа для запроса к Anthropic)");
             }
-            catch (Exception ex)
+            ApplyAgentChoices();
+        }
+        catch (OperationCanceledException)
+        {
+            if (Current()) StatusText.Text = L("Model check timed out. Try again after signing in.", "Проверка моделей превысила время ожидания. Повторите после входа.");
+        }
+        catch (Exception ex)
+        {
+            if (!Current()) return;
+            if (agent is "api" or "claudecode")
             {
                 _claudeModels = ClaudeModels.Current;
+                _claudeModelsLoaded = true;
+                PopulateApiModels(); ApplyAgentChoices();
                 StatusText.Text = L("Claude: could not load models, showing current ones — ", "Claude: не удалось загрузить модели, показаны актуальные — ") + ex.Message;
             }
-            finally
-            {
-                _claudeModelsLoaded = true;
-                PopulateApiModels();
-                ApplyAgentChoices();
-                _refreshingModels = false; SetAgentControlsEnabled(true); RefreshSendControls();
-            }
-            return;
+            else StatusText.Text = agent + ": " + ex.Message;
         }
-        try
+        finally
         {
-            _codexModels = await CodexModelCatalog.ReadAsync(SettingsStore.CodexExe, McpServer.ClientWorkDir(), CancellationToken.None, forceRefresh: true);
-            ApplyAgentChoices();
-            StatusText.Text = L($"Codex: {_codexModels.Count} models", $"Codex: {_codexModels.Count} моделей");
+            if (Current())
+            {
+                _modelRefresh = null;
+                _refreshingModels = false; SetAgentControlsEnabled(_cts == null); RefreshSendControls();
+            }
         }
-        catch (Exception ex) { StatusText.Text = "Codex: " + ex.Message; }
-        finally { _refreshingModels = false; SetAgentControlsEnabled(true); RefreshSendControls(); }
     }
 
     private void SetAgentControlsEnabled(bool enabled)
@@ -647,6 +721,8 @@ public partial class ChatPaneView : UserControl, IDisposable
         ChatMessage.AssistantLabel =
             _selectedAgent == "codex" ? "Codex"
             : _selectedAgent == "claudecode" ? "Claude Code"
+            : _selectedAgent == "qwen" ? "Qwen Code"
+            : _selectedAgent == "kimi" ? "Kimi Code"
             : _selectedModel == "alt" ? (SettingsStore.AltModel.Length > 0 ? SettingsStore.AltModel : "Assistant")
             : "Claude";
 

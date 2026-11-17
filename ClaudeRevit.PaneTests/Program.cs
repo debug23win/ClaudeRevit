@@ -9,6 +9,50 @@ using ClaudeRevit.UI;
 
 internal static class Program
 {
+    private static async Task CheckSubscriptionChoices(ChatPaneView pane)
+    {
+        var agents = (ComboBox)pane.FindName("AgentPicker");
+        var models = (ComboBox)pane.FindName("McpModelPicker");
+        var efforts = (ComboBox)pane.FindName("McpEffortPicker");
+        void Select(string id) => agents.SelectedItem = agents.Items.Cast<ComboBoxItem>().Single(item => (string)item.Tag == id);
+        Select("qwen");
+        models.SelectedValue = "qwen-test";
+        efforts.SelectedValue = "high";
+        Check(SettingsStore.GetAgentSelection("qwen") == new McpAgentSelection("qwen", "qwen-test", "high"), "Qwen selection was not saved");
+        Select("kimi");
+        models.SelectedValue = "kimi-code/test";
+        efforts.SelectedValue = "medium";
+        Check(SettingsStore.GetAgentSelection("kimi") == new McpAgentSelection("kimi", "kimi-code/test", "medium"), "Kimi selection was not saved");
+        Select("qwen");
+        Check((string)models.SelectedValue == "qwen-test" && (string)efforts.SelectedValue == "high", "Kimi overwrote Qwen choices");
+        Check(ChatMessage.AssistantLabel == "Qwen Code", "Qwen replies retained another provider's label");
+
+        var refresh = typeof(ChatPaneView).GetMethod("RefreshModelsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var delayed = new TaskCompletionSource<IReadOnlyList<SubscriptionModel>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        SubscriptionAcpBackend.Pending = delayed;
+        var oldRequest = (Task)refresh.Invoke(pane, null)!;
+        SubscriptionAcpBackend.Pending = null;
+        Check(!agents.IsEnabled, "Subscription catalog refresh did not disable choices");
+        DocumentHarness.Change("subscription-b", false);
+        Check((string)models.SelectedValue == "qwen-test" && (string)efforts.SelectedValue == "high", "New drawing lost subscription choices");
+        Select("kimi");
+        Check((string)models.SelectedValue == "kimi-code/test" && (string)efforts.SelectedValue == "medium", "Per-drawing provider choices were not carried forward");
+        var send = typeof(ChatPaneView).GetMethod("SendAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        ChatService.Pending = new();
+        ((TextBox)pane.FindName("InputBox")).Text = "Subscription route check";
+        var turn = (Task)send.Invoke(pane, null)!;
+        Check(ChatService.SentSelection?.Agent == "kimi", "Kimi message was sent through another provider");
+        delayed.SetResult(new[] { new SubscriptionModel("stale-qwen", "Stale catalog", true) });
+        await oldRequest;
+        Check(!agents.IsEnabled && (string)models.SelectedValue == "kimi-code/test", "Stale catalog changed a new drawing or enabled its busy controls");
+        ChatService.Pending.SetResult();
+        await turn;
+        ChatService.Pending = null;
+        DocumentHarness.Change("a", false);
+        Check((string)models.SelectedValue == "qwen-test" && (string)efforts.SelectedValue == "high", "Returning to drawing lost Qwen choices");
+        Select("api");
+    }
+
     private static async Task CheckStreamingMarkdown()
     {
         var target = new TextBlock(); MarkdownProps.SetMarkdown(target, "first");
@@ -38,6 +82,7 @@ internal static class Program
                 var pane = new ChatPaneView();
                 CheckRepeatedDocumentWrappers(pane);
                 DocumentHarness.Change("a", false);
+                await CheckSubscriptionChoices(pane);
                 var agent = (ComboBox)pane.FindName("AgentPicker");
                 var model = (ComboBox)pane.FindName("McpModelPicker");
                 var effort = (ComboBox)pane.FindName("McpEffortPicker");
@@ -175,7 +220,7 @@ internal static class Program
                     ChatService.Pending.SetResult(); await visualTurn; ChatService.Pending = null;
                 }
                 Directory.Delete(attachmentRoot, true);
-                Console.WriteLine("Pane checks passed: agent selection, multiple attachments, image decoding/resizing, live supplements, separate Stop, draft preservation, project isolation, independent runs and narrow layout.");
+                Console.WriteLine("Pane checks passed: subscription catalogs/choices/stale refresh, agent selection, multiple attachments, image decoding/resizing, live supplements, separate Stop, draft preservation, project isolation, independent runs and narrow layout.");
                 await CheckBenchmark(args.FirstOrDefault());
                 app.Shutdown(0);
             }

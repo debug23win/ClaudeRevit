@@ -105,6 +105,7 @@
     <Compile Include="..\ClaudeRevit\Services\McpClientState.cs" Link="src\McpClientState.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpSession.cs" Link="src\McpSession.cs" />
     <Compile Include="..\ClaudeRevit\Services\McpTurnChannel.cs" Link="src\McpTurnChannel.cs" />
+    <Compile Include="..\ClaudeRevit\Services\McpOperationReplay.cs" Link="src\McpOperationReplay.cs" />
     <Compile Include="..\ClaudeRevit\UI\ChatMessage.cs" Link="src\ChatMessage.cs" />
   </ItemGroup>
 

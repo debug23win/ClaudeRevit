@@ -8,16 +8,21 @@ namespace ClaudeRevit.Services;
 // share a model override, and legacy benchmark tags still resolve without a pane selection.
 public sealed record McpAgentSelection(string Agent, string? Model = null, string? Effort = null)
 {
+    public static bool IsSubscriptionAgent(string? agent) => agent is "codex" or "claudecode" or "qwen" or "kimi";
+
     public static McpAgentSelection? Resolve(string tag, bool subscription, McpAgentSelection? selection)
     {
         if (selection != null)
         {
-            if (selection.Agent is not ("codex" or "claudecode"))
+            if (!IsSubscriptionAgent(selection.Agent))
                 throw new ArgumentException("Unknown MCP agent: " + selection.Agent);
             return selection;
         }
         if (tag == "codex" || tag.StartsWith("codex:", StringComparison.Ordinal))
             return new("codex", tag.Length > 6 ? tag.Substring(6) : null);
+        foreach (var agent in new[] { "qwen", "kimi" })
+            if (tag == agent || tag.StartsWith(agent + ":", StringComparison.Ordinal))
+                return new(agent, tag.Length > agent.Length ? tag[(agent.Length + 1)..] : null);
         if (tag == "claudecode" || subscription)
             return new("claudecode");
         return null;
@@ -31,6 +36,9 @@ public sealed record McpAgentSelection(string Agent, string? Model = null, strin
 
     public static string? MigrateOverride(string agent, string? legacy)
     {
+        // The old shared field only belonged to Claude/Codex. Never apply a Claude model to a
+        // newly added provider, even when an old settings file still carries this override.
+        if (agent is not ("codex" or "claudecode")) return null;
         if (string.IsNullOrWhiteSpace(legacy)) return null;
         var model = legacy.Trim();
         var codex = model.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase) ||
