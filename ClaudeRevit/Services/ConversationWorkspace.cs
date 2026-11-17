@@ -14,6 +14,9 @@ public sealed class ConversationWorkspace : IDisposable
     public string HistoryPath => Path.Combine(DirectoryPath, "conversation.json");
     public string ClaudeSessionPath => Path.Combine(DirectoryPath, "claudecode-session.txt");
     public string CodexSessionPath => Path.Combine(DirectoryPath, "codex-session.txt");
+    public string SubscriptionSessionPath(string agent) => agent is "qwen" or "kimi"
+        ? Path.Combine(DirectoryPath, agent + "-session.txt")
+        : throw new ArgumentException("Unknown subscription agent.", nameof(agent));
     public string ClientDirectory => Path.Combine(DirectoryPath, "client");
 
     private ConversationWorkspace(string directory, FileStream lease)

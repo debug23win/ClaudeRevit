@@ -12,6 +12,8 @@ namespace ClaudeRevit.Services
         public static string UiLanguage => "ru";
         public static string AltModel => "";
         public static string CodexExe => "codex";
+        public static string QwenExe => "qwen";
+        public static string KimiExe => "kimi";
         public static bool AllowCodeExecution => true;
         private static readonly Dictionary<string, McpAgentSelection> Choices = new();
         public static McpAgentSelection GetAgentSelection(string agent) => Choices.TryGetValue(agent, out var selection) ? selection : new(agent);
@@ -59,6 +61,21 @@ namespace ClaudeRevit.Services
                 new CodexModel("gpt-test", "Test model", "medium", new[] { "low", "medium", "high" }, true),
                 new CodexModel("gpt-other", "Other model", "low", new[] { "low" }, false)
             });
+    }
+    public sealed record SubscriptionProviderOptions(string Agent, string Executable, string WorkingDirectory,
+        string? Model = null, string? Effort = null, string? McpUrl = null, string? McpToken = null,
+        IReadOnlyCollection<string>? AllowedTools = null);
+    public sealed record SubscriptionModel(string Id, string DisplayName, bool IsDefault, IReadOnlyList<string>? Efforts = null);
+    public static class SubscriptionAcpBackend
+    {
+        public static TaskCompletionSource<IReadOnlyList<SubscriptionModel>>? Pending;
+        public static Task<IReadOnlyList<SubscriptionModel>> ReadModelsAsync(SubscriptionProviderOptions options, CancellationToken ct)
+        {
+            if (Pending != null) return Pending.Task; // Intentionally ignores cancellation: stale-result guard must still work.
+            return Task.FromResult<IReadOnlyList<SubscriptionModel>>(options.Agent == "qwen"
+                ? new[] { new SubscriptionModel("qwen-test", "Qwen test subscription", true, new[] { "low", "high" }) }
+                : new[] { new SubscriptionModel("kimi-code/test", "Kimi test subscription", true, new[] { "medium", "high" }) });
+        }
     }
     public static class McpServer { public static string ClientWorkDir() => Environment.CurrentDirectory; }
     public sealed class ConversationWorkspace : IDisposable

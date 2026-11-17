@@ -293,6 +293,8 @@ public static class McpServer
         var sb = new StringBuilder(ExecutingChannel?.RulesInSystemPrompt == true
             ? "The rules for driving Revit are in your system prompt."
             : compact ? CompactInstructions : Instructions);
+        if (ExecutingChannel?.RequireOperationIds == true)
+            sb.Append("\n\n").Append(McpOperationReplay.Instructions);
         var memory = MemoryStore.Load();
         if (!string.IsNullOrWhiteSpace(memory))
             sb.Append("\n\nSAVED MEMORY — user preferences and project standards; apply them:\n")
@@ -378,7 +380,8 @@ public static class McpServer
             case "tools/list":
                 var compact = ExecutingChannel?.CompactTools == true;
                 return (new JsonObject { ["tools"] = BuildToolList(McpSession.Executing?.ClientName,
-                    compact ? CompactMcpTools.DirectNames : null, compact) }, null);
+                    compact ? CompactMcpTools.DirectNames : null, compact,
+                    operationIds: ExecutingChannel?.RequireOperationIds == true) }, null);
 
             case "tools/call":
                 return await CallTool(prms, ct, documentKey);
@@ -388,7 +391,7 @@ public static class McpServer
         }
     }
 
-    private static JsonArray BuildToolList(string? clientName, ISet<string>? names = null, bool discovery = false)
+    private static JsonArray BuildToolList(string? clientName, ISet<string>? names = null, bool discovery = false, bool operationIds = false)
     {
         var disabled = SettingsStore.DisabledToolGroups;
         var arr = new JsonArray();
@@ -433,13 +436,34 @@ public static class McpServer
                 description = "Run a native Revit tool by name using arguments from discover_revit_tools. Same document binding and cancellation as direct tool calls. Follows the code-execution switch in Settings (on by default).",
                 inputSchema = new { type = "object", properties = new { name = new { type = "string" }, arguments = new { type = "object", additionalProperties = true } }, required = new[] { "name", "arguments" } } }));
         }
+        if (operationIds)
+            foreach (var tool in arr.OfType<JsonObject>())
+            {
+                McpOperationReplay.AddSchema(tool["inputSchema"]!.AsObject());
+                tool["annotations"] = new JsonObject { ["idempotentHint"] = false };
+            }
         return arr;
     }
 
 
     private static async Task<(JsonNode? value, JsonObject? error)> CallTool(JsonNode? prms, CancellationToken ct, string documentKey)
     {
-        try { return await CallToolCore(prms, ct, documentKey); }
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (ExecutingChannel is { RequireOperationIds: true } channel)
+            {
+                if (prms is not JsonObject supplied || supplied["arguments"] is not JsonObject suppliedArguments)
+                    throw new ArgumentException("Subscription tool calls require an arguments object with operation_id.");
+                var operationId = suppliedArguments["operation_id"] is JsonValue id && id.TryGetValue<string>(out var text) ? text : null;
+                var clean = supplied.DeepClone().AsObject();
+                clean["arguments"]!.AsObject().Remove("operation_id");
+                // Request-level metadata can change during a reconnect; identity is the tool and its arguments.
+                var identity = new JsonObject { ["name"] = clean["name"]?.DeepClone(), ["arguments"] = clean["arguments"]!.DeepClone() };
+                return await channel.OperationReplay.ExecuteAsync(operationId, identity, () => CallToolCore(clean, ct, documentKey));
+            }
+            return await CallToolCore(prms, ct, documentKey);
+        }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return (ToolResult(Services.ToolResult.Failure("tool_error",ex.Message), true, attachUserUpdate: !ct.IsCancellationRequested), null); }
     }

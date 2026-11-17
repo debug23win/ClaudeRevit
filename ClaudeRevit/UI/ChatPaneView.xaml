@@ -40,6 +40,8 @@
                     <ComboBoxItem Tag="api">API</ComboBoxItem>
                     <ComboBoxItem Tag="claudecode">Claude Code · MCP</ComboBoxItem>
                     <ComboBoxItem Tag="codex">Codex · MCP</ComboBoxItem>
+                    <ComboBoxItem x:Name="QwenAgentItem" Tag="qwen">Qwen Code · subscription</ComboBoxItem>
+                    <ComboBoxItem x:Name="KimiAgentItem" Tag="kimi">Kimi Code · subscription</ComboBoxItem>
                 </ComboBox>
                 <ComboBox x:Name="ModelPicker"
                           Width="190" Height="24" VerticalContentAlignment="Center"

@@ -22,6 +22,9 @@ public class SessionIsolationTests : IDisposable
         Assert.NotEqual(a.HistoryPath, b.HistoryPath);
         Assert.NotEqual(a.CodexSessionPath, b.CodexSessionPath);
         Assert.NotEqual(a.ClaudeSessionPath, b.ClaudeSessionPath);
+        Assert.NotEqual(a.SubscriptionSessionPath("qwen"), b.SubscriptionSessionPath("qwen"));
+        Assert.NotEqual(a.SubscriptionSessionPath("kimi"), a.SubscriptionSessionPath("qwen"));
+        Assert.Throws<ArgumentException>(() => a.SubscriptionSessionPath("../other"));
         HistoryStore.Save(a, new[] { new ChatMessage { Role = "user", Text = "A" } }, new[] { new ApiTurn { Role = "user", Blocks = new() { new ChatTextBlock("A") } } });
         HistoryStore.Save(b, new[] { new ChatMessage { Role = "user", Text = "B" } }, new[] { new ApiTurn { Role = "user", Blocks = new() { new ChatTextBlock("B") } } });
         Assert.Equal("A", Assert.Single(HistoryStore.LoadUiMessages(a)).Text);
@@ -40,6 +43,8 @@ public class SessionIsolationTests : IDisposable
             historyPath = a.HistoryPath;
             HistoryStore.Save(a, new[] { new ChatMessage { Role = "assistant", Text = "saved", AssistantName = "Codex" } }, Array.Empty<ApiTurn>());
             ConversationWorkspace.AtomicWrite(a.CodexSessionPath, "session-a");
+            ConversationWorkspace.AtomicWrite(a.SubscriptionSessionPath("qwen"), "qwen-a");
+            ConversationWorkspace.AtomicWrite(a.SubscriptionSessionPath("kimi"), "kimi-a");
         }
         using var b = ConversationWorkspace.Acquire(_root, "b");
         Assert.Empty(HistoryStore.LoadUiMessages(b));
@@ -47,6 +52,8 @@ public class SessionIsolationTests : IDisposable
         Assert.Equal(historyPath, restored.HistoryPath);
         Assert.Equal("Codex", Assert.Single(HistoryStore.LoadUiMessages(restored)).AssistantName);
         Assert.Equal("session-a", File.ReadAllText(restored.CodexSessionPath));
+        Assert.Equal("qwen-a", File.ReadAllText(restored.SubscriptionSessionPath("qwen")));
+        Assert.Equal("kimi-a", File.ReadAllText(restored.SubscriptionSessionPath("kimi")));
     }
 
     [Fact]

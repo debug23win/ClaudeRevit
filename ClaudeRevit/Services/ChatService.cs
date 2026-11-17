@@ -282,6 +282,8 @@ public class ChatService
     // Same idea for the Codex path: without a session id every pane message would be a fresh
     // `codex exec`, so the assistant would forget the conversation between replies.
     private string? _codexSessionId;
+    private readonly Dictionary<string, string?> _subscriptionSessions = new(StringComparer.Ordinal)
+    { ["qwen"] = null, ["kimi"] = null };
 
     // Set by the chat pane: when true, the selected model runs through the Claude Code CLI on the
     // subscription (via --model) instead of the pay-per-token API. The advisor/auto-escalation does
@@ -296,8 +298,10 @@ public class ChatService
     {
         _claudeCodeSessionId = null;
         _codexSessionId = null;
+        _subscriptionSessions["qwen"] = _subscriptionSessions["kimi"] = null;
         PersistClaudeCodeSession();
         PersistCodexSession();
+        PersistSubscriptionSessions();
         Log.Info("CLI sessions reset: the next subscription/Codex message starts a new session.");
     }
 
@@ -322,12 +326,17 @@ public class ChatService
         if (_ephemeral || ReferenceEquals(_workspace, snapshot.Workspace)) return;
         _workspace = snapshot.Workspace;
         _documentKey = snapshot.DocumentKey;
-        if (preserveHistory) { PersistClaudeCodeSession(); PersistCodexSession(); return; }
+        if (preserveHistory) { PersistClaudeCodeSession(); PersistCodexSession(); PersistSubscriptionSessions(); return; }
         _history.Clear();
         _frozenSystemBlocks = null;
         _history.AddRange(HistoryStore.LoadApiHistory(_workspace));
         _claudeCodeSessionId = ReadSession(ClaudeCodeSessionFile);
         _codexSessionId = ReadSession(CodexSessionFile);
+        foreach (var agent in new[] { "qwen", "kimi" })
+        {
+            var saved = ReadSession(_workspace.SubscriptionSessionPath(agent));
+            _subscriptionSessions[agent] = string.IsNullOrWhiteSpace(saved) ? null : saved;
+        }
         _lastPromptTokens = _history.Sum(t => t.Blocks.Sum(b => b switch
         {
             ChatTextBlock x => (long)x.Text.Length,
@@ -380,6 +389,21 @@ public class ChatService
         catch { /* non-fatal */ }
     }
 
+    private void PersistSubscriptionSessions()
+    {
+        if (_ephemeral || _workspace == null) return;
+        foreach (var entry in _subscriptionSessions)
+        {
+            try
+            {
+                var path = _workspace.SubscriptionSessionPath(entry.Key);
+                if (string.IsNullOrWhiteSpace(entry.Value)) { if (File.Exists(path)) File.Delete(path); }
+                else ConversationWorkspace.AtomicWrite(path, entry.Value!);
+            }
+            catch (Exception ex) { Log.Error("Could not save subscription conversation identity", ex); }
+        }
+    }
+
     public void RecreateClient() => _client = null;
 
     public void ClearHistory()
@@ -401,6 +425,8 @@ public class ChatService
         PersistClaudeCodeSession();
         _codexSessionId = null;
         PersistCodexSession();
+        _subscriptionSessions["qwen"] = _subscriptionSessions["kimi"] = null;
+        PersistSubscriptionSessions();
         if (!_ephemeral) HistoryStore.Clear(_workspace!);
     }
 
@@ -685,6 +711,83 @@ public class ChatService
         }
     }
 
+    private async Task SendViaSubscriptionAsync(
+        ObservableCollection<ChatMessage> conversation, string prompt, Dispatcher ui, string documentKey,
+        McpAgentSelection selection, CancellationToken ct, string? imageBase64 = null, string? imageMime = null)
+    {
+        string name = selection.Agent == "qwen" ? "Qwen Code" : "Kimi Code";
+        if (!McpServer.IsRunning)
+        {
+            try { McpServer.Start(); }
+            catch (Exception ex) { throw new InvalidOperationException("Could not start the local MCP server for " + name + ". Check Settings → Subscription. " + ex.Message); }
+        }
+        if (!McpServer.IsRunning)
+            throw new InvalidOperationException("Could not start the local MCP server for " + name + ". " + McpServer.LastError);
+
+        OnStatus?.Invoke("reading Revit context…");
+        var contextWatch = System.Diagnostics.Stopwatch.StartNew();
+        var contextedPrompt = await BuildContextedPromptAsync(prompt, documentKey, ct);
+        Timings.ContextSeconds = contextWatch.Elapsed.TotalSeconds;
+        ChatMessage? bubble = null;
+        void Append(string piece)
+        {
+            if (string.IsNullOrEmpty(piece)) return;
+            ui.InvokeAsync(() =>
+            {
+                if (bubble == null) { bubble = new ChatMessage { Role = "assistant", AssistantName = _assistantName, Text = "" }; conversation.Add(bubble); }
+                bubble.Text += piece;
+            });
+        }
+
+        int toolCount = 0;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var channel = McpTurnChannel.Open(ct, documentKey, compactTools: true);
+        channel.RequireOperationIds = true;
+        channel.AttachmentScope = _attachmentScope;
+        channel.TakeUserUpdate = () => _updates.Take()?.Prompt;
+        channel.Progress = phase => OnStatus?.Invoke(phase);
+        var options = new SubscriptionProviderOptions(selection.Agent,
+            selection.Agent == "qwen" ? SettingsStore.QwenExe : SettingsStore.KimiExe,
+            ClientDirectory, selection.Model, selection.Effort, channel.Url(McpServer.Url), SettingsStore.McpToken,
+            ToolRegistry.Instance.All.Where(t => ToolPolicy.IsEnabled(t)).Select(t => t.Name)
+                .Concat(new[] { "discover_revit_tools", "invoke_revit_tool" }).ToArray());
+        var backend = new SubscriptionAcpBackend(options) { SessionId = _subscriptionSessions[selection.Agent] };
+        SubscriptionAcpBackend.Result? result = null;
+        try
+        {
+            OnStatus?.Invoke("connecting " + name + " · verifying subscription model…");
+            IReadOnlyList<SubscriptionImage>? images = string.IsNullOrEmpty(imageBase64) ? null
+                : new[] { new SubscriptionImage(imageMime ?? "image/png", imageBase64!) };
+            result = await backend.RunAsync(McpServer.DrivingRules + "\n\n" + McpOperationReplay.Instructions +
+                "\n\n" + contextedPrompt, Append,
+                _ => { toolCount++; OnRound?.Invoke(toolCount, toolCount); }, ct, images, status => OnStatus?.Invoke(status));
+            if (!result.Completed) throw new IOException(name + " did not finish the turn. The request was not repeated.");
+            if (SettingsStore.ShowTaskDiagnostics)
+                Append($"\n\n— {name} (subscription) · {result.Model ?? "CLI default"} · {toolCount} tool calls · {watch.Elapsed.TotalSeconds:0.0}s");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            LastRunError = ex.Message;
+            Append("\n\n⚠ " + ex.Message);
+        }
+        finally
+        {
+            // Keep the CLI identity even after cancellation/transport failure. A fresh session must
+            // never silently replay an uncertain modelling request or lose the conversation context.
+            _subscriptionSessions[selection.Agent] = backend.SessionId;
+            PersistSubscriptionSessions();
+            await channel.CloseAsync();
+            Timings.ModelAndToolsSeconds = watch.Elapsed.TotalSeconds;
+            Timings.ToolWaitSeconds = channel.ToolWaitSeconds;
+            Timings.QueueSeconds = channel.QueueSeconds;
+            Timings.RevitExecutionSeconds = channel.ExecutionSeconds;
+            // ACP context occupancy is not billable token usage. Do not invent token or cost totals.
+            LastTask = new TaskMetrics(selection.Agent + (result?.Model is { } model ? ":" + model : ""),
+                toolCount, 0, 0, 0, watch.Elapsed.TotalSeconds, UsageScope: "unreported (ACP)");
+        }
+    }
+
     // Everything about a turn except the UI updates runs OFF Revit's UI thread.
     //
     // It used to run on it: the pane called this from the dispatcher, so every SSE chunk parsed,
@@ -808,6 +911,8 @@ public class ChatService
                 }
                 await SendViaCodexAsync(conversation, userText, ui, documentKey, chosenModel, ct, agent.Effort, imageBase64, imageMime);
             }
+            else if (agent.Agent is "qwen" or "kimi")
+                await SendViaSubscriptionAsync(conversation, userText, ui, documentKey, agent with { Model = chosenModel }, ct, imageBase64, imageMime);
             else await SendViaClaudeCodeAsync(conversation, userText, ui, documentKey, chosenModel, ct, agent.Effort);
             return;
         }

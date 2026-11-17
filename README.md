@@ -24,9 +24,15 @@ coverage is not a complete unattended port. [Setup and limits](docs/modplus.md) 
 
 **Installer check:** Defender flagged v3.8.3 with intelligence `1.459.560.0`. After updating to `1.459.565.0`, the unchanged original EXE passed a new scan with its published SHA-256 verified. Update Defender and retry the official download if affected; no protection bypass is needed. [Evidence and release checks](docs/installer-security.md).
 
-MCP agents: choose **Claude Code · MCP** or **Codex · MCP**, then select a model
+MCP agents: choose **Claude Code · MCP**, **Codex · MCP**, **Qwen Code · subscription**
+or **Kimi Code · subscription**, then select a model
 and reasoning effort. Choices are saved independently. Codex reads its model
 catalog from the installed CLI. See [agent selection and setup](docs/openai-codex.md).
+
+Qwen/Kimi use official subscription login with independent model catalogs and
+conversations. Perplexity and DeepSeek subscription availability is explained in
+Settings; their separately billed APIs are not substituted for a subscription.
+See [subscription setup and provider availability](docs/subscription-providers.md).
 
 **v3.9.1:** `undo_last` rolls back the agent's whole last action with verified Undo steps; previews return a `plan_token` so an apply runs only on an unchanged model and reports planned vs actual changes; `survey_change_impact`; DWG → grids/columns/beams; IFC (Renga, Tekla, nanoCAD) → native elements; model snapshots and version comparison; pre-issue package check; СП 59 accessibility and СП 4.13130 fire-distance rules; an editable office rule file for the norm audit. [Guide](docs/norms-documentation-coordination.md) · [Release notes](docs/releases/v3.9.1.md).
 

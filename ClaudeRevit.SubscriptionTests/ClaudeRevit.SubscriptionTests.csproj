@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><LangVersion>latest</LangVersion>
+    <AssemblyName>subscription-fixture</AssemblyName><RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" Version="2.11.1" />
+    <Compile Include="../ClaudeRevit/Services/SubscriptionAcpBackend.cs" Link="SubscriptionAcpBackend.cs" />
+    <Compile Include="../ClaudeRevit/Services/SubscriptionProcess.cs" Link="SubscriptionProcess.cs" />
+    <Compile Include="../ClaudeRevit/Services/SubscriptionProviders.cs" Link="SubscriptionProviders.cs" />
+    <Compile Include="../ClaudeRevit/Services/SubscriptionLines.cs" Link="SubscriptionLines.cs" />
+  </ItemGroup>
+</Project>
